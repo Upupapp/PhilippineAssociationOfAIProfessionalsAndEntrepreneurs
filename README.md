@@ -1,13 +1,14 @@
 # Philippine Association of AI
 
-The **About** page for PAAIPE, the Philippine Association of AI Professionals
-and Entrepreneurs. It is a single static HTML page with no build step and no
+The **Home** page for PAAIPE, the Philippine Association of AI Professionals
+and Entrepreneurs. It was originally the About page; About became Home and the
+old Home tab was removed. It is a single static HTML page with no build step and no
 dependencies.
 
 ## Structure
 
 ```
-index.html                  the About page: all markup, CSS and JS in one file
+index.html                  the Home page: all markup, CSS and JS in one file
 assets/img/paaipe-logo.png  logo, used in the nav and footer
 assets/img/world-dots.png   dotted world map behind the hero and film sections
 assets/img/agents/          portraits for "The people behind PAAIPE"

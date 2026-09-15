@@ -1,0 +1,35 @@
+# Netlify config for paaipe.org.
+#
+# Static site: there is no build step, and the repo root is published as-is.
+# This matches what the live site already served before this file existed:
+# https://paaipe.org/ was byte-identical to index.html at 2d6c96f.
+#
+# Cost controls, owner's rule for every front-end repo (Netlify credits run out):
+#   1. no build command, so nothing runs on Netlify's billed build minutes
+#   2. deploy previews and branch deploys are suppressed; preview locally instead
+#   3. production builds skip ONLY for docs-only pushes; see scripts/netlify-ignore.sh
+#   4. HTML always revalidates, so a fix reaches visitors on the next request
+
+[build]
+  publish = "."
+  # exit 0 = SKIP the build, non-zero = BUILD. The script defaults to BUILD.
+  ignore = "sh scripts/netlify-ignore.sh"
+
+[context.deploy-preview]
+  ignore = "exit 0"
+
+[context.branch-deploy]
+  ignore = "exit 0"
+
+# Images keep Netlify's default caching (revalidate with an ETag). Their
+# filenames are not content-hashed, so marking them immutable would pin old
+# copies in visitors' browsers after an update.
+[[headers]]
+  for = "/"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

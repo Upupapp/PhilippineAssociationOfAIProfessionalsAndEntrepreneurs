@@ -9,10 +9,16 @@ dependencies.
 
 ```
 index.html                  the Home page: all markup, CSS and JS in one file
+member-benefits.html        Member Benefits page, reached from the Membership nav tab
 assets/img/paaipe-logo.png  logo, used in the nav and footer
-assets/img/world-dots.png   dotted world map behind the hero and film sections
-assets/img/agents/          portraits for "The people behind PAAIPE"
+assets/img/world-dots.png   dotted world map behind the hero, film and CTA sections
+assets/img/ai-exchange-session.jpg  still from the PAAIPE film, on the Member events card
+assets/img/agents/          member portraits, used on both pages
 ```
+
+Each page is self-contained, with its own CSS. The pages link to each other
+through the nav, the logo and the footer. Other nav items are still
+placeholders (`href="#"`).
 
 ## Run it locally
 
@@ -30,4 +36,17 @@ python3 -m http.server 8000   # then open http://localhost:8000
 
 ## Deployment
 
-Not deployed yet. This repo has no remote, CI or Netlify configuration.
+**A push to `main` deploys https://paaipe.org.** Netlify is linked to this
+repo and publishes the repo root with no build step. Configuration lives in
+[`netlify.toml`](netlify.toml):
+
+- Deploy previews and branch deploys are off. Preview locally with the command
+  above.
+- Production builds are skipped only when a push changes nothing but
+  `README.md` or `.gitignore` ([`scripts/netlify-ignore.sh`](scripts/netlify-ignore.sh)).
+  Anything else, or any doubt, builds.
+- HTML is served `max-age=0, must-revalidate`, so changes are visible on the
+  next request.
+
+Everything in the repo root is publicly reachable on the site, including this
+README.

@@ -61,4 +61,21 @@
       <div><div class="num">AGENT <span data-num>····</span></div><div class="name" data-name>YOUR NAME</div></div>
       <div class="foot"><span>PHILIPPINE ASSOCIATION OF AI PROFESSIONALS AND ENTREPRENEURS</span><span>SINCE 2026</span></div></div></div>
       <p class="fine">Building the Philippines' AI-Powered Future — Together. · paaipe.org</p></section>
-</div></body></html>
+</div><script>
+  /* The portal is for signed-in Agents. Without this guard the page was open to
+     anyone who typed the URL. The card shows the Agent number ONLY if PAAIPE has
+     assigned one - it is a label, not an auto-assigned id - and otherwise keeps
+     the ···· placeholder rather than inventing a number. */
+  (async()=>{
+    try{
+      const fb=await import('/assets/js/paaipe-firebase.js');
+      if(!fb.isConfigured())return;
+      const a=await fb.currentAgent();
+      if(!a){location.replace('signin.html');return}
+      document.querySelectorAll('[data-name]').forEach(e=>e.textContent=(a.full_name||a.email||'AGENT').toUpperCase());
+      if(a.agentNumber)document.querySelectorAll('[data-num]').forEach(e=>e.textContent=a.agentNumber);
+      const so=document.getElementById('signout');
+      if(so)so.addEventListener('click',async e=>{e.preventDefault();await fb.signOutNow();location.href='signin.html'});
+    }catch(ex){}
+  })();
+</script></body></html>

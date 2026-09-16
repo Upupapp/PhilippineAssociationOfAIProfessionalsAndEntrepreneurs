@@ -70,3 +70,119 @@ export async function submitRegistration(fields) {
   });
   return ref.id;
 }
+
+/* ---------------------------------------------------------------------------
+ * Authentication — PAAIPE Agents.
+ *
+ * NOTE ON AGENT NUMBERS (owner, 2026-09-16): "Agent numbering are labels, so
+ * far we only have 5 agents." They are ADMINISTRATIVE LABELS, not an
+ * auto-assigned identity, and only the five founding Agents have one. So a new
+ * sign-up is given NO number: nothing here invents one, and the rules forbid a
+ * client from setting `agentNumber` at all. The card shows `····` until somebody
+ * assigns a label. Showing a made-up number would be the exact defect this
+ * replaced — every new member was told they were Agent 0006.
+ *
+ * The Firebase project is shared with PostFlow and Auth is ONE user pool per
+ * project, so a PAAIPE Agent and a PostFlow user share it. Accepted by the
+ * owner, 2026-09-16. `paaipe_agents/{uid}` is what makes someone an AGENT; a
+ * bare Auth account is not enough.
+ * ------------------------------------------------------------------------- */
+
+async function auth() {
+  if (!isConfigured()) throw new Error("PAAIPE Firebase is not configured yet.");
+  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
+  const { getAuth } = await import(`${SDK}/firebase-auth.js`);
+  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
+  return getAuth(app);
+}
+
+/** Create an Agent account, verify the address, and store the profile. */
+export async function signUp({ full_name, email, password, updates }) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const a = await auth();
+  const cred = await A.createUserWithEmailAndPassword(a, email, password);
+  try { await A.updateProfile(cred.user, { displayName: full_name }); } catch {}
+  try { await A.sendEmailVerification(cred.user); } catch {}
+  // No agentNumber: it is a label, assigned by PAAIPE, never by the client.
+  await F.setDoc(F.doc(await db(), COLLECTIONS.agents, cred.user.uid), {
+    full_name, email, updates: Boolean(updates),
+    createdAt: F.serverTimestamp(), source: "paaipe.org",
+  });
+  return cred.user;
+}
+
+export async function signIn(email, password) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  return (await A.signInWithEmailAndPassword(await auth(), email, password)).user;
+}
+
+export async function signInWithGoogle() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const a = await auth();
+  const cred = await A.signInWithPopup(a, new A.GoogleAuthProvider());
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const ref = F.doc(await db(), COLLECTIONS.agents, cred.user.uid);
+  // First Google sign-in also creates the Agent profile. Again: no number.
+  if (!(await F.getDoc(ref)).exists()) {
+    await F.setDoc(ref, {
+      full_name: cred.user.displayName || "", email: cred.user.email || "",
+      updates: false, createdAt: F.serverTimestamp(), source: "paaipe.org/google",
+    });
+  }
+  return cred.user;
+}
+
+export async function resetPassword(email) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  return A.sendPasswordResetEmail(await auth(), email);
+}
+
+export async function signOutNow() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  return (await import(`${SDK}/firebase-auth.js`)).signOut(await auth());
+}
+
+/** Resolves with the signed-in Agent's profile, or null. Waits for Firebase to
+ *  restore any persisted session before answering — otherwise a guard would
+ *  bounce a signed-in member on every reload. */
+export async function currentAgent() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const a = await auth();
+  const user = await new Promise(res => {
+    const un = A.onAuthStateChanged(a, u => { un(); res(u); });
+  });
+  if (!user) return null;
+  let profile = {};
+  try {
+    const F = await import(`${SDK}/firebase-firestore.js`);
+    const s = await F.getDoc(F.doc(await db(), COLLECTIONS.agents, user.uid));
+    if (s.exists()) profile = s.data();
+  } catch {}
+  return {
+    uid: user.uid,
+    email: user.email || profile.email || "",
+    full_name: profile.full_name || user.displayName || "",
+    emailVerified: user.emailVerified,
+    // null, never invented. The UI must render a placeholder, not a number.
+    agentNumber: profile.agentNumber ?? null,
+  };
+}
+
+/** Firebase error codes are not for humans. */
+export function friendlyAuthError(e) {
+  const c = (e && e.code) || "";
+  return {
+    "auth/email-already-in-use": "That email already has a PAAIPE account. Try signing in instead.",
+    "auth/invalid-email":        "That email address does not look right.",
+    "auth/weak-password":        "Please choose a password of at least 8 characters.",
+    "auth/invalid-credential":   "That email and password do not match.",
+    "auth/wrong-password":       "That email and password do not match.",
+    "auth/user-not-found":       "That email and password do not match.",
+    "auth/too-many-requests":    "Too many attempts. Please wait a few minutes and try again.",
+    "auth/network-request-failed":"Network problem. Please check your connection and try again.",
+    "auth/popup-closed-by-user": "The Google window was closed before sign-in finished.",
+    "auth/popup-blocked":        "Your browser blocked the Google pop-up. Allow pop-ups and try again.",
+    "auth/operation-not-allowed":"That sign-in method is not enabled for PAAIPE yet.",
+  }[c] || "Something went wrong. Please try again.";
+}

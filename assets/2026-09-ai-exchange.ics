@@ -1,0 +1,15 @@
+BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//PAAIPE//Events//EN
+CALSCALE:GREGORIAN
+X-WR-CALNAME:PAAIPE AI Exchange
+BEGIN:VEVENT
+UID:2026-09-ai-exchange@paaipe.org
+DTSTAMP:20260916T040000Z
+DTSTART:20260915T120000Z
+DTEND:20260915T133000Z
+SUMMARY:PAAIPE AI Exchange — September 2026
+DESCRIPTION:From Signals to Strategy: Using AI to Turn Data into Real Insight — Online. Join link is sent to registered participants by email.
+LOCATION:Online
+END:VEVENT
+END:VCALENDAR

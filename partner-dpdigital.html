@@ -69,7 +69,13 @@
   footer .col a{font-size:14.5px;color:var(--ink)}footer .col a:hover{color:var(--royal)}footer .bottom{margin-top:44px;padding-top:22px;border-top:1px solid #e6eef9;color:var(--muted);font-size:13px}
   /* detail page */
   .cover{padding-top:34px}.cover img{width:100%;height:400px;object-fit:cover;object-position:center 55%;border-radius:var(--radius);border:1px solid var(--line)}
-  .profile{display:flex;gap:26px;align-items:flex-end;margin-top:-64px;position:relative;padding:0 28px;flex-wrap:wrap}
+  .profile{display:flex;gap:26px;align-items:flex-end;margin-top:0;position:relative;padding:0 28px;flex-wrap:wrap}
+  /* The whole row used to be pulled up 64px, which dragged the partner NAME and
+     its pill onto the banner (measured: name 18px over, pill 64px over). Only the
+     logo plate should overlap. It is lifted visually with position/top so the text
+     column starts cleanly below the banner; the negative margin-bottom keeps the
+     row as tight as it was. */
+  .plate{align-self:flex-start;position:relative;top:-56px}
   .plate{width:150px;height:150px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px rgba(6,33,102,.14);display:grid;place-items:center;padding:18px;flex:none}
   .plate img{max-height:90px;width:auto;max-width:112px}
   .pinfo{flex:1;min-width:280px;padding-bottom:6px}.pinfo h1{font-size:clamp(30px,3.6vw,44px)}.pinfo .pitch{color:var(--muted);font-size:17px;margin-top:8px}

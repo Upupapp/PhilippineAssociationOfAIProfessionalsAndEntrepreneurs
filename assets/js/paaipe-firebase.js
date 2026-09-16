@@ -14,12 +14,13 @@
  * so the rules can be scoped without touching PostFlow's.
  */
 export const firebaseConfig = {
-  apiKey:            "",                     // <- paste
-  authDomain:        "",                     // <- paste (e.g. postflowit-autos.firebaseapp.com)
+  apiKey:            "AIzaSyCeZ6CcSV79l9TPNK6UL0SV5d5b8EU11n8",
+  authDomain:        "postflowit-autos.firebaseapp.com",
   projectId:         "postflowit-autos",
-  storageBucket:     "",                     // <- paste
+  storageBucket:     "postflowit-autos.firebasestorage.app",
   messagingSenderId: "558511325456",
-  appId:             "",                     // <- paste the PAAIPE web app id
+  // "PAAIPE web" — NOT PostFlow web (…9550cdfa273af2368c6595).
+  appId:             "1:558511325456:web:6f8f383eb10116db8c6595",
 };
 
 export const COLLECTIONS = {

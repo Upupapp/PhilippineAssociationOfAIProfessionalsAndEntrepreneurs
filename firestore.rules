@@ -4,10 +4,18 @@ rules_version = '2';
 // (postflowit-autos).
 //
 // READ THIS BEFORE DEPLOYING.
-// Firestore has ONE ruleset per database. This file governs PostFlow's data as
-// well as PAAIPE's. Deploying it REPLACES whatever is live, so merge PostFlow's
-// existing rules into the marked section first — do not deploy this file on its
-// own or you will drop PostFlow's protection.
+// Firestore has ONE ruleset per database, so this file would govern PostFlow's
+// data as well as PAAIPE's.
+//
+// MEASURED 2026-09-16: Firestore has NEVER been enabled on this project (the
+// API returns 403 "has not been used in project postflowit-autos before"), and
+// there are no Realtime Database instances either. PostFlow therefore has no
+// database here and NO existing Firestore rules. This file can be deployed as
+// the first ruleset without dropping anyone's protection.
+//
+// If that ever stops being true — if PostFlow starts using Firestore — merge
+// its rules into the marked section BEFORE deploying this, or you will replace
+// them. Re-check with: firebase firestore:databases:list --project postflowit-autos
 //
 // Every PAAIPE collection is prefixed `paaipe_` so the two products' rules never
 // overlap. The default at the bottom denies everything not explicitly allowed.
@@ -16,7 +24,8 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ---------------------------------------------------------------
-    // PASTE POSTFLOW'S EXISTING RULES HERE, UNCHANGED.
+    // PostFlow has no Firestore data as of 2026-09-16, so there is nothing to
+    // merge. If that changes, its rules go here, unchanged, before deploying.
     // ---------------------------------------------------------------
 
     // --- PAAIPE: event registrations ------------------------------

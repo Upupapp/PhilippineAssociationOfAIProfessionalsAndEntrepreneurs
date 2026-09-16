@@ -196,7 +196,7 @@ async function saveSponsor(id) {
 }
 
 async function loadSponsors() {
-  SPONSORS = EVENT_ID ? await listEventSponsors(EVENT_ID) : [];
+  SPONSORS = EVENT_ID ? await listEventSponsors(EVENT_ID, { asAdmin: true }) : [];
   renderSponsorAdmin();
 }
 
@@ -222,7 +222,7 @@ async function loadSponsors() {
   });
 
   try {
-    [ORGS, EVENTS] = await Promise.all([listOrganizations(), listEvents()]);
+    [ORGS, EVENTS] = await Promise.all([listOrganizations(), listEvents({ asAdmin: true })]);
   } catch (ex) {
     flash(`Could not load: ${ex?.message || ex}`);
     document.documentElement.setAttribute("data-admin-orgs", "error");

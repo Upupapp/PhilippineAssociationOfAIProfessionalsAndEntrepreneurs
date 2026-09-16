@@ -58,18 +58,49 @@ const toDate = v =>
 
 /* ------------------------------------------------------------------- reads */
 
-export async function listEvents() {
+/* FIRESTORE RULES DO NOT FILTER A LIST. THEY ALLOW OR DENY THE WHOLE QUERY.
+ *
+ * This cost a bug, and it is worth writing down. The rule on events is
+ * conditional - readable unless it is a draft - so Firestore cannot prove an
+ * UNCONSTRAINED list is allowed and refuses the entire request with
+ * permission-denied. It does not quietly hand back the readable subset.
+ *
+ * The fix is to ask a question the rule can answer: constrain the query by the
+ * same field the rule tests. Then the query provably matches only readable
+ * documents and it is allowed.
+ *
+ * Verified against the live database: an unconstrained list of events or
+ * sponsorships returns 403 to a visitor; the constrained one returns exactly the
+ * rows they may see. A stubbed test cannot catch this - only a real query
+ * against real rules can.
+ */
+const PUBLIC_EVENT_STATUSES = [
+  EVENT_STATUS.PUBLISHED, EVENT_STATUS.REGISTRATION_OPEN,
+  EVENT_STATUS.REGISTRATION_CLOSED, EVENT_STATUS.HELD, EVENT_STATUS.CANCELLED,
+];
+const PUBLIC_SPONSOR_STATUSES = ["confirmed", "delivered"];
+
+/** @param asAdmin pass true only from the admin console, where drafts must show.
+ *  An ordinary visitor must NOT ask for them: the request would be refused
+ *  outright and they would see nothing at all rather than the published ones. */
+export async function listEvents({ asAdmin = false } = {}) {
   const F = await import(`${SDK}/firebase-firestore.js`);
-  const snap = await F.getDocs(F.collection(await db(), COL.events));
+  const col = F.collection(await db(), COL.events);
+  const snap = await F.getDocs(asAdmin ? col
+    : F.query(col, F.where("status", "in", PUBLIC_EVENT_STATUSES)));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
 }
 
 /** One event by its slug. Returns null when there is none the caller may read -
  *  which is also what a draft looks like from outside, deliberately. */
-export async function getEventBySlug(slug) {
+export async function getEventBySlug(slug, { asAdmin = false } = {}) {
   const F = await import(`${SDK}/firebase-firestore.js`);
-  const q = F.query(F.collection(await db(), COL.events), F.where("slug", "==", String(slug || "")));
+  const col = F.collection(await db(), COL.events);
+  const q = asAdmin
+    ? F.query(col, F.where("slug", "==", String(slug || "")))
+    : F.query(col, F.where("slug", "==", String(slug || "")),
+                   F.where("status", "in", PUBLIC_EVENT_STATUSES));
   const snap = await F.getDocs(q);
   const d = snap.docs[0];
   return d ? { id: d.id, ...d.data() } : null;
@@ -92,9 +123,15 @@ export async function listOrganizations() {
  *  has to know the join. Rules already hide anything not confirmed from the
  *  public, so a visitor simply receives fewer rows - not a filtered list they
  *  could unfilter. */
-export async function listEventSponsors(eventId) {
+export async function listEventSponsors(eventId, { asAdmin = false } = {}) {
   const F = await import(`${SDK}/firebase-firestore.js`);
-  const q = F.query(F.collection(await db(), COL.sponsors), F.where("eventId", "==", eventId));
+  const col = F.collection(await db(), COL.sponsors);
+  // Same trap as events: without the status constraint the whole query is
+  // refused, and the page shows NO sponsors rather than the confirmed ones.
+  const q = asAdmin
+    ? F.query(col, F.where("eventId", "==", eventId))
+    : F.query(col, F.where("eventId", "==", eventId),
+                   F.where("status", "in", PUBLIC_SPONSOR_STATUSES));
   const rows = (await F.getDocs(q)).docs.map(d => ({ id: d.id, ...d.data() }));
   if (!rows.length) return [];
   const orgs = new Map((await listOrganizations()).map(o => [o.id, o]));

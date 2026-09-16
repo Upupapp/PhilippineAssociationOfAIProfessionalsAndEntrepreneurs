@@ -72,8 +72,8 @@
       <span class="time"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Takes about 2 minutes · 3 short steps</span>
     </div>
 
-    <form class="form" id="reg" name="ai-exchange-registration" method="POST" action="register-success.html" data-netlify="true" netlify-honeypot="website" novalidate>
-      <input type="hidden" name="event" value="PAAIPE AI Exchange — October 2026"><input type="hidden" name="form-name" value="ai-exchange-registration"><p style="display:none"><label>Website <input name="website"></label></p>
+    <form class="form" id="reg" name="ai-exchange-registration" novalidate>
+      <input type="hidden" name="event" value="PAAIPE AI Exchange — October 2026"><p style="display:none"><label>Website <input name="website"></label></p>
       <div class="progress"><div class="bar"><i id="bar"></i></div>
         <div class="stepsrow"><span class="on" data-s="1"><b>1</b>About you</span><span data-s="2"><b>2</b>Your work &amp; AI</span><span data-s="3"><b>3</b>Confirm</span></div></div>
 
@@ -110,7 +110,7 @@
           <div class="f full"><label class="check"><input type="checkbox" name="consent" value="yes" required><span>I agree to receive Zoom access details, reminders, and essential communications related to this PAAIPE AI Exchange event.</span></label><span class="err">We need your consent to send the Zoom details.</span></div>
         </div>
         <div class="nudge"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg><span><b>You are one step away from joining the PAAIPE AI Exchange.</b> Please review your email address before submitting. After registration, watch your inbox for your confirmation, Zoom access details, and event reminders.</span></div>
-        <div class="actions"><button class="btn btn-ghost" type="button" data-prev>Back</button><button class="btn btn-gold" type="submit">Complete free registration</button></div>
+        <p class="err" id="submit-error" role="alert" style="display:none;margin-bottom:10px"></p><div class="actions"><button class="btn btn-ghost" type="button" data-prev>Back</button><button class="btn btn-gold" type="submit">Complete free registration</button></div>
       </section>
     </form>
     <p class="trust" style="margin-top:14px"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><span>Your details are used to run this event and for the PAAIPE updates you opt into. Nothing is shared with partners without your say-so.</span></p>
@@ -132,6 +132,34 @@
   form.querySelectorAll('[data-prev]').forEach(b=>b.addEventListener('click',()=>show(cur-1)));
   form.querySelectorAll('.opt input').forEach(r=>r.addEventListener('change',()=>{form.querySelectorAll(`.opt input[name="${r.name}"]`).forEach(x=>x.closest('.opt').classList.toggle('picked',x.checked))}));
   form.querySelectorAll('input,select').forEach(i=>i.addEventListener('input',()=>i.closest('.f')&&i.closest('.f').classList.remove('invalid')));
-  form.addEventListener('submit',e=>{if(!validate(3)){e.preventDefault();return}form.querySelector('[type=submit]').textContent='Registering…'});
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    if(!validate(3))return;
+    const btn=form.querySelector('[type=submit]'),label=btn.textContent,err=document.getElementById('submit-error');
+    err.style.display='none';
+    // Honeypot: a bot filled the hidden field. Behave as if it worked, store nothing.
+    if((form.querySelector('[name=website]').value||'').trim()!==''){location.href='register-success.html';return}
+    btn.disabled=true;btn.textContent='Registering…';
+    try{
+      const fb=await import('/assets/js/paaipe-firebase.js');
+      if(!fb.isConfigured())throw new Error('not-configured');
+      const d=new FormData(form),g=k=>(d.get(k)||'').toString().trim();
+      await fb.submitRegistration({
+        event:g('event'),full_name:g('full_name'),email:g('email'),
+        position:g('position'),organization:g('organization'),
+        profile:g('profile'),profile_other:g('profile_other'),
+        learn:g('learn'),speaker_question:g('speaker_question'),source:g('source'),
+        updates:d.get('updates')==='yes',consent:d.get('consent')==='yes'
+      });
+      location.href='register-success.html';
+    }catch(ex){
+      btn.disabled=false;btn.textContent=label;
+      err.textContent=(ex&&ex.message==='not-configured')
+        ? 'Registration is not connected yet. Nothing was saved - please email PAAIPE to register for now.'
+        : 'Sorry, we could not save your registration. Nothing was saved. Please check your connection and try again.';
+      err.style.display='block';
+      err.scrollIntoView({behavior:'smooth',block:'center'});
+    }
+  });
   form.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName!=='TEXTAREA'&&cur<3){e.preventDefault();if(validate(cur))show(cur+1)}});
 </script></body></html>

@@ -1,0 +1,82 @@
+rules_version = '2';
+
+// PAAIPE rules for the SHARED Firebase project "PAAIPE and POSTFLOW"
+// (postflowit-autos).
+//
+// READ THIS BEFORE DEPLOYING.
+// Firestore has ONE ruleset per database. This file governs PostFlow's data as
+// well as PAAIPE's. Deploying it REPLACES whatever is live, so merge PostFlow's
+// existing rules into the marked section first — do not deploy this file on its
+// own or you will drop PostFlow's protection.
+//
+// Every PAAIPE collection is prefixed `paaipe_` so the two products' rules never
+// overlap. The default at the bottom denies everything not explicitly allowed.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------------------------------------------------------------
+    // PASTE POSTFLOW'S EXISTING RULES HERE, UNCHANGED.
+    // ---------------------------------------------------------------
+
+    // --- PAAIPE: event registrations ------------------------------
+    // Anyone may create one. Nobody may read, edit or delete from a client:
+    // these are other people's personal data (RA 10173). Read them in the
+    // console or from a server using the Admin SDK, which bypasses rules.
+    match /paaipe_event_registrations/{id} {
+      allow create: if isWellFormedRegistration(request.resource.data);
+      allow read, update, delete: if false;
+    }
+
+    function isWellFormedRegistration(d) {
+      return d.keys().hasAll(['event','full_name','email','consent','createdAt'])
+          && d.keys().size() <= 20
+          // consent is REQUIRED and must be a real boolean true, not "yes"
+          && d.consent == true
+          && d.event is string      && d.event.size()      > 0   && d.event.size()      <= 120
+          && d.full_name is string  && d.full_name.size()  > 0   && d.full_name.size()  <= 120
+          && d.email is string      && d.email.size()      > 4   && d.email.size()      <= 254
+          && d.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+          && (!('position' in d.keys())         || (d.position is string         && d.position.size()         <= 160))
+          && (!('organization' in d.keys())     || (d.organization is string     && d.organization.size()     <= 160))
+          && (!('profile' in d.keys())          || (d.profile is string          && d.profile.size()          <= 60))
+          && (!('profile_other' in d.keys())    || (d.profile_other is string    && d.profile_other.size()    <= 160))
+          && (!('learn' in d.keys())            || (d.learn is string            && d.learn.size()            <= 2000))
+          && (!('speaker_question' in d.keys()) || (d.speaker_question is string && d.speaker_question.size() <= 2000))
+          && (!('source' in d.keys())           || (d.source is string           && d.source.size()           <= 120))
+          && (!('updates' in d.keys())          || d.updates is bool)
+          && (!('userAgent' in d.keys())        || (d.userAgent is string        && d.userAgent.size()        <= 300))
+          && (!('source_site' in d.keys())      || (d.source_site is string      && d.source_site.size()      <= 60))
+          && d.createdAt == request.time;   // server timestamp only; no backdating
+    }
+
+    // --- PAAIPE: Agent profiles -----------------------------------
+    // An Agent may read and create only their OWN profile, and may never set or
+    // change agentNumber — that is assigned by a trusted server (Cloud Function
+    // or the Linode API) using the Admin SDK. A client-assigned number would
+    // collide and could be forged.
+    match /paaipe_agents/{uid} {
+      allow read:   if request.auth != null && request.auth.uid == uid;
+      allow create: if request.auth != null && request.auth.uid == uid
+                    && !('agentNumber' in request.resource.data.keys())
+                    && request.resource.data.email is string
+                    && request.resource.data.full_name is string
+                    && request.resource.data.full_name.size() <= 120;
+      allow update: if request.auth != null && request.auth.uid == uid
+                    && request.resource.data.diff(resource.data)
+                         .affectedKeys().hasOnly(['full_name','updates']);
+      allow delete: if false;
+    }
+
+    // --- PAAIPE: the Agent number counter -------------------------
+    // Server-only. No client may read or write it.
+    match /paaipe_counters/{doc} {
+      allow read, write: if false;
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

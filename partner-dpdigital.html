@@ -1,0 +1,141 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>DP Digital Solutions — PAAIPE</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
+  :root{--navy:#002166;--royal:#065092;--blue:#1E6FE8;--cyan:#15BBEA;--gold:#F2A71B;--lgold:#F6DB74;--pale:#EAF3FC;--pale2:#DCEBFA;--ink:#0f1e3d;--muted:#4a5a7a;--line:#c9dcf3;--amber-ink:#7a4a06;--amber-bg:#fdf1dd;--green-ink:#0a5c3a;--green-bg:#e3f6ec;--green-line:#bfe6d2;--max:1180px;--radius:18px}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}
+  body{margin:0;font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:#fff;line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}img{max-width:100%;display:block}button{font:inherit}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 28px}
+  h1,h2,h3{color:var(--navy);margin:0;line-height:1.15;letter-spacing:-.01em}
+  h1{font-size:clamp(36px,4.6vw,54px);font-weight:700}h2{font-size:clamp(26px,3vw,34px);font-weight:700}h3{font-size:18px;font-weight:600}
+  p{margin:0}.lead{font-size:18px;color:var(--muted);max-width:60ch}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:999px;font-weight:600;font-size:14.5px;transition:transform .15s,box-shadow .15s;cursor:pointer;border:0}
+  .btn:focus-visible{outline:3px solid var(--cyan);outline-offset:3px}
+  .btn-gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy);box-shadow:0 8px 22px rgba(242,167,27,.26)}.btn-gold:hover{transform:translateY(-1px)}
+  .btn-navy{background:var(--navy);color:#fff}
+  .btn-ghost{background:transparent;color:var(--navy);border:2px solid var(--line)}.btn-ghost:hover{border-color:var(--royal)}
+  .btn-ghost-light{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.55)}.btn-ghost-light:hover{border-color:#fff}
+  .btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;color:var(--muted);border-color:var(--line)}.btn[disabled]:hover{transform:none}
+  .btn-sm{padding:9px 16px;font-size:13.5px}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--gold);display:inline-block;flex:none}
+  nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(14px);border-bottom:1px solid #e6eef9}
+  nav .wrap{display:flex;align-items:center;gap:34px;height:86px}nav .logo img{height:56px;width:auto}
+  nav ul{list-style:none;display:flex;gap:28px;margin:0 0 0 auto;padding:0}nav li a{font-weight:500;font-size:15px;color:var(--ink);padding:8px 2px;position:relative}
+  nav li a.active{color:var(--navy);font-weight:600}nav li a.active::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:3px;background:var(--gold);border-radius:3px}
+  nav .btn{padding:12px 22px;font-size:15px}
+  .hero{position:relative;overflow:hidden;background:linear-gradient(180deg,#fff 0%,var(--pale) 100%)}
+  .hero .dots{position:absolute;right:-8%;top:-6%;width:58%;opacity:.24;pointer-events:none}
+  .hero .wrap{padding-top:76px;padding-bottom:96px;position:relative;display:grid;grid-template-columns:1.2fr .8fr;gap:48px;align-items:center}
+  .hero .copy{max-width:660px}.hero .rule{width:72px;height:5px;border-radius:5px;background:linear-gradient(90deg,var(--gold),var(--lgold));margin:22px 0 26px}
+  .hero .wave{position:absolute;left:0;right:0;bottom:-2px;width:100%;height:120px}
+  .logowall{display:grid;grid-template-columns:1fr 1fr;gap:16px;justify-self:end;width:min(100%,420px)}
+  .logowall a{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;place-items:center;height:96px;transition:box-shadow .18s,transform .18s}
+  .logowall a:hover{box-shadow:0 14px 30px rgba(6,33,102,.1);transform:translateY(-2px)}.logowall img{max-height:48px;width:auto}
+  section.plain{padding:80px 0}
+  .list{background:var(--pale)}
+  .headrow{display:flex;justify-content:space-between;align-items:end;gap:24px;flex-wrap:wrap}.count{color:var(--muted);font-size:14.5px;font-weight:500;white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:30px}
+  .chip{border:2px solid var(--line);background:#fff;color:var(--royal);font-weight:600;font-size:14px;padding:9px 18px;border-radius:999px;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+  .chip:hover{border-color:var(--royal)}.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .pgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:26px;margin-top:34px}
+  .pcard{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:box-shadow .18s,transform .18s}
+  .pcard:hover{box-shadow:0 22px 48px rgba(6,33,102,.12);transform:translateY(-3px)}.pcard.hide{display:none}
+  .pcard .banner{aspect-ratio:16/9;object-fit:cover;width:100%}
+  .pcard .body{padding:22px 24px 24px;display:flex;flex-direction:column;gap:12px;flex:1}
+  .tags{display:flex;gap:8px;flex-wrap:wrap}.tag{display:inline-block;font-size:12px;font-weight:600;color:var(--royal);background:var(--pale2);padding:4px 10px;border-radius:8px}
+  .pcard h3{font-size:20px}.pcard p{color:var(--ink);font-size:14.5px;flex:1}
+  .pcard .foot{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:4px}
+  .pcard .foot span{font-size:13px;color:var(--muted)}
+  .empty-msg{display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px}.empty-msg.show{display:block}
+  .catnote{margin-top:16px;color:var(--muted);font-size:13.5px}
+  .who .cats{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}.who .cats span{border:2px solid var(--line);border-radius:999px;padding:9px 18px;font-weight:500;font-size:14.5px;color:var(--navy);background:#fff}
+  .help{background:linear-gradient(180deg,#fff,var(--pale))}
+  .help .cols{display:grid;grid-template-columns:repeat(4,1fr);gap:18px;margin-top:34px}
+  .help .col{background:#fff;border:1px solid var(--line);border-radius:14px;padding:20px;font-size:14.5px;font-weight:500;color:var(--navy);display:flex;gap:12px;align-items:flex-start}
+  .help .col svg{width:22px;height:22px;stroke:var(--gold);fill:none;stroke-width:2;flex:none;margin-top:2px}
+  .process .wrap{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:start}
+  .steps{counter-reset:step;list-style:none;margin:30px 0 0;padding:0}.steps li{counter-increment:step;position:relative;padding:0 0 26px 56px}
+  .steps li::before{content:counter(step);position:absolute;left:0;top:0;width:36px;height:36px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;font-size:15px;display:grid;place-items:center}
+  .steps li::after{content:"";position:absolute;left:17px;top:36px;bottom:0;width:2px;background:var(--line)}.steps li:last-child::after{display:none}
+  .steps li p{font-size:16px}
+  .notice{background:var(--amber-bg);border:1px solid #f0d9a8;border-left:4px solid var(--gold);border-radius:14px;padding:22px 26px;display:flex;gap:16px;margin-top:30px}
+  .notice svg{flex:none;width:22px;height:22px;stroke:var(--amber-ink);fill:none;stroke-width:1.8;margin-top:2px}.notice b{display:block;color:var(--amber-ink);font-size:16px;margin-bottom:4px}.notice p{color:#5c4108;font-size:14.5px}
+  .cta-band{position:relative;background:linear-gradient(120deg,var(--navy),#031b52 55%,var(--royal));color:#fff;padding:76px 0;overflow:hidden}
+  .cta-band .dots{position:absolute;right:-10%;top:-20%;width:55%;opacity:.16;pointer-events:none}.cta-band .wrap{position:relative}
+  .cta-band h2{color:#fff;max-width:20ch}.cta-band p{color:#bfe3fa;margin-top:14px;max-width:56ch;font-size:16.5px}
+  .cta-band .actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px;align-items:center}.cta-band .note{width:100%;color:#9db8e0;font-size:13.5px;margin-top:6px}
+  footer{background:#fff;border-top:1px solid #e6eef9;padding:56px 0 30px}footer .top{display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:40px}
+  footer .brand img{height:46px;margin-bottom:16px}footer .brand h3{font-size:16px}footer .brand p{color:var(--muted);font-size:14px;margin-top:10px;max-width:34ch}
+  footer .col b{display:block;font-size:12.5px;letter-spacing:.06em;color:var(--muted);margin-bottom:14px}footer .col ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+  footer .col a{font-size:14.5px;color:var(--ink)}footer .col a:hover{color:var(--royal)}footer .bottom{margin-top:44px;padding-top:22px;border-top:1px solid #e6eef9;color:var(--muted);font-size:13px}
+  /* detail page */
+  .cover{padding-top:34px}.cover img{width:100%;height:400px;object-fit:cover;object-position:center 55%;border-radius:var(--radius);border:1px solid var(--line)}
+  .profile{display:flex;gap:26px;align-items:flex-end;margin-top:-64px;position:relative;padding:0 28px;flex-wrap:wrap}
+  .plate{width:150px;height:150px;border-radius:20px;background:#fff;border:1px solid var(--line);box-shadow:0 18px 40px rgba(6,33,102,.14);display:grid;place-items:center;padding:18px;flex:none}
+  .plate img{max-height:90px;width:auto;max-width:112px}
+  .pinfo{flex:1;min-width:280px;padding-bottom:6px}.pinfo h1{font-size:clamp(30px,3.6vw,44px)}.pinfo .pitch{color:var(--muted);font-size:17px;margin-top:8px}
+  .pinfo .tags{margin-top:12px}.pactions{display:flex;gap:12px;flex-wrap:wrap;padding-bottom:10px}
+  .detail{padding:56px 0 80px}.detail .wrap{display:grid;grid-template-columns:1.6fr .8fr;gap:48px;align-items:start}
+  .detail h2{font-size:26px}.detail .about p{color:var(--ink);font-size:16px;margin-top:14px;max-width:70ch}
+  .feat{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+  .feat div{border:1px solid var(--line);border-radius:14px;padding:18px}.feat svg{width:26px;height:26px;stroke:var(--royal);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;margin-bottom:10px}
+  .feat b{display:block;color:var(--navy);font-size:15px;margin-bottom:6px}.feat p{color:var(--muted);font-size:13.5px}
+  .benefits{margin-top:50px;background:var(--pale);border-radius:var(--radius);padding:30px}
+  .benefits .intro{color:var(--muted);font-size:15px;margin-top:10px;max-width:64ch}
+  .bgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+  .bcard{background:#fff;border:1px solid var(--line);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:10px}
+  .bcard .bi{width:44px;height:44px;border-radius:12px;background:linear-gradient(160deg,var(--gold),#F7B733);display:grid;place-items:center}
+  .bcard .bi svg{width:22px;height:22px;stroke:var(--navy);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .bcard b{color:var(--navy);font-size:15px}.bcard p{color:var(--muted);font-size:13.5px;flex:1}
+  .status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:5px 11px 5px 9px;border-radius:999px;align-self:flex-start}
+  .status svg{width:11px;height:11px}.status.soon{background:var(--amber-bg);color:var(--amber-ink);border:1px solid #f0d9a8}
+  .claim{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
+  .claim div{font-size:13.5px;color:var(--muted);padding-left:44px;position:relative}
+  .claim div::before{content:attr(data-n);position:absolute;left:0;top:0;width:30px;height:30px;border-radius:50%;background:var(--navy);color:#fff;font-weight:700;font-size:13px;display:grid;place-items:center}
+  .facts{position:sticky;top:110px;border:1px solid var(--line);border-radius:var(--radius);padding:24px}
+  .facts dl{margin:0;display:grid;grid-template-columns:1fr;gap:14px}.facts dt{font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--muted)}.facts dd{margin:2px 0 0;font-size:14.5px;color:var(--ink)}
+  .facts a{color:var(--royal);font-weight:500}.facts ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+  .rep{display:flex;gap:12px;align-items:center;margin-top:4px}.rep img{width:52px;height:52px;border-radius:50%;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--gold)}
+  .rep b{display:block;color:var(--navy);font-size:14.5px}.rep small{color:var(--muted);font-size:12.5px}
+  .partnerpill{display:inline-flex;align-items:center;gap:8px;background:var(--green-bg);color:var(--green-ink);border:1px solid var(--green-line);border-radius:999px;padding:7px 12px 7px 9px;font-size:12.5px;font-weight:700}
+  .partnerpill svg{width:12px;height:12px}
+  .reveal{opacity:0;transform:translateY(16px);animation:in .7s cubic-bezier(.2,.7,.2,1) forwards}.reveal.d1{animation-delay:.12s}.reveal.d2{animation-delay:.26s}
+  @keyframes in{to{opacity:1;transform:none}}@media (prefers-reduced-motion:reduce){.reveal{animation:none;opacity:1;transform:none}}
+  @media (max-width:960px){nav ul{display:none}.hero .wrap{grid-template-columns:1fr}.logowall{justify-self:start}.pgrid{grid-template-columns:1fr}.help .cols{grid-template-columns:1fr 1fr}.process .wrap{grid-template-columns:1fr}
+    .detail .wrap{grid-template-columns:1fr}.feat,.bgrid,.claim{grid-template-columns:1fr}.facts{position:static}.cover img{height:220px}footer .top{grid-template-columns:1fr 1fr;row-gap:32px}}
+</style></head><body><nav><div class="wrap"><a class="logo" href="index.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"></a><ul><li><a href="index.html">Home</a></li><li><a href="#">Programs</a></li><li><a href="#">Events</a></li><li><a href="resources.html">Resources</a></li><li><a href="member-benefits.html">Membership</a></li><li><a class="active" href="partners.html">Partners</a></li></ul><a class="btn btn-navy" href="#">Explore Membership</a></div></nav>
+<div class="wrap cover"><img src="assets/img/partners/banner-dpdigital.png" alt="DP Digital Solutions banner"></div>
+<div class="wrap"><div class="profile">
+  <div class="plate"><img src="assets/img/partners/logo-dpdigital.png" alt="DP Digital Solutions logo"></div>
+  <div class="pinfo"><span class="partnerpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>AI Exchange partner · 2026</span><h1 style="margin-top:10px">DP Digital Solutions</h1><p class="pitch">Insightful ideas for a digital-first business.</p><div class="tags"><span class="tag">Education & training</span><span class="tag">Enterprises & startups</span></div></div>
+  <div class="pactions"><a class="btn btn-gold" href="https://www.facebook.com/DPDigitalSolutions/" target="_blank" rel="noopener">Visit Facebook</a><a class="btn btn-ghost" href="partners.html">All partners</a></div>
+</div></div>
+
+<section class="detail"><div class="wrap">
+  <div>
+    <div class="about"><h2>About DP Digital</h2><p>DP Digital Solutions is a marketing agency and training provider founded and led by Dennis Paguio, an AI-powered digital transformation strategist and ASEAN project leader. The agency's tagline says it plainly: "I provide insightful ideas by giving concepts you need to be great at the things that matter most to you."</p><p>Through online classes, outreach and partnerships, DP Digital Solutions helps entrepreneurs, freelancers, educators and jobseekers build capability in digital entrepreneurship, AI, virtual assistance and digital transformation.</p></div>
+    <h2 style="margin-top:44px">What they do</h2><div class="feat"><div><svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.4"/><rect x="14" y="3" width="7" height="7" rx="1.4"/><rect x="3" y="14" width="7" height="7" rx="1.4"/><rect x="14" y="14" width="7" height="7" rx="1.4"/></svg><b>Digital marketing</b><p>Strategy and execution for businesses building their digital presence.</p></div><div><svg viewBox="0 0 24 24"><path d="M4 5.5C4 4.1 5.1 3 6.5 3H12v18H6.5C5.1 21 4 19.9 4 18.5z"/><path d="M20 5.5C20 4.1 18.9 3 17.5 3H12v18h5.5c1.4 0 2.5-1.1 2.5-2.5z"/></svg><b>Digital skills training</b><p>Online classes and programs for freelancers, MSMEs and jobseekers nationwide.</p></div><div><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M8 12l3 3 5-6"/></svg><b>Transformation consulting</b><p>Practical guidance on adopting AI and digital tools without losing the human side.</p></div></div>
+    <div class="benefits" id="benefits"><h2>Member benefits from DP Digital</h2>
+      <p class="intro">Benefits below are offered to verified PAAIPE members. Each one shows its current status — details, limits and redemption steps appear here once the agreement is formally confirmed.</p>
+      <div class="bgrid"><div class="bcard"><span class="bi"><svg viewBox="0 0 24 24"><rect x="3" y="9" width="18" height="12" rx="2"/><path d="M3 13h18M12 9v12M12 9c-3 0-5-1.5-5-3.5S9 3 12 6c3-3 5-1.5 5 .5S15 9 12 9z"/></svg></span><b>Free digital-skills intro session</b><p>An introductory online class for verified PAAIPE members.</p><span class="status soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg>Pending confirmation</span></div><div class="bcard"><span class="bi"><svg viewBox="0 0 24 24"><path d="M19 5 5 19"/><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/></svg></span><b>Discounted consulting hours</b><p>A member rate on DP Digital Solutions consulting engagements.</p><span class="status soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg>Pending confirmation</span></div><div class="bcard"><span class="bi"><svg viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v14"/></svg></span><b>Training vouchers</b><p>Vouchers for selected DP Digital Solutions training programs.</p><span class="status soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="12" cy="12" r="9"/><path d="M12 7v6l4 2"/></svg>Pending confirmation</span></div></div>
+      <h3 style="margin-top:30px">How members claim a benefit</h3>
+      <div class="claim"><div data-n="1">Sign in to the Members Portal and open the DP Digital benefit.</div><div data-n="2">Get your voucher code or claim link (one per verified member unless stated).</div><div data-n="3">Redeem on DP Digital's platform. The partner's own terms, limits and availability apply.</div></div>
+    </div>
+  </div>
+  <aside class="facts">
+    <dl><div><dt>TYPE</dt><dd>Marketing agency · training</dd></div><div><dt>BASED IN</dt><dd>Bacoor, Cavite, Philippines</dd></div><div><dt>ORGANIZATION</dt><dd>Founded by Dennis Paguio</dd></div>
+    <div><dt>LINKS</dt><dd><ul><li><a href="https://www.facebook.com/DPDigitalSolutions/" target="_blank" rel="noopener">Facebook page</a></li></ul></dd></div>
+    <div><dt>REPRESENTED AT PAAIPE BY</dt><dd><div class="rep"><img src="assets/img/agents/agent-005-dennis-paguio.png" alt="Dennis Paguio"><div><b>Dennis Paguio</b><small>Founder & CEO, DP Digital Solutions</small><br><small>Agent 005</small></div></div></dd></div>
+    <div><dt>PARTNERSHIP</dt><dd>Supported the PAAIPE AI Exchange, September 2026</dd></div></dl>
+  </aside>
+</div></section>
+
+<section class="cta-band"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true"><div class="wrap"><h2>Benefits follow membership.</h2><p>Verified members claim partner benefits through the Members Portal as agreements are confirmed. Not a member yet? Review what membership includes.</p>
+  <div class="actions"><button class="btn btn-ghost-light" disabled>Open Members Portal</button><a class="btn btn-gold" href="#">Review Membership</a><span class="note">The Members Portal is not open yet</span></div></div></section>
+<footer><div class="wrap"><div class="top">
+  <div class="brand"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><h3>Philippine Association of AI Professionals and Entrepreneurs</h3>
+  <p>Building the Philippines' AI-Powered Future — Together. A trusted community for Filipino AI professionals, entrepreneurs, educators and organizations-building capability, connection and responsible opportunity.</p>
+  <a class="btn btn-ghost" style="margin-top:18px" href="#">Contact PAAIPE</a></div>
+  <div class="col"><b>COMMUNITY</b><ul><li><a href="index.html">About PAAIPE</a></li><li><a href="#">Programs</a></li><li><a href="#">Events</a></li><li><a href="#">Speak at PAAIPE</a></li></ul></div>
+  <div class="col"><b>MEMBERSHIP</b><ul><li><a href="member-benefits.html">Membership</a></li><li><a href="member-benefits.html">Member benefits</a></li><li><a href="partners.html">Partners</a></li></ul></div>
+  <div class="col"><b>THIS SITE</b><ul><li><a href="#">Contact</a></li><li><a href="#">Accessibility</a></li><li><a href="#">Privacy notice <span style="font-weight:400;color:var(--muted)">(draft)</span></a></li><li><a href="#">Terms of use <span style="font-weight:400;color:var(--muted)">(draft)</span></a></li></ul></div>
+</div><div class="bottom">© 2026 Philippine Association of AI Professionals and Entrepreneurs. All rights reserved.<br>Privacy Notice and Terms of Use are drafts awaiting review and are not final legal text.</div></div></footer></body></html>

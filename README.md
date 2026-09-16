@@ -10,11 +10,26 @@ dependencies.
 ```
 index.html                  the Home page: all markup, CSS and JS in one file
 member-benefits.html        Member Benefits page, reached from the Membership nav tab
+resources.html              Resources library, reached from the Resources nav tab
+partners.html               Partners list, reached from the Partners nav tab
+partner-*.html              one profile per partner (gethired, servana, mvj, dpdigital)
+assets/js/leave-dialog.js   "leaving PAAIPE" confirmation for links marked data-leave
+assets/img/partners/        partner logos and banners
 assets/img/paaipe-logo.png  logo, used in the nav and footer
 assets/img/world-dots.png   dotted world map behind the hero, film and CTA sections
-assets/img/ai-exchange-session.jpg  still from the PAAIPE film, on the Member events card
-assets/img/agents/          member portraits, used on both pages
+assets/img/ai-exchange-session.jpg  still from the PAAIPE film (Member events card, Resources video card)
+assets/img/sven-bally.jpg   speaker photo on the Resources presentation card
+assets/img/agents/          member portraits (Home and Member Benefits)
 ```
+
+On the Resources page, the two Sven Bally slides links open a PAAIPE-styled
+confirmation dialog before going to Gamma. Other outside links (the film,
+partner Facebook and app-store links) go straight out, by the owner's choice.
+The dialog is opt-in: `assets/js/leave-dialog.js`, included at the end of
+`<body>` with a cancel label (`data-cancel`), only asks about links that carry
+the `data-leave` attribute. **Continue** goes to the link, and the cancel button,
+Esc or a click outside the dialog stays on the page. Without JavaScript, the
+links work as plain links.
 
 Each page is self-contained, with its own CSS. The pages link to each other
 through the nav, the logo and the footer. Other nav items are still

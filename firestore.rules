@@ -62,25 +62,48 @@ service cloud.firestore {
           && d.createdAt == request.time;   // server timestamp only; no backdating
     }
 
-    // --- PAAIPE: Agent profiles -----------------------------------
-    // An Agent may read and create only their OWN profile, and may never set or
-    // change agentNumber — that is assigned by a trusted server (Cloud Function
-    // or the Linode API) using the Admin SDK. A client-assigned number would
-    // collide and could be forged.
+    // --- PAAIPE: member profiles ----------------------------------
+    // Signing up makes a GUEST. Only PAAIPE confirms someone as an Agent, so a
+    // client may write status only as "guest" and may NEVER change it — without
+    // that, anyone could promote themselves to Agent by editing their own
+    // profile. Promotion is done with the Admin SDK, which bypasses these rules.
+    //
+    // agentNumber is likewise server-only: it is a label PAAIPE issues, not
+    // something a client may claim.
     match /paaipe_agents/{uid} {
-      allow read:   if request.auth != null && request.auth.uid == uid;
+      // your own profile, always
+      allow read: if request.auth != null && request.auth.uid == uid;
+      // the Agent Directory: a signed-in member may read the profiles of
+      // CONFIRMED Agents who have opted in, and only those. A guest is never
+      // readable by anyone else, whatever they set their own toggle to.
+      allow read: if request.auth != null
+                  && resource.data.status == 'agent'
+                  && resource.data.directoryVisible == true;
+
       allow create: if request.auth != null && request.auth.uid == uid
                     && !('agentNumber' in request.resource.data.keys())
+                    && request.resource.data.status == 'guest'
+                    && request.resource.data.directoryVisible is bool
                     && request.resource.data.email is string
                     && request.resource.data.full_name is string
                     && request.resource.data.full_name.size() <= 120
-                    // an Agent record must carry the consent it was created under
+                    // a profile must carry the consent it was created under
                     && request.resource.data.termsVersion is string
                     && request.resource.data.privacyVersion is string
                     && request.resource.data.consentedAt == request.time;
+
       allow update: if request.auth != null && request.auth.uid == uid
                     && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['full_name','updates']);
+                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen'])
+                    // belt and braces: neither may move even if listed above
+                    && request.resource.data.status == resource.data.status
+                    && request.resource.data.get('agentNumber', null)
+                       == resource.data.get('agentNumber', null)
+                    // confirmation is an administrative act: server-only
+                    && request.resource.data.get('confirmed_at', null)
+                       == resource.data.get('confirmed_at', null)
+                    && request.resource.data.get('confirmed_by', null)
+                       == resource.data.get('confirmed_by', null);
       allow delete: if false;
     }
 

@@ -32,6 +32,67 @@ export const DATABASE_ID = "paaipe";
  *  not much use under RA 10173. */
 export const DOC_VERSIONS = { terms: "1.0", privacy: "1.0" };
 
+/** Membership status (owner, 2026-09-16): "all registrants are considered GUESTS
+ *  at this point. They are pending AGENT confirmation. because in PAAIPE, only
+ *  confirmed users become agents."
+ *
+ *  So signing up makes a GUEST, never an Agent. Promotion to "agent" is an
+ *  administrative act done by PAAIPE, and the rules forbid a client writing or
+ *  changing this field - otherwise anyone could promote themselves. Nothing in
+ *  the UI may call a guest an Agent. */
+export const STATUS = { GUEST: "guest", AGENT: "agent", SUSPENDED: "suspended" };
+
+/** Derived membership states used by the UI. STORAGE keeps only
+ *  guest | agent | suspended; whether a guest is "unverified" or "pending" comes
+ *  from Firebase Auth's emailVerified, which is the single source of truth for
+ *  that. Storing it twice would let the two disagree. */
+export const MEMBERSHIP = {
+  GUEST_UNVERIFIED: "guest_unverified",
+  GUEST_PENDING:    "guest_pending",
+  AGENT:            "agent",
+  SUSPENDED:        "suspended",
+};
+
+/** Feature flag. While false, guests may use the whole portal and every
+ *  "Agents only" affordance is a SIGNIFIER, not a lock. Flip to true to enforce.
+ *  Every gated affordance checks this, so enforcing later needs no redesign. */
+export const GATE_GUESTS = false;
+
+/** THE one place membership state is decided. Everything in the UI derives from
+ *  this, so a badge can never disagree with the account behind it. */
+export function membershipStatus(agent) {
+  if (!agent) return null;
+  var stored = agent.status;
+  var state =
+    stored === STATUS.SUSPENDED ? MEMBERSHIP.SUSPENDED :
+    stored === STATUS.AGENT     ? MEMBERSHIP.AGENT :
+    agent.emailVerified         ? MEMBERSHIP.GUEST_PENDING :
+                                  MEMBERSHIP.GUEST_UNVERIFIED;
+  var isAgent = state === MEMBERSHIP.AGENT;
+  return {
+    state: state,
+    isAgent: isAgent,
+    isGuest: state === MEMBERSHIP.GUEST_UNVERIFIED || state === MEMBERSHIP.GUEST_PENDING,
+    needsEmailVerification: state === MEMBERSHIP.GUEST_UNVERIFIED,
+    // what the UI shows. No component invents its own wording.
+    label:     isAgent ? "AGENT" : "GUEST",
+    statusLine: isAgent
+      ? ((agent.agentNumber ? "AGENT " + agent.agentNumber : "AGENT") + " · VERIFIED")
+      : "GUEST · AWAITING CONFIRMATION",
+    pill: isAgent ? "Verified Agent" : "Awaiting confirmation",
+    subline: isAgent ? "Agent" : "Guest · awaiting Agent confirmation",
+    agentNumber: agent.agentNumber || null,
+    // the four steps shown on Home and Profile
+    steps: [
+      { label: "Signed up",              done: true },
+      { label: "Email verified",         done: !!agent.emailVerified },
+      { label: "Admin confirmation",     done: isAgent },
+      { label: "Agent number assigned",  done: !!agent.agentNumber },
+    ],
+    gated: GATE_GUESTS && !isAgent,
+  };
+}
+
 export const COLLECTIONS = {
   registrations: "paaipe_event_registrations",
   agents:        "paaipe_agents",
@@ -114,6 +175,11 @@ export async function signUp({ full_name, email, password, updates }) {
   // No agentNumber: it is a label, assigned by PAAIPE, never by the client.
   await F.setDoc(F.doc(await db(), COLLECTIONS.agents, cred.user.uid), {
     full_name, email, updates: Boolean(updates),
+    // A registrant is a GUEST until PAAIPE confirms them. The client may only
+    // ever write "guest"; the rules reject anything else on create.
+    status: STATUS.GUEST,
+    // Opt-IN, not opt-out: nobody is listed in the directory until they ask.
+    directoryVisible: false,
     createdAt: F.serverTimestamp(), source: "paaipe.org",
     // WHICH text they agreed to, and when. Without the version a consent record
     // cannot say what was actually accepted once the documents change.
@@ -139,7 +205,8 @@ export async function signInWithGoogle() {
   if (!(await F.getDoc(ref)).exists()) {
     await F.setDoc(ref, {
       full_name: cred.user.displayName || "", email: cred.user.email || "",
-      updates: false, createdAt: F.serverTimestamp(), source: "paaipe.org/google",
+      updates: false, status: STATUS.GUEST, directoryVisible: false,
+      createdAt: F.serverTimestamp(), source: "paaipe.org/google",
     });
   }
   return cred.user;
@@ -178,7 +245,65 @@ export async function currentAgent() {
     emailVerified: user.emailVerified,
     // null, never invented. The UI must render a placeholder, not a number.
     agentNumber: profile.agentNumber ?? null,
+    // Anything not yet confirmed by PAAIPE is a guest, including a profile
+    // written before this field existed.
+    status: profile.status === STATUS.AGENT ? STATUS.AGENT
+          : profile.status === STATUS.SUSPENDED ? STATUS.SUSPENDED : STATUS.GUEST,
+    isAgent: profile.status === STATUS.AGENT,
+    directoryVisible: profile.directoryVisible === true,
+    // null for a guest; set by confirmUser() when PAAIPE confirms them
+    confirmedAt: profile.confirmed_at || null,
+    confirmedBy: profile.confirmed_by || null,
+    // so the one-time celebration can be shown exactly once
+    confirmationSeen: profile.confirmation_seen === true,
   };
+}
+
+/** Send the verification email again. Guests who never verified are stuck at
+ *  the first step, and the banner offers this. */
+export async function resendVerification() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const a = await auth();
+  const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
+  if (!user) throw new Error("not-signed-in");
+  if (user.emailVerified) return false;
+  await A.sendEmailVerification(user);
+  return true;
+}
+
+/** Mark the one-time "you are now an Agent" celebration as seen. */
+export async function markConfirmationSeen() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const a = await auth();
+  const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
+  if (!user) return;
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), { confirmation_seen: true });
+}
+
+/** Set whether this member appears in the Agent Directory. The member controls
+ *  it; being listed also requires PAAIPE to have confirmed them as an Agent,
+ *  which is why the directory filters on BOTH. */
+export async function setDirectoryVisible(visible) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const a = await auth();
+  const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
+  if (!user) throw new Error("not-signed-in");
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid),
+                    { directoryVisible: Boolean(visible) });
+  return Boolean(visible);
+}
+
+/** Confirmed Agents who have opted in. A guest is never listed, however they
+ *  set their own toggle. */
+export async function listDirectory() {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const q = F.query(F.collection(await db(), COLLECTIONS.agents),
+                    F.where("status", "==", STATUS.AGENT),
+                    F.where("directoryVisible", "==", true));
+  const snap = await F.getDocs(q);
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 }
 
 /** Firebase error codes are not for humans. */

@@ -57,6 +57,8 @@ service cloud.firestore {
           && (!('updates' in d.keys())          || d.updates is bool)
           && (!('userAgent' in d.keys())        || (d.userAgent is string        && d.userAgent.size()        <= 300))
           && (!('source_site' in d.keys())      || (d.source_site is string      && d.source_site.size()      <= 60))
+          // which published Privacy Notice this person actually agreed to
+          && (!('privacyVersion' in d.keys())   || (d.privacyVersion is string   && d.privacyVersion.size()   <= 20))
           && d.createdAt == request.time;   // server timestamp only; no backdating
     }
 
@@ -71,7 +73,11 @@ service cloud.firestore {
                     && !('agentNumber' in request.resource.data.keys())
                     && request.resource.data.email is string
                     && request.resource.data.full_name is string
-                    && request.resource.data.full_name.size() <= 120;
+                    && request.resource.data.full_name.size() <= 120
+                    // an Agent record must carry the consent it was created under
+                    && request.resource.data.termsVersion is string
+                    && request.resource.data.privacyVersion is string
+                    && request.resource.data.consentedAt == request.time;
       allow update: if request.auth != null && request.auth.uid == uid
                     && request.resource.data.diff(resource.data)
                          .affectedKeys().hasOnly(['full_name','updates']);

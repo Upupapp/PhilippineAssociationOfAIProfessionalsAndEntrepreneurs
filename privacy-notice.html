@@ -1,0 +1,184 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Privacy Notice — PAAIPE</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="description" content="How PAAIPE collects, uses, stores and protects your personal information, and the rights you have under the Philippine Data Privacy Act of 2012."><meta property="og:type" content="website"><meta property="og:site_name" content="PAAIPE"><meta property="og:locale" content="en_PH"><meta property="og:url" content="https://paaipe.org/privacy-notice"><meta property="og:title" content="Privacy Notice — PAAIPE"><meta property="og:description" content="How PAAIPE collects, uses, stores and protects your personal information, and the rights you have under the Philippine Data Privacy Act of 2012."><meta property="og:image" content="https://paaipe.org/assets/img/paaipe-share-banner.png"><meta property="og:image:secure_url" content="https://paaipe.org/assets/img/paaipe-share-banner.png"><meta property="og:image:type" content="image/png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630"><meta property="og:image:alt" content="PAAIPE — Building the Philippines' AI-Powered Future, Together"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="Privacy Notice — PAAIPE"><meta name="twitter:description" content="How PAAIPE collects, uses, stores and protects your personal information, and the rights you have under the Philippine Data Privacy Act of 2012."><meta name="twitter:image" content="https://paaipe.org/assets/img/paaipe-share-banner.png"><meta name="twitter:image:alt" content="PAAIPE — Building the Philippines' AI-Powered Future, Together"><link rel="canonical" href="https://paaipe.org/privacy-notice"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
+  :root{--navy:#002166;--royal:#065092;--blue:#1E6FE8;--cyan:#15BBEA;--gold:#F2A71B;--lgold:#F6DB74;--pale:#EAF3FC;--pale2:#DCEBFA;--ink:#0f1e3d;--muted:#4a5a7a;--line:#c9dcf3;--amber-ink:#7a4a06;--amber-bg:#fdf1dd;--green-ink:#0a5c3a;--green-bg:#e3f6ec;--green-line:#bfe6d2;--max:1180px;--radius:18px}
+  *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:#fff;line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}img{max-width:100%;display:block}button{font:inherit}
+  .wrap{max-width:var(--max);margin:0 auto;padding:0 28px}h1,h2,h3{color:var(--navy);margin:0;line-height:1.15;letter-spacing:-.01em}
+  h1{font-size:clamp(30px,3.8vw,44px);font-weight:700}h2{font-size:clamp(24px,2.8vw,30px);font-weight:700}h3{font-size:18px;font-weight:600}p{margin:0}
+  .btn{display:inline-flex;align-items:center;gap:8px;padding:12px 22px;border-radius:999px;font-weight:600;font-size:14.5px;transition:transform .15s,box-shadow .15s;cursor:pointer;border:0}
+  .btn:focus-visible{outline:3px solid var(--cyan);outline-offset:3px}.btn-gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy);box-shadow:0 8px 22px rgba(242,167,27,.26)}.btn-gold:hover{transform:translateY(-1px)}
+  .btn-navy{background:var(--navy);color:#fff}.btn-ghost{background:transparent;color:var(--navy);border:2px solid var(--line)}.btn-ghost:hover{border-color:var(--royal)}
+  .btn-ghost-light{background:transparent;color:#fff;border:2px solid rgba(255,255,255,.55)}.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;color:var(--muted);border-color:var(--line)}.btn[disabled]:hover{transform:none}
+  .btn-sm{padding:9px 16px;font-size:13.5px}.dot{width:9px;height:9px;border-radius:50%;background:var(--gold);display:inline-block;flex:none}
+  nav{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.86);backdrop-filter:blur(14px);border-bottom:1px solid #e6eef9}nav .wrap{display:flex;align-items:center;gap:34px;height:86px}
+  nav .logo img{height:56px;width:auto}nav ul{list-style:none;display:flex;gap:28px;margin:0 0 0 auto;padding:0}nav li a{font-weight:500;font-size:15px;color:var(--ink);padding:8px 2px;position:relative}
+  nav li a.active{color:var(--navy);font-weight:600}nav li a.active::after{content:"";position:absolute;left:0;right:0;bottom:-2px;height:3px;background:var(--gold);border-radius:3px}nav .btn{padding:12px 22px;font-size:15px}
+  /* toolbar */
+  .toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:26px 0 8px}
+  .chips{display:flex;flex-wrap:wrap;gap:10px}.chip{border:2px solid var(--line);background:#fff;color:var(--royal);font-weight:600;font-size:14px;padding:9px 18px;border-radius:999px;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+  .chip:hover{border-color:var(--royal)}.chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.tz{font-size:13px;color:var(--muted)}
+  /* featured */
+  .featured{display:grid;grid-template-columns:1.25fr .75fr;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;margin-top:18px;background:#fff;transition:box-shadow .18s}
+  .featured:hover{box-shadow:0 22px 48px rgba(6,33,102,.12)}
+  .featured .art{position:relative;background:#fff left center/cover no-repeat;min-height:340px}
+  .featured .art::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,0) 82%,#fff)}
+  .featured .info{padding:30px 32px;display:flex;flex-direction:column;gap:12px;justify-content:center}
+  .label{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:700;letter-spacing:.06em;color:var(--royal)}
+  .countdown{display:flex;gap:10px;margin-top:4px}.countdown div{background:var(--pale);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-width:70px;text-align:center}
+  .countdown b{display:block;font-size:24px;color:var(--navy);line-height:1}.countdown small{font-size:11px;color:var(--muted);letter-spacing:.06em}
+  /* cards */
+  .egrid{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:22px}
+  .ecard{display:flex;flex-direction:column;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;transition:box-shadow .18s,transform .18s}
+  .ecard:hover{box-shadow:0 20px 44px rgba(6,33,102,.1);transform:translateY(-2px)}.ecard.hide{display:none}
+  .ecard .top{display:flex;gap:16px;padding:22px 24px 0;align-items:flex-start}
+  .datebox{flex:none;width:64px;border:1px solid var(--line);border-radius:12px;overflow:hidden;text-align:center;background:#fff}
+  .datebox b{display:block;background:var(--navy);color:#fff;font-size:11px;letter-spacing:.08em;padding:4px 0}.datebox span{display:block;font-size:26px;font-weight:700;color:var(--navy);padding:6px 0 4px;line-height:1}.datebox small{display:block;font-size:11px;color:var(--muted);padding-bottom:6px}
+  .ecard.past .datebox b{background:var(--muted)}
+  .ecard .body{padding:14px 24px 24px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:5px 11px 5px 9px;border-radius:999px;align-self:flex-start}.status svg{width:11px;height:11px}
+  .status.up{background:var(--green-bg);color:var(--green-ink);border:1px solid var(--green-line)}.status.past{background:var(--pale2);color:var(--royal);border:1px solid var(--line)}
+  .ecard h3{font-size:18px}.ecard .topic{color:var(--ink);font-size:14.5px;flex:1}
+  .meta{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:13px;color:var(--muted)}.meta span{display:inline-flex;align-items:center;gap:6px}.meta svg{width:14px;height:14px;stroke:var(--royal);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .avs{display:flex;align-items:center}.avs img{width:30px;height:30px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px #fff;margin-left:-8px}.avs img:first-child{margin-left:0}.avs span{margin-left:10px;font-size:12.5px;color:var(--muted)}
+  .ecard .foot{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:4px}.ecard .foot small{color:var(--muted);font-size:12.5px}
+  .series{margin-top:40px;border:1px solid var(--line);border-radius:var(--radius);padding:22px 26px;display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap;background:linear-gradient(90deg,var(--pale),#fff)}
+  .series b{display:block;color:var(--navy);font-size:16px}.series p{color:var(--muted);font-size:14px;margin-top:4px;max-width:66ch}
+  .empty-msg{display:none;text-align:center;padding:60px 20px;color:var(--muted);font-size:16px}.empty-msg.show{display:block}
+  /* detail */
+  .crumbs{display:flex;gap:8px;align-items:center;font-size:13.5px;color:var(--muted);padding:18px 0 0}.crumbs a{color:var(--royal);font-weight:500}
+  .cover{margin-top:14px;height:260px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--line)}.cover.tall{height:auto;aspect-ratio:16/9;max-height:640px}.cover img{width:100%;height:100%;object-fit:cover;object-position:left center}
+  .ehead{display:grid;grid-template-columns:auto 1fr;gap:24px;align-items:start;margin-top:28px}
+  .ehead .datebox{width:84px}.ehead .datebox span{font-size:34px;padding:8px 0 4px}
+  .ehead .pitch{color:var(--muted);font-size:17px;margin-top:6px;max-width:70ch}
+  .detail{padding:44px 0 80px}.detail .wrap{display:grid;grid-template-columns:1.6fr .8fr;gap:48px;align-items:start}
+  .detail h2{font-size:24px}.detail .about p{color:var(--ink);font-size:16px;margin-top:14px;max-width:70ch}
+  .learn{list-style:none;margin:14px 0 0;padding:0;display:flex;flex-direction:column;gap:10px}.learn li{position:relative;padding-left:28px;font-size:15px}.learn li::before{content:"";position:absolute;left:0;top:9px;width:14px;height:14px;border-radius:50%;background:linear-gradient(160deg,var(--gold),#F7B733)}
+  .agenda{list-style:none;margin:18px 0 0;padding:0}.agenda li{display:grid;grid-template-columns:90px 1fr;gap:16px;padding:14px 0;border-top:1px solid var(--line);font-size:15px}.agenda li:last-child{border-bottom:1px solid var(--line)}.agenda b{color:var(--royal);font-size:14px}
+  .speakers{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:18px}.spk{display:flex;gap:14px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:14px;background:#fff}
+  .spk img{width:64px;height:64px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--gold);flex:none}.spk b{display:block;color:var(--navy);font-size:15px}.spk small{color:var(--muted);font-size:12.5px}
+  .partners{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-top:18px}.partners a{border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;place-items:center;height:76px;background:#fff}.partners img{max-height:40px;width:auto}
+  .side{position:sticky;top:110px;border:1px solid var(--line);border-radius:var(--radius);padding:24px;background:#fff}.side dl{margin:0;display:grid;gap:14px}.side dt{font-size:11.5px;font-weight:700;letter-spacing:.06em;color:var(--muted)}.side dd{margin:2px 0 0;font-size:14.5px}
+  .side .cta{display:flex;flex-direction:column;gap:10px;margin-top:20px}.side .note{font-size:12.5px;color:var(--muted)}
+  .side .cal{display:flex;gap:8px;flex-wrap:wrap}.side .cal a{font-size:13px;font-weight:600;color:var(--royal);border:1px solid var(--line);border-radius:999px;padding:7px 12px}
+  .more{background:var(--pale);padding:56px 0}.more .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+  .more a{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;gap:14px;align-items:center}.more b{display:block;color:var(--navy);font-size:14.5px}.more small{color:var(--muted);font-size:12.5px}.more .datebox b{color:#fff;font-size:11px}
+  .cta-band{position:relative;background:linear-gradient(120deg,var(--navy),#031b52 55%,var(--royal));color:#fff;padding:64px 0;overflow:hidden}.cta-band .dots{position:absolute;right:-10%;top:-20%;width:55%;opacity:.16;pointer-events:none}
+  .cta-band .wrap{position:relative}.cta-band h2{color:#fff;max-width:20ch}.cta-band p{color:#bfe3fa;margin-top:14px;max-width:56ch;font-size:16.5px}.cta-band .actions{display:flex;gap:14px;flex-wrap:wrap;margin-top:26px;align-items:center}
+  footer{background:#fff;border-top:1px solid #e6eef9;padding:56px 0 30px}footer .top{display:grid;grid-template-columns:1.3fr .8fr .8fr .8fr;gap:40px}footer .brand img{height:46px;margin-bottom:16px}footer .brand h3{font-size:16px}
+  footer .brand p{color:var(--muted);font-size:14px;margin-top:10px;max-width:34ch}footer .col b{display:block;font-size:12.5px;letter-spacing:.06em;color:var(--muted);margin-bottom:14px}footer .col ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+  footer .col a{font-size:14.5px;color:var(--ink)}footer .col a:hover{color:var(--royal)}footer .bottom{margin-top:44px;padding-top:22px;border-top:1px solid #e6eef9;color:var(--muted);font-size:13px}
+  @media (max-width:960px){nav ul{display:none}.featured{grid-template-columns:1fr}.featured .art{min-height:180px}.featured .art::after{display:none}.egrid,.speakers,.more .grid{grid-template-columns:1fr}.partners{grid-template-columns:1fr 1fr}.detail .wrap{grid-template-columns:1fr}.side{position:static}.cover{height:160px}footer .top{grid-template-columns:1fr 1fr;row-gap:32px}}
+
+  .doc{padding:56px 0 80px;background:#fff}
+  .doc .wrap{max-width:860px}
+  .doc .kicker{font-size:12px;font-weight:700;letter-spacing:.14em;color:var(--royal);text-transform:uppercase}
+  .doc h1{margin:10px 0 6px}
+  .doc .meta{color:var(--muted);font-size:14px;margin-bottom:22px}
+  .doc h2{font-size:21px;margin:34px 0 10px;scroll-margin-top:100px}
+  .doc h3{font-size:16.5px;margin:20px 0 6px}
+  .doc p,.doc li{color:var(--ink);font-size:15.5px}
+  .doc p{margin:0 0 12px}
+  .doc ul,.doc ol{margin:0 0 14px;padding-left:22px}
+  .doc li{margin-bottom:7px}
+  .doc a.in{color:var(--royal);font-weight:600;text-decoration:underline}
+  .draft{display:flex;gap:12px;align-items:flex-start;border:1px solid #f0d9a8;background:var(--amber-bg);color:var(--amber-ink);border-radius:12px;padding:14px 16px;margin-bottom:26px;font-size:14.5px}
+  .draft svg{width:20px;height:20px;flex:none;stroke:currentColor;fill:none;stroke-width:2;margin-top:1px}
+  .todo{background:#fde68a;color:#7a4a06;font-weight:700;padding:1px 7px;border-radius:5px;font-size:13.5px}
+  .toc{border:1px solid var(--line);border-radius:14px;padding:16px 20px;background:var(--pale);margin-bottom:30px}
+  .toc b{display:block;font-size:12px;letter-spacing:.12em;color:var(--royal);text-transform:uppercase;margin-bottom:8px}
+  .toc ol{margin:0;padding-left:20px;columns:2;column-gap:28px}
+  .toc li{font-size:14px;margin-bottom:4px}
+  .toc a:hover{text-decoration:underline}
+  table.dt{width:100%;border-collapse:collapse;margin:0 0 16px;font-size:14.5px}
+  table.dt th,table.dt td{border:1px solid var(--line);padding:9px 11px;text-align:left;vertical-align:top}
+  table.dt th{background:var(--pale);color:var(--navy);font-size:13px;letter-spacing:.04em;text-transform:uppercase}
+  @media (max-width:700px){.toc ol{columns:1}table.dt,table.dt tbody,table.dt tr,table.dt td{display:block;width:100%}table.dt thead{display:none}table.dt td{border-top:0}table.dt tr{display:block;margin-bottom:12px;border-top:1px solid var(--line)}}
+</style></head><body><nav><div class="wrap"><a class="logo" href="index.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"></a><ul><li><a href="index.html">Home</a></li><li><a href="programs.html">Programs</a></li><li><a href="events.html">Events</a></li><li><a href="resources.html">Resources</a></li><li><a href="member-benefits.html">Membership</a></li><li><a href="partners.html">Partners</a></li></ul><a class="btn btn-navy" href="#">Explore Membership</a></div></nav>
+<main class="doc"><div class="wrap">
+  <p class="kicker">Data Privacy Act of 2012 (RA 10173)</p>
+  <h1>Privacy Notice</h1>
+  <p class="meta">Version 1.0 &middot; Effective 16 September 2026 &middot; <span data-doc-version="1.0">Applies to paaipe.org</span></p>
+  <div class="draft"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 8v5M12 16h.01"/></svg>
+    <div><b>This is a draft awaiting legal review.</b> It is published so members can see how PAAIPE intends to handle their information, and it is written to follow the Data Privacy Act of 2012 (RA 10173). It is not final legal text, and items marked <span class="todo">to confirm</span> are still being settled by the association.</div></div>
+  <div class="toc"><b>On this page</b><ol><li><a href="#who">Who is responsible for your information</a></li><li><a href="#what">What we collect</a></li><li><a href="#why">Why we process it, and on what basis</a></li><li><a href="#how">Scope and method of processing</a></li><li><a href="#who-sees">Who your information is shared with</a></li><li><a href="#where">Where your information is stored, and transfers abroad</a></li><li><a href="#how-long">How long we keep it</a></li><li><a href="#rights">Your rights</a></li><li><a href="#complain">Complaining to the regulator</a></li><li><a href="#security">How we protect it</a></li><li><a href="#changes">Changes to this notice</a></li></ol></div>
+<h2 id="who">Who is responsible for your information</h2>
+  <p>The Philippine Association of AI Professionals and Entrepreneurs (&ldquo;PAAIPE&rdquo;, &ldquo;we&rdquo;) is the
+  <b>personal information controller</b> for the information described here. We decide what is collected and why.</p>
+  <ul>
+    <li><b>Registered name and address:</b> <span class="todo">to confirm: PAAIPE&rsquo;s registered name and office address</span></li>
+    <li><b>Data Protection Officer:</b> <span class="todo">to confirm: the DPO&rsquo;s name and email address</span></li>
+    <li><b>General contact:</b> <span class="todo">to confirm: the contact email address for privacy requests</span></li>
+  </ul>
+  <p>Until those are confirmed, please reach us through the contact details published on
+  <a class="in" href="index.html">paaipe.org</a>.</p><h2 id="what">What we collect</h2>
+  <p>We only collect what we need. We do not ask for sensitive personal information as defined by
+  the Data Privacy Act &mdash; we do not collect your government identifiers, health, religion, or
+  political affiliation &mdash; and you should not send them to us.</p>
+  <table class="dt"><thead><tr><th>When</th><th>What is collected</th></tr></thead><tbody>
+  <tr><td><b>Registering for an event</b></td><td>Your name, email address, and optionally your role and organisation; which description best fits you; what you would like to learn and any question for the speaker; how you heard about the event; whether you agreed to event communications and whether you opted in to updates; and the date and time of your registration.</td></tr>
+  <tr><td><b>Creating an Agent account</b></td><td>Your name, email address and a password. <b>We never see or store your password</b> &mdash; it is handled by Google Firebase Authentication, which stores it in a hashed form that we cannot read.</td></tr>
+  <tr><td><b>Automatically</b></td><td>Your browser&rsquo;s user-agent string is stored with an event registration to help us spot automated abuse. We do not use advertising or tracking cookies, and we do not profile you.</td></tr>
+  </tbody></table><h2 id="why">Why we process it, and on what basis</h2>
+  <p>Under the Data Privacy Act we must have a lawful basis. Ours are:</p>
+  <table class="dt"><thead><tr><th>Purpose</th><th>Basis</th></tr></thead><tbody>
+  <tr><td>Running an event you registered for &mdash; sending your confirmation, the Zoom access details and reminders</td><td>Necessary to provide what you asked for, and your express consent given at registration</td></tr>
+  <tr><td>Creating and operating your Agent account and the member portal</td><td>Necessary to provide the membership service you asked for</td></tr>
+  <tr><td>Shaping session content from what members say they want to learn</td><td>Our legitimate interest in running useful sessions, balanced against your privacy</td></tr>
+  <tr><td>Sending news about programmes, benefits and partners</td><td><b>Your separate, optional consent.</b> You can withdraw it at any time</td></tr>
+  <tr><td>Keeping the site secure and preventing abuse</td><td>Our legitimate interest in protecting members and the service</td></tr>
+  </tbody></table>
+  <p><b>You are never required to accept marketing to take part.</b> Agreeing to event communications and
+  opting in to updates are two separate choices, and the second is never ticked for you.</p><h2 id="how">Scope and method of processing</h2>
+  <p>Processing is electronic. The website is static and is served by Netlify. Registrations and Agent
+  profiles are stored in Google Firestore, and accounts are handled by Google Firebase Authentication.
+  There is no automated decision-making that produces legal effects for you, and no profiling.</p><h2 id="who-sees">Who your information is shared with</h2>
+  <ul>
+    <li><b>Google (Firebase)</b> stores the data on our behalf as our processor. It does not use it for its own purposes.</li>
+    <li><b>Netlify</b> serves the website. It receives ordinary web-server information such as your IP address when you load a page.</li>
+    <li><b>Zoom</b> is used to run sessions. If you join a session, Zoom processes your information under its own terms.</li>
+    <li><b>Our partners do not receive your information</b> unless you have specifically asked us to introduce you. Registering for an event does not share your details with any partner.</li>
+  </ul>
+  <p>We do not sell your personal information, and we never will.</p><h2 id="where">Where your information is stored, and transfers abroad</h2>
+  <p>PAAIPE&rsquo;s database is located in <b>Singapore</b> (Google Cloud region <code>asia-southeast1</code>),
+  chosen as the closest region to the Philippines. Because the data leaves the country, this is a
+  <b>cross-border transfer</b>, and we tell you so plainly. PAAIPE remains accountable for your
+  information wherever it is held, and Google processes it under contractual protections.
+  Some account and email operations may be handled in other Google regions.</p><h2 id="how-long">How long we keep it</h2>
+  <p>The Data Privacy Act requires a <b>determined</b> period, not an open-ended one:</p>
+  <ul>
+    <li><b>Event registrations:</b> kept for <b>24 months</b> after the event, then deleted. <span class="todo">to confirm: the association to confirm 24 months</span></li>
+    <li><b>Agent accounts:</b> kept while your account is active, and for <b>12 months</b> after you close it, then deleted. <span class="todo">to confirm: the association to confirm 12 months</span></li>
+    <li><b>Update subscriptions:</b> kept until you withdraw consent, then removed promptly.</li>
+  </ul>
+  <p>We may keep a minimal record longer where a law requires it, and we will tell you if that applies.</p><h2 id="rights">Your rights</h2>
+  <p>Under the Data Privacy Act you have the right to:</p>
+  <ul>
+    <li><b>Be informed</b> &mdash; which is what this notice is for.</li>
+    <li><b>Access</b> your information, its sources, who received it, and how it was processed.</li>
+    <li><b>Correct</b> anything inaccurate or out of date; we will act on this immediately.</li>
+    <li><b>Object</b> to processing, including withdrawing consent for updates at any time.</li>
+    <li><b>Erasure or blocking</b> &mdash; ask us to remove or block your information where the law allows.</li>
+    <li><b>Data portability</b> &mdash; receive a copy of your information in a structured, commonly used electronic format.</li>
+    <li><b>Damages</b> &mdash; be indemnified for damage caused by inaccurate, unlawfully obtained or unauthorised use of your information.</li>
+    <li><b>Lodge a complaint</b> with the National Privacy Commission.</li>
+  </ul>
+  <p>To exercise any of these, write to our Data Protection Officer using the contact details above. We
+  will respond as promptly as we can and will not charge you for a reasonable request.</p><h2 id="complain">Complaining to the regulator</h2>
+  <p>If you are not satisfied with how we have handled your information, you may complain to the
+  <b>National Privacy Commission</b>, 5th Floor, Delegation Building, PICC Complex, Roxas Boulevard,
+  Pasay City 1307 &mdash; <a class="in" href="https://www.privacy.gov.ph" target="_blank" rel="noopener">privacy.gov.ph</a>.
+  You do not need our permission to do so, and we would rather you told us first so we can put it right.</p><h2 id="security">How we protect it</h2>
+  <p>Access to the database is controlled by security rules that allow a registration to be created but
+  <b>do not allow anyone to read other people&rsquo;s registrations from a browser</b>. Your Agent profile can be
+  read only by you. Passwords are never stored by us. Traffic is encrypted in transit.
+  No system is perfect; if a breach ever affects your rights and freedoms we will notify you and the
+  National Privacy Commission as the law requires.</p><h2 id="changes">Changes to this notice</h2>
+  <p>If we change how we handle your information we will update this page, change the version number and
+  effective date at the top, and say what changed. Material changes will be announced to members.</p>
+</div></main>
+<footer><div class="wrap"><div class="top"><div class="brand"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><h3>Philippine Association of AI Professionals and Entrepreneurs</h3><p>Building the Philippines' AI-Powered Future — Together. A trusted community for Filipino AI professionals, entrepreneurs, educators and organizations-building capability, connection and responsible opportunity.</p><a class="btn btn-ghost" style="margin-top:18px" href="#">Contact PAAIPE</a></div>
+<div class="col"><b>COMMUNITY</b><ul><li><a href="programs.html">Programs</a></li><li><a href="events.html">Events</a></li><li><a href="#">Speak at PAAIPE</a></li></ul></div>
+<div class="col"><b>MEMBERSHIP</b><ul><li><a href="member-benefits.html">Membership</a></li><li><a href="member-benefits.html">Member benefits</a></li><li><a href="partners.html">Partners</a></li></ul></div>
+<div class="col"><b>THIS SITE</b><ul><li><a href="#">Contact</a></li><li><a href="#">Accessibility</a></li><li><a href="privacy-notice.html">Privacy notice <span style="font-weight:400;color:var(--muted)">(draft)</span></a></li><li><a href="terms-of-use.html">Terms of use <span style="font-weight:400;color:var(--muted)">(draft)</span></a></li></ul></div></div>
+<div class="bottom">© 2026 Philippine Association of AI Professionals and Entrepreneurs. All rights reserved.<br>Privacy Notice and Terms of Use are drafts awaiting review and are not final legal text.</div></div></footer>
+</body></html>

@@ -26,6 +26,12 @@ export const firebaseConfig = {
 /** PAAIPE's own Firestore database (asia-southeast1). NOT the project default. */
 export const DATABASE_ID = "paaipe";
 
+/** The published version of each consent document. Bump these whenever
+ *  terms-of-use.html or privacy-notice.html changes materially, so a record
+ *  always says WHICH text the person agreed to. Consent you cannot evidence is
+ *  not much use under RA 10173. */
+export const DOC_VERSIONS = { terms: "1.0", privacy: "1.0" };
+
 export const COLLECTIONS = {
   registrations: "paaipe_event_registrations",
   agents:        "paaipe_agents",
@@ -64,6 +70,7 @@ export async function submitRegistration(fields) {
   const { collection, addDoc, serverTimestamp } = await import(`${SDK}/firebase-firestore.js`);
   const ref = await addDoc(collection(await db(), COLLECTIONS.registrations), {
     ...fields,
+    privacyVersion: DOC_VERSIONS.privacy,
     createdAt: serverTimestamp(),
     source: "paaipe.org",
     userAgent: navigator.userAgent.slice(0, 300),
@@ -108,6 +115,11 @@ export async function signUp({ full_name, email, password, updates }) {
   await F.setDoc(F.doc(await db(), COLLECTIONS.agents, cred.user.uid), {
     full_name, email, updates: Boolean(updates),
     createdAt: F.serverTimestamp(), source: "paaipe.org",
+    // WHICH text they agreed to, and when. Without the version a consent record
+    // cannot say what was actually accepted once the documents change.
+    termsVersion: DOC_VERSIONS.terms,
+    privacyVersion: DOC_VERSIONS.privacy,
+    consentedAt: F.serverTimestamp(),
   });
   return cred.user;
 }

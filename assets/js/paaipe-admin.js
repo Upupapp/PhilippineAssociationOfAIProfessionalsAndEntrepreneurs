@@ -19,6 +19,7 @@
 import {
   currentAgent, signIn, signOutNow, resetPassword, friendlyAuthError,
   isAdminNow, listMembers, listRegistrations, confirmMember, setMemberStatus,
+  verifyResetCode, completePasswordReset, extractResetCode,
   STATUS,
 } from "/assets/js/paaipe-firebase.js";
 
@@ -55,59 +56,165 @@ function statusOf(m) {
 
 /* ---------------------------------------------------------------- the door */
 
-async function wireSignIn() {
-  const form = $("[data-admin-signin]");
-  if (!form) return;
-  const err = $("[data-admin-error]");
-  const btn = form.querySelector("button[type=submit]");
-  const show = m => { if (err) { err.textContent = m; err.hidden = !m; } };
+/* /admin is ONE entrance. The sign-in, the password reset and the console all
+ * live at this URL, and the door stays up until the deployed rules confirm the
+ * account is an administrator.
+ *
+ * To be plain about what that does and does not achieve: this page is a public
+ * file and anyone can read it. Hiding the door would hide nothing. What the door
+ * is for is making sure nobody is left holding a session on a console they
+ * cannot use, and that a member who lands here is sent somewhere that works.
+ */
 
-  // arriving here after being turned away from the console
-  if (new URLSearchParams(location.search).get("denied") === "1")
-    show("That account is not a PAAIPE administrator.");
+const PANELS = ["loading", "signin", "forgot", "code", "newpass", "done"];
+let resetCode = "";     // the oobCode, once verified
+let resetEmail = "";    // whose account it belongs to
 
-  // already signed in AND actually an admin? go straight through.
+function panel(name) {
+  PANELS.forEach(p => {
+    const el = $(`[data-panel="${p}"]`);
+    if (el) el.hidden = p !== name;
+  });
+  // Focus synchronously. A deferred focus() is the only thing here that touches
+  // the DOM after the panel is already up, and a stray timer landing between a
+  // person (or a test) typing and submitting is a race with nothing to gain:
+  // the element is visible on this same tick, so it can take focus now.
+  const first = $(`[data-panel="${name}"] input`);
+  if (first) { try { first.focus({ preventScroll: true }); } catch { first.focus(); } }
+}
+
+const errBox  = () => $("[data-admin-error]");
+const noteBox = () => $("[data-admin-note]");
+function showErr(m)  { const e = errBox();  if (e) { e.textContent = m; e.hidden = !m; } if (m) showNote(""); }
+function showNote(m) { const e = noteBox(); if (e) { e.textContent = m; e.hidden = !m; } }
+
+/** Firebase's reset-code failures need their own words: friendlyAuthError()
+ *  speaks about signing in, and "that email and password do not match" is a
+ *  baffling thing to read after pasting a code. */
+function friendlyCodeError(e) {
+  return {
+    "auth/invalid-action-code": "That code is not valid. It may have been used already, or a newer one may have replaced it — send another and use the newest email.",
+    "auth/expired-action-code": "That code has expired. Send another one.",
+    "auth/user-disabled":       "That account is disabled. Contact PAAIPE.",
+    "auth/user-not-found":      "That account no longer exists.",
+    "auth/weak-password":       "Please choose a password of at least 8 characters.",
+  }[(e && e.code) || ""] || friendlyAuthError(e);
+}
+
+async function busy(btn, fn) {
+  if (btn) { btn.disabled = true; btn.dataset.busy = "1"; }
+  try { return await fn(); }
+  finally { if (btn) { btn.disabled = false; delete btn.dataset.busy; } }
+}
+
+/** Show the new-password step for a code we have just verified. */
+async function useCode(code, btn) {
+  const clean = extractResetCode(code);
+  if (!clean) return showErr("Paste the code from the email first.");
   try {
-    if (await currentAgent() && await isAdminNow()) {
-      location.replace("admin.html"); return;
-    }
-  } catch { /* offline: fall through and let them try to sign in */ }
-  document.documentElement.setAttribute("data-admin-door", "ready");
+    resetEmail = await busy(btn, () => verifyResetCode(clean));
+    resetCode = clean;
+    showErr("");
+    const f = $("[data-reset-for]");
+    if (f) f.textContent = `For ${resetEmail}.`;
+    panel("newpass");
+  } catch (ex) {
+    showErr(friendlyCodeError(ex));
+  }
+}
 
-  form.addEventListener("submit", async e => {
+function wireDoor() {
+  const door = $("[data-door]");
+  if (!door) return;
+
+  door.addEventListener("click", e => {
+    const go = e.target.closest("[data-go]");
+    if (!go) return;
     e.preventDefault();
-    show("");
-    const email = form.email.value.trim(), password = form.password.value;
-    if (!email || !password) return show("Enter your email and password.");
-    btn.disabled = true; btn.dataset.busy = "1";
-    try {
-      await signIn(email, password);
-      // Signing in proves WHO they are. It says nothing about whether they may
-      // be here - that is the rules' answer, and we do not open the door until
-      // we have it.
-      if (!(await isAdminNow())) {
-        await signOutNow();
-        return show("That account is not a PAAIPE administrator.");
-      }
-      location.replace("admin.html");
-    } catch (ex) {
-      show(friendlyAuthError(ex));
-    } finally {
-      btn.disabled = false; delete btn.dataset.busy;
-    }
+    showErr(""); showNote("");
+    panel(go.dataset.go);
   });
 
-  const forgot = $("[data-admin-forgot]");
-  forgot?.addEventListener("click", async e => {
+  // --- sign in -------------------------------------------------------------
+  $('[data-form="signin"]')?.addEventListener("submit", async e => {
     e.preventDefault();
-    const email = form.email.value.trim();
-    if (!email) return show("Type your email address first, then choose Forgot password.");
+    showErr("");
+    const f = e.currentTarget;
+    const email = f.email.value.trim(), password = f.password.value;
+    if (!email || !password) return showErr("Enter your email and password.");
+    let user;
     try {
-      await resetPassword(email);
-      show("");
-      const note = $("[data-admin-note]");
-      if (note) { note.textContent = `If ${email} has an account, a reset link is on its way.`; note.hidden = false; }
-    } catch (ex) { show(friendlyAuthError(ex)); }
+      user = await busy(f.querySelector("button[type=submit]"), async () => {
+        const u = await signIn(email, password);
+        // Signing in proves WHO they are. Whether they may be here is the
+        // rules' answer, and the door does not open until we have it.
+        if (!(await isAdminNow())) {
+          await signOutNow();
+          throw Object.assign(new Error("not-admin"), { notAdmin: true });
+        }
+        return u;
+      });
+    } catch (ex) {
+      return showErr(ex?.notAdmin
+        ? "That account is not a PAAIPE administrator."
+        : friendlyAuthError(ex));
+    }
+    await openConsole(user && user.email ? { uid: user.uid, email: user.email } : null);
+  });
+
+  // --- send the code -------------------------------------------------------
+  $('[data-form="forgot"]')?.addEventListener("submit", async e => {
+    e.preventDefault();
+    showErr("");
+    const f = e.currentTarget;
+    const email = f.email.value.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+      return showErr("That email address does not look right.");
+    try {
+      await busy(f.querySelector("button[type=submit]"), () => resetPassword(email));
+    } catch (ex) {
+      // Deliberately not surfaced per-address: saying whether an account exists
+      // is account enumeration. A genuine outage still needs reporting.
+      if (ex?.code === "auth/network-request-failed" || ex?.code === "auth/too-many-requests")
+        return showErr(friendlyAuthError(ex));
+    }
+    const s = $("[data-sent-to]");
+    if (s) s.textContent = `If ${email} has a PAAIPE account, a code is on its way. Check Spam and Promotions too.`;
+    const c = $('[data-form="code"]');
+    if (c) c.code.value = "";
+    panel("code");
+  });
+
+  // --- use the code --------------------------------------------------------
+  $('[data-form="code"]')?.addEventListener("submit", e => {
+    e.preventDefault();
+    useCode(e.currentTarget.code.value, e.currentTarget.querySelector("button[type=submit]"));
+  });
+
+  // --- set the new password ------------------------------------------------
+  $('[data-form="newpass"]')?.addEventListener("submit", async e => {
+    e.preventDefault();
+    showErr("");
+    const f = e.currentTarget;
+    const p1 = f.p1.value, p2 = f.p2.value;
+    if (p1.length < 8) return showErr("Please choose a password of at least 8 characters.");
+    if (p1 !== p2)     return showErr("Those two passwords do not match.");
+    if (!resetCode)    return showErr("That code is no longer valid. Send another one.");
+    try {
+      await busy(f.querySelector("button[type=submit]"),
+                 () => completePasswordReset(resetCode, p1));
+    } catch (ex) {
+      return showErr(friendlyCodeError(ex));
+    }
+    // the code is single-use and now spent; do not keep it around
+    const was = resetEmail;
+    resetCode = ""; resetEmail = "";
+    f.p1.value = f.p2.value = "";
+    const d = $("[data-done-for]");
+    if (d) d.textContent = `You can now sign in as ${was} with your new password.`;
+    const si = $('[data-form="signin"]');
+    if (si) { si.email.value = was; si.password.value = ""; }
+    panel("done");
   });
 }
 
@@ -233,39 +340,28 @@ async function refresh(adminEmail) {
   document.documentElement.setAttribute("data-admin-ready", String(members.length));
 }
 
-async function wireConsole() {
-  if (!$("[data-admin-console]")) return;
+function showConsoleChrome(on) {
+  $$("[data-console]").forEach(e => { e.hidden = !on; });
+  const d = $("[data-door]");
+  if (d) d.hidden = on;
+}
 
-  let me = null;
-  try { me = await currentAgent(); } catch { /* treated as signed out */ }
-  if (!me) { location.replace("admin-signin.html"); return; }
+/** `who` is the account we already have in hand - signIn() hands one back, so
+ *  asking Firebase again for something we were just told is a wasted round trip
+ *  and one more thing that can fail between the two. */
+async function openConsole(who) {
+  let me = who || null;
+  if (!me) { try { me = await currentAgent(); } catch { me = null; } }
+  if (!me) return panel("signin");
 
-  let allowed = false;
-  try { allowed = await isAdminNow(); }
-  catch {
-    // Could not reach Firebase. Say so; do NOT show an empty console, which
-    // would read as "there are no members".
-    document.body.innerHTML =
-      `<div class="offline"><h1>PAAIPE could not be reached</h1>` +
-      `<p>The console needs a connection to load. Please try again.</p>` +
-      `<p><a href="admin.html">Retry</a></p></div>`;
-    return;
-  }
-  if (!allowed) {
-    // Signed in, but not staff. Do not leave them holding a session on a page
-    // they cannot use.
-    await signOutNow().catch(() => {});
-    location.replace("admin-signin.html?denied=1");
-    return;
-  }
-
+  showConsoleChrome(true);
   $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
-  wireMemberActions(me.email);
   $("[data-admin-signout]")?.addEventListener("click", async e => {
     e.preventDefault();
     await signOutNow().catch(() => {});
-    location.replace("admin-signin.html");
-  });
+    location.replace("admin.html");
+  }, { once: true });
+  wireMemberActions(me.email);
 
   try {
     await refresh(me.email);
@@ -275,5 +371,55 @@ async function wireConsole() {
   }
 }
 
-wireSignIn();
-wireConsole();
+async function boot() {
+  if (!$("[data-door]")) return;
+  panel("loading");
+
+  // A reset link from the email lands here with the code already in the URL.
+  // Take it and go straight to the password step - making someone copy a code
+  // out of a link they just clicked would be a step for its own sake.
+  const q = new URLSearchParams(location.search);
+  const oob = q.get("oobCode");
+  const mode = q.get("mode");
+  if (oob && (!mode || mode === "resetPassword")) {
+    document.documentElement.setAttribute("data-admin-door", "ready");
+    // drop the code from the address bar: it is a single-use credential and
+    // does not belong in history, bookmarks or a referrer header
+    history.replaceState(null, "", location.pathname);
+    await useCode(oob, null);
+    return;
+  }
+
+  // turned away from the console a moment ago
+  if (q.get("denied") === "1")
+    showErr("That account is not a PAAIPE administrator.");
+
+  let me = null;
+  try { me = await currentAgent(); } catch { me = null; }
+  if (!me) { document.documentElement.setAttribute("data-admin-door", "ready"); return panel("signin"); }
+
+  let allowed = false;
+  try { allowed = await isAdminNow(); }
+  catch {
+    // Could not reach Firebase. Say so; do NOT show an empty console, which
+    // would read as "there are no members".
+    showErr("PAAIPE could not be reached. Check your connection and reload.");
+    document.documentElement.setAttribute("data-admin-door", "ready");
+    return panel("signin");
+  }
+
+  if (!allowed) {
+    // Signed in, but not staff. Do not leave them holding a session on a page
+    // they cannot use.
+    await signOutNow().catch(() => {});
+    showErr("That account is not a PAAIPE administrator.");
+    document.documentElement.setAttribute("data-admin-door", "ready");
+    return panel("signin");
+  }
+
+  document.documentElement.setAttribute("data-admin-door", "ready");
+  await openConsole();
+}
+
+wireDoor();
+boot();

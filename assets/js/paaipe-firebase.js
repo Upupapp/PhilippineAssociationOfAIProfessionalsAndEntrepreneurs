@@ -222,6 +222,39 @@ export async function resetPassword(email) {
   return A.sendPasswordResetEmail(await auth(), email);
 }
 
+/* Completing a password reset.
+ *
+ * Firebase emails a LINK containing a one-time `oobCode`. There is no short
+ * numeric PIN: issuing one would mean a server to generate it, store it, expire
+ * it and rate-limit attempts against it, and PAAIPE has no server. The oobCode
+ * is the code - single-use, expiring, and issued by Google rather than by us.
+ *
+ * These two are separate on purpose. verifyResetCode() tells us WHOSE account
+ * the code is for before anyone types a new password, so the screen can name the
+ * account and a stale or reused code fails before rather than after.
+ */
+
+/** Resolves with the email address the code belongs to, or throws. */
+export async function verifyResetCode(code) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  return A.verifyPasswordResetCode(await auth(), code);
+}
+
+/** Sets the new password and spends the code. */
+export async function completePasswordReset(code, newPassword) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  return A.confirmPasswordReset(await auth(), code, newPassword);
+}
+
+/** People paste the whole link from the email as often as they paste the code.
+ *  Accept either rather than telling them they did it wrong. */
+export function extractResetCode(pasted) {
+  const s = String(pasted || "").trim();
+  if (!s) return "";
+  try { return new URL(s).searchParams.get("oobCode") || s; }
+  catch { return s; }
+}
+
 export async function signOutNow() {
   const A = await import(`${SDK}/firebase-auth.js`);
   return (await import(`${SDK}/firebase-auth.js`)).signOut(await auth());

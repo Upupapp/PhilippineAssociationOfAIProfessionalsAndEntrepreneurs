@@ -58,3 +58,11 @@
   for = "/assets/*.ics"
   [headers.values]
     Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+
+# /admin is the ONE administrator entrance: sign-in, password reset and the
+# console all live there. This keeps an older bookmark working.
+[[redirects]]
+  from = "/admin-signin"
+  to = "/admin"
+  status = 301
+  force = true

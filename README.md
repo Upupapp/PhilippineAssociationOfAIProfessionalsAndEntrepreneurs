@@ -13,7 +13,12 @@ member-benefits.html        Member Benefits page, reached from the Membership na
 resources.html              Resources library, reached from the Resources nav tab
 partners.html               Partners list, reached from the Partners nav tab
 partner-*.html              one profile per partner (gethired, servana, mvj, dpdigital)
+events.html                 Events list, reached from the Events nav tab
+event-2026-*-ai-exchange.html  one page per AI Exchange edition (Sept–Dec 2026)
 assets/js/leave-dialog.js   "leaving PAAIPE" confirmation for links marked data-leave
+assets/*.ics                calendar files: one per edition, plus the monthly series
+assets/img/ai-exchange-cover.png            cover image on the event pages
+assets/img/ai-exchange-2026-10-banner-*.png October share banners (wide and square)
 assets/img/partners/        partner logos and banners
 assets/img/paaipe-logo.png  logo, used in the nav and footer
 assets/img/world-dots.png   dotted world map behind the hero, film and CTA sections
@@ -31,9 +36,16 @@ the `data-leave` attribute. **Continue** goes to the link, and the cancel button
 Esc or a click outside the dialog stays on the page. Without JavaScript, the
 links work as plain links.
 
+The Events page lists every AI Exchange edition and filters them into All,
+Upcoming and Past; the featured card counts down to the next session and is
+hidden in the Past view. Each edition has its own page with the program,
+speakers, a Google Calendar link and a downloadable `.ics`. Times are Philippine
+Time (UTC+8) on the page and UTC in the calendar files.
+
 Each page is self-contained, with its own CSS. The pages link to each other
-through the nav, the logo and the footer. Other nav items are still
-placeholders (`href="#"`).
+through the nav, the logo and the footer. Programs and Contact are still
+placeholders (`href="#"`), as are the registration and "Speak at PAAIPE"
+buttons.
 
 ## Run it locally
 

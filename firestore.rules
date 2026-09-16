@@ -65,9 +65,28 @@ service cloud.firestore {
       // else, including the person who submitted one, is refused: these are
       // other people's personal data (RA 10173).
       allow read: if isAdmin();
-      // Nobody edits or deletes a registration from a client, admins included.
-      // A record of what someone submitted is not something to rewrite.
-      allow update, delete: if false;
+      // An administrator may record what HAPPENED to a registration - attended,
+      // cancelled, a note - and may not touch a single word the registrant
+      // wrote. That distinction is the whole point: administrative facts are
+      // ours to record, their answers are theirs. affectedKeys().hasOnly() is
+      // what enforces it, so no console screen can quietly widen it.
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status','attended_at','cancelled_at','admin_note','updated_by'])
+                    && request.resource.data.status in
+                         ['registered','attended','no_show','cancelled']
+                    && (!('admin_note' in request.resource.data.keys())
+                        || (request.resource.data.admin_note is string
+                            && request.resource.data.admin_note.size() <= 500))
+                    // who did it, stamped from the token rather than supplied
+                    && (request.resource.data.get('updated_by', null)
+                          == resource.data.get('updated_by', null)
+                        || request.resource.data.updated_by == request.auth.token.email);
+
+      // Nobody DELETES a registration, admins included. A record of what
+      // someone submitted is not something to make disappear; cancelling sets
+      // a status and leaves the record intact.
+      allow delete: if false;
     }
 
     function isWellFormedRegistration(d) {

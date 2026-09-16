@@ -54,6 +54,51 @@ function statusOf(m) {
        : STATUS.GUEST;
 }
 
+/* ----------------------------------------------------------------- the shell */
+
+/* The admin sidebar, in ONE place.
+ *
+ * The mockup ships the same <aside> pasted into eleven files. Pasted navigation
+ * is how a link ends up correct on ten pages and dead on the eleventh, so it is
+ * rendered from this list instead and every page gets the same one.
+ *
+ * `built: false` marks a destination the mockup drew but PAAIPE cannot yet fill
+ * with anything true - there is no Event store, no benefit or claim data, no
+ * role model, and no way to send mail. Those appear, greyed, saying what they
+ * are waiting for, rather than linking to a page of invented rows. Showing the
+ * gap is honest; hiding it would make the console look finished.
+ */
+export const ADMIN_NAV = [
+  { href: "admin.html",               label: "Dashboard",         built: true  },
+  { href: "admin-registrations.html", label: "Registrations",     built: true  },
+  { href: "admin-speaker-brief.html", label: "Speaker brief",     built: true  },
+  { href: "admin-agents.html",        label: "Sign-ups (Agents)", built: true  },
+  { sec: "NOT BUILT YET" },
+  { label: "Events",              waiting: "events are static pages; there is no Event store to edit" },
+  { label: "Benefits & Partners", waiting: "no benefit, code or claim data exists" },
+  { label: "Programs",            waiting: "no enrolment data exists" },
+  { label: "Resources",           waiting: "resources are a static page" },
+  { label: "Announcements",       waiting: "no announcement data exists" },
+  { label: "Communications",      waiting: "sending mail needs an SMTP provider" },
+  { label: "Roles & Settings",    waiting: "there is one administrator, named in firestore.rules" },
+];
+
+const ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>`;
+
+export function renderAdminNav(current) {
+  const host = document.querySelector("[data-admin-nav]");
+  if (!host) return;
+  host.innerHTML = ADMIN_NAV.map(i => {
+    if (i.sec) return `<li class="sec">${esc(i.sec)}</li>`;
+    if (i.built === true) {
+      const on = i.href === current ? ' class="on"' : "";
+      return `<li><a${on} href="${esc(i.href)}">${ICON}${esc(i.label)}</a></li>`;
+    }
+    return `<li><span class="soon" title="${esc(i.waiting)}">${ICON}${esc(i.label)}` +
+           `<em>${esc(i.waiting)}</em></span></li>`;
+  }).join("");
+}
+
 /* ---------------------------------------------------------------- the door */
 
 /* /admin is ONE entrance. The sign-in, the password reset and the console all
@@ -221,8 +266,8 @@ function wireDoor() {
 /* ------------------------------------------------------------- the console */
 
 function renderMembers(list, adminEmail) {
-  const body = $("[data-members]");
-  if (!body) return;
+  // Counts FIRST. The dashboard shows the numbers without the table, and an
+  // early return on the missing tbody would skip the counts along with it.
   const pending = list.filter(m => statusOf(m) === STATUS.GUEST);
   const countEl = $("[data-members-count]");
   if (countEl) countEl.textContent =
@@ -231,6 +276,21 @@ function renderMembers(list, adminEmail) {
   if (pendEl) pendEl.textContent = plural(pending.length, "member is", "members are");
   const pendWrap = $("[data-pending-wrap]");
   if (pendWrap) pendWrap.hidden = pending.length === 0;
+  const sm = $("[data-stat-members]"); if (sm) sm.textContent = String(list.length);
+  const sp = $("[data-stat-pending]"); if (sp) sp.textContent = String(pending.length);
+
+  const recentM = $("[data-recent-members]");
+  if (recentM) recentM.innerHTML = list.length
+    ? list.slice(0, 5).map(m => {
+        const [cls, label] = PILL[statusOf(m)];
+        return `<tr><td><b>${esc(m.full_name || "\u2014")}</b><small>${esc(m.email || "\u2014")}</small></td>
+          <td><span class="${cls}">${esc(label)}</span></td>
+          <td class="num">${esc(when(m.createdAt))}</td></tr>`;
+      }).join("")
+    : `<tr><td colspan="3" class="empty">No member has signed up yet.</td></tr>`;
+
+  const body = $("[data-members]");
+  if (!body) return;
 
   if (!list.length) {
     body.innerHTML = `<tr><td colspan="5" class="empty">No member has signed up yet.</td></tr>`;
@@ -301,6 +361,15 @@ function wireMemberActions(adminEmail) {
 }
 
 function renderRegistrations(list) {
+  const sr = $("[data-stat-regs]"); if (sr) sr.textContent = String(list.length);
+  const recentR = $("[data-recent-regs]");
+  if (recentR) recentR.innerHTML = list.length
+    ? list.slice(0, 5).map(r => `<tr>
+        <td><b>${esc(r.full_name || "\u2014")}</b><small>${esc(r.email || "\u2014")}</small></td>
+        <td>${esc(r.event || "\u2014")}</td>
+        <td class="num">${esc(when(r.createdAt))}</td></tr>`).join("")
+    : `<tr><td colspan="3" class="empty">No registration has been submitted yet.</td></tr>`;
+
   const body = $("[data-registrations]");
   if (!body) return;
   const c = $("[data-reg-count]");
@@ -355,6 +424,7 @@ async function openConsole(who) {
   if (!me) return panel("signin");
 
   showConsoleChrome(true);
+  renderAdminNav(location.pathname.split("/").pop() || "admin.html");
   $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
   $("[data-admin-signout]")?.addEventListener("click", async e => {
     e.preventDefault();
@@ -372,7 +442,29 @@ async function openConsole(who) {
 }
 
 async function boot() {
-  if (!$("[data-door]")) return;
+  // Pages other than /admin carry no door - the sign-in and the reset live at
+  // the one entrance. They still need guarding, so they take the same checks and
+  // are sent back to /admin instead of being shown a second sign-in form.
+  // Returning early here left admin-agents.html completely ungated: the guard
+  // never ran and the page simply never loaded its data.
+  if (!$("[data-door]")) {
+    if (!$("[data-admin-console]") && !document.body.hasAttribute("data-admin-console")) return;
+    let me = null;
+    try { me = await currentAgent(); } catch { me = null; }
+    if (!me) { location.replace("admin.html"); return; }
+    let allowed = false;
+    try { allowed = await isAdminNow(); }
+    catch {
+      flash("PAAIPE could not be reached. Reload to try again — nothing is shown rather than an empty list.");
+      showConsoleChrome(true);
+      document.documentElement.setAttribute("data-admin-ready", "offline");
+      return;
+    }
+    if (!allowed) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
+    await openConsole(me);
+    return;
+  }
+
   panel("loading");
 
   // A reset link from the email lands here with the code already in the URL.

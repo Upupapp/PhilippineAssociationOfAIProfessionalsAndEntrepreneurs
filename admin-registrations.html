@@ -1,0 +1,60 @@
+<!doctype html><html lang="en" data-page="admin-registrations"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Registrations — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-registrations>
+<div class="ashell">
+
+  <aside class="aside">
+    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu" data-admin-nav></ul>
+  </aside>
+
+  <div class="amain">
+    <header class="top">
+      <b style="color:var(--navy);font-size:17px">Registrations</b>
+      <div class="who">Signed in as <b data-admin-email>…</b>
+        <a href="#" data-admin-signout>Sign out</a></div>
+    </header>
+
+    <div class="wrap">
+      <div class="flash" data-flash hidden></div>
+
+      <section class="card">
+        <div class="hd">
+          <h2>Who has registered</h2>
+          <span class="count" data-count>…</span>
+        </div>
+
+        <div class="filters">
+          <select data-f-event aria-label="Filter by event"></select>
+          <select data-f-status aria-label="Filter by status">
+            <option value="">All statuses</option>
+            <option value="registered">Registered</option>
+            <option value="attended">Attended</option>
+            <option value="no_show">No-show</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <select data-f-profile aria-label="Filter by profile"></select>
+          <input type="search" data-f-q placeholder="Search name, email, organisation" aria-label="Search registrations">
+          <span class="grow"></span>
+          <button class="btn btn-ghost btn-sm" data-export>Export CSV</button>
+          <a class="btn btn-gold btn-sm" href="admin-speaker-brief.html">Speaker brief</a>
+        </div>
+
+        <div class="tally" data-tally></div>
+
+        <div class="tbl" style="margin-top:14px"><table>
+          <thead><tr><th>Registrant</th><th>Organisation</th><th>Profile</th><th>Registered</th><th></th></tr></thead>
+          <tbody data-rows><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+
+        <div class="detail" data-detail hidden></div>
+
+        <p class="note">Every row is someone who filled in the form on paaipe.org. Blank means they
+          left it blank — nothing here is inferred or filled in on their behalf.</p>
+        <p class="note"><b>Not built:</b> resending Zoom details needs a mail sender, and importing
+          Zoom attendance needs something to import. Neither exists yet, so neither is offered as a
+          button that would do nothing.</p>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="assets/js/paaipe-admin-registrations.js"></script>
+</body></html>

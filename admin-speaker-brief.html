@@ -1,0 +1,76 @@
+<!doctype html><html lang="en" data-page="admin-speaker-brief"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Speaker brief — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-brief>
+<div class="ashell">
+
+  <aside class="aside">
+    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu" data-admin-nav></ul>
+  </aside>
+
+  <div class="amain">
+    <header class="top">
+      <b style="color:var(--navy);font-size:17px">Speaker brief</b>
+      <div class="who">Signed in as <b data-admin-email>…</b>
+        <a href="#" data-admin-signout>Sign out</a></div>
+    </header>
+
+    <div class="wrap">
+      <div class="flash" data-flash hidden></div>
+
+      <section class="card">
+        <div class="hd">
+          <h2>Brief for <span data-event-name>…</span></h2>
+          <span class="count"><b data-total>0</b> registered</span>
+        </div>
+        <div class="filters">
+          <select data-f-event aria-label="Choose the event"></select>
+          <span class="grow"></span>
+          <button class="btn btn-ghost btn-sm" data-copy>Copy as text</button>
+          <button class="btn btn-gold btn-sm" data-print>Print / save as PDF</button>
+        </div>
+        <textarea data-fallback hidden rows="8" style="width:100%;margin-top:12px;font:inherit;font-size:13px;border:1.5px solid var(--line);border-radius:10px;padding:10px" aria-label="Brief text to copy"></textarea>
+        <p class="note">Everything below is quoted from what people actually wrote when they
+          registered. Nothing is summarised or rephrased — a brief that puts words in a
+          registrant's mouth can be wrong about what they asked.</p>
+      </section>
+
+      <div data-empty hidden>
+        <section class="card">
+          <p class="empty">Nobody has registered for this event yet, so there is nothing to brief
+            the speaker with.</p>
+        </section>
+      </div>
+
+      <div data-body>
+        <section class="card">
+          <div class="hd"><h2>Questions for the speaker</h2><span class="count" data-q-count>…</span></div>
+          <div data-questions></div>
+        </section>
+
+        <section class="card">
+          <div class="hd"><h2>What they want to get out of it</h2><span class="count" data-l-count>…</span></div>
+          <div data-learn></div>
+        </section>
+
+        <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+          <section class="card">
+            <div class="hd"><h2>Who is in the room</h2></div>
+            <div class="mix" data-mix-profile></div>
+          </section>
+          <section class="card">
+            <div class="hd"><h2>Where they work</h2></div>
+            <div class="mix" data-mix-org></div>
+          </section>
+        </div>
+
+      </div>
+      <section class="card">
+        <p class="note"><b>Not shown: an "AI level" breakdown.</b> The registration form does not
+          ask about AI experience, so there is nothing to break down. If PAAIPE wants that in the
+          brief, the form has to ask the question first — inventing a level for somebody would
+          misrepresent them to the speaker.</p>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="assets/js/paaipe-admin-brief.js"></script>
+</body></html>

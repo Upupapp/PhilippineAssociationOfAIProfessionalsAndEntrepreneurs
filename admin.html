@@ -1,86 +1,4 @@
-<!doctype html><html lang="en" data-page="admin"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
-  :root{--navy:#002166;--royal:#065092;--gold:#F2A71B;--lgold:#F6DB74;--pale:#EAF3FC;--pale2:#DCEBFA;--ink:#0f1e3d;--muted:#4a5a7a;--line:#c9dcf3;--bg:#F4F8FD;
-        --ok-bg:#e3f6ec;--ok-ink:#0a5c3a;--warn-bg:#fdf3dd;--warn-ink:#7a5406;--err-bg:#fdeae8;--err-ink:#a0271a}
-  *{box-sizing:border-box}
-  body{margin:0;font-family:Poppins,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
-  a{color:var(--royal)}
-  h1,h2{color:var(--navy);margin:0;line-height:1.2;letter-spacing:-.01em}
-  [hidden]{display:none!important}
-
-  /* ---- the door: one full-screen panel, shown until an admin is signed in -- */
-  /* in normal flow, not position:fixed. Fixed took the door out of the flow, and
-     with the console hidden the document then had NO in-flow content at all and
-     collapsed to zero height - which breaks scrolling on a short screen. */
-  .door{min-height:100vh;background:linear-gradient(170deg,#021341,#052b63 60%,#03204e);color:#fff;display:grid;place-items:center;padding:32px 20px}
-  .door a{color:#9fd0f7}
-  .panelbox{width:100%;max-width:408px;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:30px 28px;backdrop-filter:blur(6px);box-shadow:0 24px 60px rgba(0,10,40,.42)}
-  .logomark{display:block;width:max-content;margin:0 auto 20px;background:#fff;border-radius:12px;padding:9px 14px}
-  .logomark img{display:block;height:30px}
-  .kicker{display:flex;align-items:center;justify-content:center;gap:7px;font-size:10.5px;font-weight:800;letter-spacing:.16em;color:var(--lgold);text-transform:uppercase;margin-bottom:8px}
-  .kicker i{width:6px;height:6px;border-radius:50%;background:var(--gold);display:block}
-  .door h1{color:#fff;margin:0 0 4px;font-size:21px;text-align:center}
-  .sub{margin:0 0 20px;font-size:13.5px;color:#8fa6c9;text-align:center}
-  .door label{display:block;font-size:12.5px;font-weight:600;margin:0 0 6px;color:#cfe2f8}
-  .f{margin-bottom:14px}
-  .door input{width:100%;padding:11px 14px;border-radius:11px;border:1px solid rgba(255,255,255,.22);background:rgba(2,14,44,.55);color:#fff;font:inherit;font-size:14px}
-  .door input:focus{outline:2px solid var(--gold);outline-offset:1px;border-color:transparent}
-  .hint{font-size:12px;color:#8fa6c9;margin:-8px 0 14px}
-  .bigbtn{width:100%;padding:12px 18px;border:0;border-radius:999px;font:inherit;font-weight:700;font-size:14px;cursor:pointer;background:linear-gradient(135deg,var(--lgold),var(--gold));color:var(--navy);transition:transform .15s}
-  .bigbtn:hover{transform:translateY(-1px)}
-  .bigbtn:disabled{opacity:.65;cursor:progress;transform:none}
-  .bigbtn[data-busy]::after{content:" …"}
-  .row{display:flex;justify-content:space-between;align-items:center;margin:-4px 0 18px;gap:12px}
-  .row a,.linkish{font-size:12.5px;color:#9fd0f7;text-decoration:none;background:none;border:0;padding:0;cursor:pointer;font:inherit;font-size:12.5px}
-  .row a:hover,.linkish:hover{text-decoration:underline}
-  .msg{border-radius:11px;padding:10px 13px;font-size:13px;margin-bottom:16px}
-  .msg.err{background:rgba(255,107,94,.13);border:1px solid rgba(255,107,94,.45);color:#ffd2cd}
-  .msg.info{background:rgba(159,208,247,.12);border:1px solid rgba(159,208,247,.35);color:#d8ecfc}
-  .msg.good{background:rgba(120,224,160,.12);border:1px solid rgba(120,224,160,.4);color:#c8f5da}
-  .foot{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.14);font-size:12.5px;color:#8fa6c9;text-align:center}
-  .foot a{font-weight:600;text-decoration:none}.foot a:hover{text-decoration:underline}
-  .steps{display:flex;gap:6px;justify-content:center;margin:0 0 18px}
-  .steps i{width:26px;height:3px;border-radius:3px;background:rgba(255,255,255,.2);display:block}
-  .steps i.on{background:var(--gold)}
-
-  /* ---- the console ------------------------------------------------------- */
-  .top{display:flex;align-items:center;gap:14px;padding:10px 24px;min-height:64px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
-  .top img{height:30px}
-  .tag{font-size:10px;font-weight:800;letter-spacing:.14em;color:#fff;background:var(--navy);border-radius:999px;padding:4px 10px}
-  .who{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
-  .who b{color:var(--navy);font-weight:600}
-  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 56px;display:flex;flex-direction:column;gap:20px}
-  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;box-shadow:0 2px 10px rgba(3,27,82,.04)}
-  .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
-  .hd h2{font-size:17px}
-  .count{font-size:12.5px;color:var(--muted);font-weight:600}
-  table{width:100%;border-collapse:collapse;font-size:14px}
-  th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:0 10px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
-  td{padding:12px 10px;border-bottom:1px solid var(--pale2);vertical-align:middle}
-  tr:last-child td{border-bottom:0}
-  td b{display:block;color:var(--navy);font-size:14px;font-weight:600}
-  td small{display:block;color:var(--muted);font-size:12.5px}
-  td.num{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
-  td.act{text-align:right;white-space:nowrap}
-  .dash{color:var(--line)}
-  .empty{text-align:center;color:var(--muted);padding:26px 10px;font-size:14px}
-  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;white-space:nowrap}
-  .pill.ok{background:var(--ok-bg);color:var(--ok-ink)}
-  .pill.warn{background:var(--warn-bg);color:var(--warn-ink)}
-  .pill.err{background:var(--err-bg);color:var(--err-ink)}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px 15px;border-radius:999px;font:inherit;font-weight:600;font-size:13px;cursor:pointer;border:0;white-space:nowrap;transition:transform .15s}
-  .btn:hover{transform:translateY(-1px)}
-  .btn:disabled{opacity:.55;cursor:progress;transform:none}
-  .btn-gold{background:linear-gradient(135deg,var(--lgold),var(--gold));color:var(--navy)}
-  .btn-ghost{background:#fff;border:1.5px solid var(--line);color:var(--royal)}
-  .btn-sm{padding:7px 13px;font-size:12.5px}
-  .confirm{display:inline-flex;gap:8px;align-items:center;justify-content:flex-end}
-  .confirm input{width:60px;padding:7px 9px;border-radius:9px;border:1.5px solid var(--line);font:inherit;font-size:13px;text-align:center;font-variant-numeric:tabular-nums}
-  .banner{display:flex;gap:10px;align-items:flex-start;background:var(--warn-bg);border:1px solid #f0d9a8;border-radius:12px;padding:12px 15px;font-size:13.5px;color:var(--warn-ink)}
-  .flash{background:var(--err-bg);border:1px solid #f3c4bd;color:var(--err-ink);border-radius:12px;padding:12px 15px;font-size:13.5px}
-  .note{font-size:12.5px;color:var(--muted);margin:10px 0 0}
-  .tbl{overflow-x:auto}
-  @media(max-width:620px){td.act{text-align:left}.wrap{padding:16px 14px 44px}.card{padding:16px}}
-</style></head><body data-admin-console>
+<!doctype html><html lang="en" data-page="admin"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-console>
 
 <!-- THE DOOR. One entrance: /admin is both the sign-in and the console.
      It is shown until the deployed rules confirm this account is an admin. -->
@@ -167,42 +85,62 @@
 </div>
 
 <!-- THE CONSOLE -->
-<header class="top" data-console hidden>
-  <img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span class="tag">ADMIN</span>
-  <div class="who">Signed in as <b data-admin-email>…</b>
-    <a href="#" data-admin-signout>Sign out</a></div>
-</header>
+<div class="ashell" data-console hidden>
+  <aside class="aside">
+    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu" data-admin-nav></ul>
+  </aside>
 
-<div class="wrap" data-console hidden>
+  <div class="amain">
+    <header class="top">
+      <b style="color:var(--navy);font-size:17px">Dashboard</b>
+      <div class="who">Signed in as <b data-admin-email>…</b>
+        <a href="#" data-admin-signout>Sign out</a></div>
+    </header>
 
-  <div class="flash" data-admin-flash hidden></div>
+    <div class="wrap">
+      <div class="flash" data-admin-flash hidden></div>
 
-  <div class="banner" data-pending-wrap hidden>
-    <span><b><span data-pending-count>0 members are</span> waiting to be confirmed.</b>
-    Until you confirm someone they remain a Guest: they can use the Portal, but nothing calls
-    them an Agent and they are not listed in the Agent Directory.</span>
+      <div class="banner" data-pending-wrap hidden>
+        <span><b><span data-pending-count>0 members are</span> waiting to be confirmed.</b>
+        Until you confirm someone they remain a Guest: they can use the Portal, but nothing calls
+        them an Agent and they are not listed in the Agent Directory.
+        <a href="admin-agents.html">Review them</a>.</span>
+      </div>
+
+      <div class="grid2" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+        <section class="card"><div class="hd"><h2>Sign-ups</h2></div>
+          <p style="font-size:30px;font-weight:700;color:var(--navy);margin:0;line-height:1"
+             data-stat-members>–</p>
+          <p class="note">People who have created a PAAIPE account.</p></section>
+        <section class="card"><div class="hd"><h2>Awaiting confirmation</h2></div>
+          <p style="font-size:30px;font-weight:700;color:var(--navy);margin:0;line-height:1"
+             data-stat-pending>–</p>
+          <p class="note">Guests nobody has confirmed as Agents yet.</p></section>
+        <section class="card"><div class="hd"><h2>Registrations</h2></div>
+          <p style="font-size:30px;font-weight:700;color:var(--navy);margin:0;line-height:1"
+             data-stat-regs>–</p>
+          <p class="note">Across every event, all time.</p></section>
+      </div>
+
+      <section class="card">
+        <div class="hd"><h2>Recent registrations</h2>
+          <a href="admin-registrations.html">All registrations</a></div>
+        <div class="tbl"><table>
+          <thead><tr><th>Registrant</th><th>Event</th><th>Registered</th></tr></thead>
+          <tbody data-recent-regs><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+      </section>
+
+      <section class="card">
+        <div class="hd"><h2>Recent sign-ups</h2><a href="admin-agents.html">All sign-ups</a></div>
+        <div class="tbl"><table>
+          <thead><tr><th>Member</th><th>Status</th><th>Joined</th></tr></thead>
+          <tbody data-recent-members><tr><td colspan="3" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+      </section>
+    </div>
   </div>
-
-  <section class="card">
-    <div class="hd"><h2>Members</h2><span class="count" data-members-count>…</span></div>
-    <div class="tbl"><table>
-      <thead><tr><th>Member</th><th>Status</th><th>Agent no.</th><th>Joined</th><th></th></tr></thead>
-      <tbody data-members><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
-    </table></div>
-    <p class="note">An Agent number is a label PAAIPE issues, not a counter — the value shown is a
-      suggestion and you can type any label before confirming.</p>
-  </section>
-
-  <section class="card">
-    <div class="hd"><h2>Event registrations</h2><span class="count" data-reg-count>…</span></div>
-    <div class="tbl"><table>
-      <thead><tr><th>Registrant</th><th>Event</th><th>Submitted</th><th>Wants updates</th></tr></thead>
-      <tbody data-registrations><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
-    </table></div>
-    <p class="note">Read-only. A record of what somebody submitted is not something to rewrite,
-      so nothing here — including this console — can edit or delete a registration.</p>
-  </section>
-
 </div>
 <script type="module" src="assets/js/paaipe-admin.js"></script>
 </body></html>

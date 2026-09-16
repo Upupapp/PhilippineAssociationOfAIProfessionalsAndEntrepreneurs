@@ -391,6 +391,36 @@ export async function listRegistrations() {
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
 }
 
+/** The statuses a registration can hold. A registration written by the public
+ *  form has NO status field at all - it is simply registered. Absence is not a
+ *  different state, so readers must treat it as "registered" rather than as
+ *  unknown, and nothing backfills it. */
+export const REG_STATUS = {
+  REGISTERED: "registered",
+  ATTENDED:   "attended",
+  NO_SHOW:    "no_show",
+  CANCELLED:  "cancelled",
+};
+
+export const regStatusOf = r =>
+  Object.values(REG_STATUS).includes(r?.status) ? r.status : REG_STATUS.REGISTERED;
+
+/** Record what HAPPENED to a registration. An admin may set this and nothing
+ *  else: the rules refuse any write that touches a field the registrant filled
+ *  in. Their answers are theirs; attendance is ours.
+ *
+ *  Cancelling sets a status - it never deletes. A record of what someone
+ *  submitted is not something to make disappear. */
+export async function setRegistrationStatus(id, status, adminEmail) {
+  if (!Object.values(REG_STATUS).includes(status))
+    throw new Error(`refusing to write an unknown registration status: ${status}`);
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const patch = { status, updated_by: adminEmail };
+  if (status === REG_STATUS.ATTENDED)  patch.attended_at  = F.serverTimestamp();
+  if (status === REG_STATUS.CANCELLED) patch.cancelled_at = F.serverTimestamp();
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.registrations, id), patch);
+}
+
 /** Confirm a Guest as an Agent. The owner's rule: "only confirmed users become
  *  agents", and confirmation happens here.
  *

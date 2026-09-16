@@ -23,6 +23,9 @@ export const firebaseConfig = {
   appId:             "1:558511325456:web:6f8f383eb10116db8c6595",
 };
 
+/** PAAIPE's own Firestore database (asia-southeast1). NOT the project default. */
+export const DATABASE_ID = "paaipe";
+
 export const COLLECTIONS = {
   registrations: "paaipe_event_registrations",
   agents:        "paaipe_agents",
@@ -44,7 +47,11 @@ async function db() {
   const { getFirestore } = await import(`${SDK}/firebase-firestore.js`);
   // The project is shared: name the app so we never collide with PostFlow's.
   const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
-  _db = getFirestore(app);
+  // NAMED database, not (default). PAAIPE's data lives in its own Firestore
+  // database in asia-southeast1 (Singapore); the project's (default) database is
+  // in nam5 (United States) and belongs to PostFlow. Passing DATABASE_ID is what
+  // keeps PAAIPE's data in-region and under its own ruleset.
+  _db = getFirestore(app, DATABASE_ID);
   return _db;
 }
 

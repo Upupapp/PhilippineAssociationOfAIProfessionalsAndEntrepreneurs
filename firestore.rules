@@ -3,19 +3,20 @@ rules_version = '2';
 // PAAIPE rules for the SHARED Firebase project "PAAIPE and POSTFLOW"
 // (postflowit-autos).
 //
-// READ THIS BEFORE DEPLOYING.
-// Firestore has ONE ruleset per database, so this file would govern PostFlow's
-// data as well as PAAIPE's.
+// THIS RULESET GOVERNS THE `paaipe` DATABASE ONLY.
 //
-// MEASURED 2026-09-16: Firestore has NEVER been enabled on this project (the
-// API returns 403 "has not been used in project postflowit-autos before"), and
-// there are no Realtime Database instances either. PostFlow therefore has no
-// database here and NO existing Firestore rules. This file can be deployed as
-// the first ruleset without dropping anyone's protection.
+// PAAIPE has its own Firestore database — `paaipe`, in asia-southeast1
+// (Singapore) — created 2026-09-16 with delete protection and point-in-time
+// recovery enabled. The project's `(default)` database is a separate database in
+// nam5 (United States) with its own, separate ruleset; nothing here touches it.
 //
-// If that ever stops being true — if PostFlow starts using Firestore — merge
-// its rules into the marked section BEFORE deploying this, or you will replace
-// them. Re-check with: firebase firestore:databases:list --project postflowit-autos
+// That separation is deliberate. The Firebase project is shared with PostFlow,
+// and one database per product means one ruleset per product: a mistake in these
+// rules cannot expose PostFlow's data, and vice versa. It also keeps Philippine
+// members' personal data in-region, which matters under RA 10173.
+//
+// Deploy with:  firebase deploy --only firestore:rules --project postflowit-autos
+// (firebase.json targets the `paaipe` database explicitly.)
 //
 // Every PAAIPE collection is prefixed `paaipe_` so the two products' rules never
 // overlap. The default at the bottom denies everything not explicitly allowed.

@@ -1,0 +1,36 @@
+<!doctype html><html lang="en" data-page="admin-events"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Events — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-events>
+<div class="ashell">
+
+  <aside class="aside">
+    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu" data-admin-nav></ul>
+  </aside>
+
+  <div class="amain">
+    <header class="top">
+      <b style="color:var(--navy);font-size:17px">Events</b>
+      <div class="who">Signed in as <b data-admin-email>…</b>
+        <a href="#" data-admin-signout>Sign out</a></div>
+    </header>
+
+    <div class="wrap">
+      <div class="flash" data-flash hidden></div>
+
+      <section class="card">
+        <div class="hd"><h2>All events</h2><span class="count" data-event-count>…</span></div>
+        <div class="tbl"><table>
+          <thead><tr><th>Event</th><th>Date</th><th>Status</th><th></th></tr></thead>
+          <tbody data-events><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+        <p class="note">Drafts are listed here and nowhere else — the security rules refuse to serve
+          one to the public, so an unpublished event cannot leak even if somebody has the link.</p>
+      </section>
+
+      <section class="card">
+        <div class="detail" data-event-editor hidden></div>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="assets/js/paaipe-admin-events.js"></script>
+</body></html>

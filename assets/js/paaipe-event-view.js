@@ -92,6 +92,20 @@ async function renderEventPage() {
   if (!ev) {
     // Either there is no such event or it is a draft - and from out here those
     // are deliberately the same thing.
+    //
+    // RETURNING HERE WAS A BUG. The page then kept whatever its HTML said, and
+    // the HTML says "Register now" - so an UNPUBLISHED event went on inviting
+    // registrations, and the form would have taken them. Falling back to the
+    // markup is right when the network fails and wrong when the answer is "this
+    // is not public": those are different cases and only one of them means the
+    // page was telling the truth a moment ago.
+    const cta = $("[data-register-cta]");
+    if (cta) {
+      cta.innerHTML = `<span class="btn btn-ghost" aria-disabled="true" data-cta-closed>This event is not available</span>`;
+      cta.setAttribute("data-cta-state", "not-found");
+    }
+    const spon = $("[data-sponsors]");
+    if (spon) { spon.innerHTML = ""; spon.hidden = true; }
     document.documentElement.setAttribute("data-event-view", "not-found");
     return;
   }

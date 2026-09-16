@@ -138,3 +138,13 @@
   @media print{.aside,.filters,.dacts,.btn,.top{display:none!important}
     .ashell{grid-template-columns:1fr}.card{border:0;box-shadow:none;padding:0}
     .wrap{padding:0}body{background:#fff}}
+
+  /* event editor */
+  .ehead{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:800;margin:22px 0 10px}
+  .detail .f{margin-bottom:12px}
+  .detail label{display:block;font-size:12.5px;font-weight:600;color:var(--navy);margin-bottom:5px}
+  .detail input,.detail textarea,.detail select{width:100%;padding:9px 12px;border-radius:10px;border:1.5px solid var(--line);font:inherit;font-size:13.5px;background:#fff;color:var(--ink)}
+  .detail input[type=checkbox]{width:auto;margin-right:8px}
+  .frow{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  tr.on{background:var(--pale)}
+  @media(max-width:700px){.frow{grid-template-columns:1fr}}

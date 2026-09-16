@@ -81,6 +81,8 @@ const greet = () => {
   set("[data-agent-initials]", initials(agent.full_name, agent.email));
   set("[data-agent-greeting]", `${greet()}, ${first}.`);
   set("[data-agent-email]", agent.email || "");
+  // "Email verified · September 2026" was a fixed string. Say what is true.
+  set("[data-email-verified]", agent.emailVerified ? "Email verified" : "Email not verified yet");
 
   // Only ever shown when PAAIPE has actually issued a label.
   if (agent.agentNumber) set("[data-agent-number]", agent.agentNumber);

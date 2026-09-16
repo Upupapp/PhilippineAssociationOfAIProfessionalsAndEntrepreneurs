@@ -29,13 +29,45 @@ service cloud.firestore {
     // merge. If that changes, its rules go here, unchanged, before deploying.
     // ---------------------------------------------------------------
 
+    // --- PAAIPE: who is an administrator --------------------------
+    // Stated HERE, in the ruleset, and nowhere else.
+    //
+    // A ruleset is the only file in this project that a client cannot write and
+    // only a project owner can deploy, which makes it the one safe place to keep
+    // an authorisation list. The alternatives are worse: a Firestore document
+    // saying "I am an admin" has to be protected by a rule anyway, and a flag in
+    // the page's JavaScript protects nothing at all - anyone can edit it in their
+    // own browser. Custom claims on the ID token are the better mechanism at
+    // scale and need no rules deploy to change; they require the Admin SDK, which
+    // needs service-account credentials this project does not yet have.
+    //
+    // To add or remove an administrator: edit this list and run
+    //   firebase deploy --only firestore:rules --project postflowit-autos
+    //
+    // NOTE: the project is SHARED with PostFlow. This list authorises access to
+    // PAAIPE data only. It says nothing about PostFlow's database, which has its
+    // own separate ruleset.
+    function isAdmin() {
+      return request.auth != null
+          && request.auth.token.email != null
+          && request.auth.token.email.lower() in [
+               'admin@upupapp.asia'
+             ];
+    }
+
     // --- PAAIPE: event registrations ------------------------------
-    // Anyone may create one. Nobody may read, edit or delete from a client:
-    // these are other people's personal data (RA 10173). Read them in the
-    // console or from a server using the Admin SDK, which bypasses rules.
+    // Anyone may create one. Only an administrator may read them, and nobody
+    // may edit or delete one from a client: these are other people's personal
+    // data (RA 10173).
     match /paaipe_event_registrations/{id} {
       allow create: if isWellFormedRegistration(request.resource.data);
-      allow read, update, delete: if false;
+      // An administrator may read them - this is what /admin is for. Everyone
+      // else, including the person who submitted one, is refused: these are
+      // other people's personal data (RA 10173).
+      allow read: if isAdmin();
+      // Nobody edits or deletes a registration from a client, admins included.
+      // A record of what someone submitted is not something to rewrite.
+      allow update, delete: if false;
     }
 
     function isWellFormedRegistration(d) {
@@ -64,12 +96,13 @@ service cloud.firestore {
 
     // --- PAAIPE: member profiles ----------------------------------
     // Signing up makes a GUEST. Only PAAIPE confirms someone as an Agent, so a
-    // client may write status only as "guest" and may NEVER change it — without
+    // MEMBER may write status only as "guest" and may NEVER change it — without
     // that, anyone could promote themselves to Agent by editing their own
-    // profile. Promotion is done with the Admin SDK, which bypasses these rules.
+    // profile. Promotion is an ADMINISTRATOR's act, done at /admin under the
+    // isAdmin() rule below.
     //
-    // agentNumber is likewise server-only: it is a label PAAIPE issues, not
-    // something a client may claim.
+    // agentNumber is likewise not a member's to claim: it is a label PAAIPE
+    // issues, writable only by an administrator.
     match /paaipe_agents/{uid} {
       // your own profile, always
       allow read: if request.auth != null && request.auth.uid == uid;
@@ -79,6 +112,8 @@ service cloud.firestore {
       allow read: if request.auth != null
                   && resource.data.status == 'agent'
                   && resource.data.directoryVisible == true;
+      // an administrator sees everyone, including guests awaiting confirmation
+      allow read: if isAdmin();
 
       allow create: if request.auth != null && request.auth.uid == uid
                     && !('agentNumber' in request.resource.data.keys())
@@ -104,6 +139,28 @@ service cloud.firestore {
                        == resource.data.get('confirmed_at', null)
                     && request.resource.data.get('confirmed_by', null)
                        == resource.data.get('confirmed_by', null);
+
+      // An administrator may confirm a Guest as an Agent, or suspend one, and
+      // may do NOTHING else here. They cannot rename a member, flip someone's
+      // directory visibility, or rewrite the consent a profile was created
+      // under - those belong to the member. Confirmation is stamped with the
+      // server's clock and the admin's own email, so it cannot be backdated or
+      // attributed to somebody else.
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status','agentNumber','confirmed_at','confirmed_by'])
+                    && request.resource.data.status in ['guest','agent','suspended']
+                    && (!('agentNumber' in request.resource.data.keys())
+                        || (request.resource.data.agentNumber is string
+                            && request.resource.data.agentNumber.size() > 0
+                            && request.resource.data.agentNumber.size() <= 12))
+                    && (request.resource.data.get('confirmed_at', null)
+                          == resource.data.get('confirmed_at', null)
+                        || request.resource.data.confirmed_at == request.time)
+                    && (request.resource.data.get('confirmed_by', null)
+                          == resource.data.get('confirmed_by', null)
+                        || request.resource.data.confirmed_by == request.auth.token.email);
+
       allow delete: if false;
     }
 

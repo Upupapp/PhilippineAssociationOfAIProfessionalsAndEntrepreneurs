@@ -311,6 +311,84 @@ export async function listDirectory() {
   return snap.docs.map(d => ({ uid: d.id, ...d.data() }));
 }
 
+/* ---------------------------------------------------------------------------
+ * ADMINISTRATORS
+ *
+ * Who is an administrator is stated in firestore.rules and NOWHERE ELSE - see
+ * isAdmin() there. Deliberately, this file keeps no list of admin emails: a copy
+ * here would be a second source of truth that can drift from the real one, and
+ * it would protect nothing anyway, because anything this file says about the
+ * person using it is something that person can edit in their own browser.
+ *
+ * So adminness is not asserted, it is MEASURED: we ask Firestore to do an
+ * admin-only thing and see whether it is allowed. The answer comes from the
+ * deployed rules, which is the only answer that means anything.
+ * ------------------------------------------------------------------------- */
+
+/** True only if the DEPLOYED RULES let this account read registrations, which
+ *  only an administrator may do. An empty collection still answers "yes" - an
+ *  allowed query over nothing returns an empty result, while a refused one
+ *  throws permission-denied. */
+export async function isAdminNow() {
+  try {
+    const F = await import(`${SDK}/firebase-firestore.js`);
+    await F.getDocs(F.query(F.collection(await db(), COLLECTIONS.registrations), F.limit(1)));
+    return true;
+  } catch (e) {
+    if (e && e.code === "permission-denied") return false;
+    throw e;   // a network failure is NOT "you are not an admin"
+  }
+}
+
+/** Every member, guests included. Admin-only; throws permission-denied
+ *  otherwise. Ordered newest first, with no ordering claimed when a profile
+ *  predates createdAt. */
+export async function listMembers() {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const snap = await F.getDocs(F.collection(await db(), COLLECTIONS.agents));
+  return snap.docs.map(d => ({ uid: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+}
+
+/** Every event registration. Admin-only. */
+export async function listRegistrations() {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const snap = await F.getDocs(F.collection(await db(), COLLECTIONS.registrations));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+}
+
+/** Confirm a Guest as an Agent. The owner's rule: "only confirmed users become
+ *  agents", and confirmation happens here.
+ *
+ *  agentNumber is a LABEL the association issues, not a counter - the owner's
+ *  words, 2026-09-16: "Agent numbering are labels so far we only have 5 agents".
+ *  So the admin types it, and nothing generates one.
+ *
+ *  confirmed_at and confirmed_by are stamped by the rules, not by us: the server
+ *  clock and the admin's own token email, so a confirmation cannot be backdated
+ *  or credited to someone else. */
+export async function confirmMember(uid, agentNumber, adminEmail) {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const patch = {
+    status: STATUS.AGENT,
+    confirmed_at: F.serverTimestamp(),
+    confirmed_by: adminEmail,
+  };
+  const n = String(agentNumber || "").trim();
+  if (n) patch.agentNumber = n;
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, uid), patch);
+}
+
+/** Move a member back to guest, or suspend them. Nothing else about the profile
+ *  may be touched - the rules enforce that, not this function. */
+export async function setMemberStatus(uid, status) {
+  if (![STATUS.GUEST, STATUS.AGENT, STATUS.SUSPENDED].includes(status))
+    throw new Error(`refusing to write an unknown status: ${status}`);
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, uid), { status });
+}
+
 /** Firebase error codes are not for humans. */
 export function friendlyAuthError(e) {
   const c = (e && e.code) || "";

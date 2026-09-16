@@ -1,0 +1,34 @@
+# Paths whose change does NOT alter what a visitor sees, and therefore does not
+# need a production deploy.
+#
+# ONE list, read by TWO things:
+#   * scripts/netlify-ignore.sh — Netlify's build-skip hook, on their machines
+#   * scripts/deploysave.sh     — the local cost gate, before you spend anything
+# They must never disagree about what is worth deploying, so neither keeps its
+# own copy. A second copy is a second answer.
+#
+# Syntax, one per line:
+#   path/to/file     exact match
+#   path/prefix/     everything under that directory
+#   *.ext            any file with that extension, at any depth
+#   # comment        ignored, as are blank lines
+#
+# THE POLARITY IS DELIBERATE: anything not listed here BUILDS. A wrongly skipped
+# deploy is a fix that silently never ships, which costs far more than a build.
+# Add an entry only when you can say why a visitor could never notice.
+
+README.md
+.gitignore
+*.md
+
+# Firebase config and rules. These are DEPLOYED TO FIREBASE with
+# `firebase deploy`, not served to visitors — the copies at paaipe.org are
+# incidental, because Netlify publishes the repo root. Letting the published
+# copy lag is harmless; nothing fetches it.
+.firebaserc
+firebase.json
+firestore.rules
+
+# Build and deploy tooling. Published only because publish = "." — no page
+# references them.
+scripts/

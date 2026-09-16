@@ -1,0 +1,87 @@
+<!doctype html><html lang="en" data-page="admin"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
+  :root{--navy:#002166;--royal:#065092;--gold:#F2A71B;--lgold:#F6DB74;--pale:#EAF3FC;--pale2:#DCEBFA;--ink:#0f1e3d;--muted:#4a5a7a;--line:#c9dcf3;--bg:#F4F8FD;
+        --ok-bg:#e3f6ec;--ok-ink:#0a5c3a;--warn-bg:#fdf3dd;--warn-ink:#7a5406;--err-bg:#fdeae8;--err-ink:#a0271a}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Poppins,system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  a{color:var(--royal)}
+  h1,h2{color:var(--navy);margin:0;line-height:1.2;letter-spacing:-.01em}
+  .top{display:flex;align-items:center;gap:14px;padding:10px 24px;min-height:64px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+  .top img{height:30px}
+  .tag{font-size:10px;font-weight:800;letter-spacing:.14em;color:#fff;background:var(--navy);border-radius:999px;padding:4px 10px}
+  .who{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:13px;color:var(--muted);flex-wrap:wrap}
+  .who b{color:var(--navy);font-weight:600}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 56px;display:flex;flex-direction:column;gap:20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px 22px;box-shadow:0 2px 10px rgba(3,27,82,.04)}
+  .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap}
+  .hd h2{font-size:17px}
+  .count{font-size:12.5px;color:var(--muted);font-weight:600}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:700;padding:0 10px 9px;border-bottom:1px solid var(--line);white-space:nowrap}
+  td{padding:12px 10px;border-bottom:1px solid var(--pale2);vertical-align:middle}
+  tr:last-child td{border-bottom:0}
+  td b{display:block;color:var(--navy);font-size:14px;font-weight:600}
+  td small{display:block;color:var(--muted);font-size:12.5px}
+  td.num{white-space:nowrap;color:var(--muted);font-variant-numeric:tabular-nums}
+  td.act{text-align:right;white-space:nowrap}
+  .dash{color:var(--line)}
+  .empty{text-align:center;color:var(--muted);padding:26px 10px;font-size:14px}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;white-space:nowrap}
+  .pill.ok{background:var(--ok-bg);color:var(--ok-ink)}
+  .pill.warn{background:var(--warn-bg);color:var(--warn-ink)}
+  .pill.err{background:var(--err-bg);color:var(--err-ink)}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:8px 15px;border-radius:999px;font:inherit;font-weight:600;font-size:13px;cursor:pointer;border:0;white-space:nowrap;transition:transform .15s}
+  .btn:hover{transform:translateY(-1px)}
+  .btn:disabled{opacity:.55;cursor:progress;transform:none}
+  .btn-gold{background:linear-gradient(135deg,var(--lgold),var(--gold));color:var(--navy)}
+  .btn-ghost{background:#fff;border:1.5px solid var(--line);color:var(--royal)}
+  .btn-sm{padding:7px 13px;font-size:12.5px}
+  .confirm{display:inline-flex;gap:8px;align-items:center;justify-content:flex-end}
+  .confirm input{width:60px;padding:7px 9px;border-radius:9px;border:1.5px solid var(--line);font:inherit;font-size:13px;text-align:center;font-variant-numeric:tabular-nums}
+  .banner{display:flex;gap:10px;align-items:flex-start;background:var(--warn-bg);border:1px solid #f0d9a8;border-radius:12px;padding:12px 15px;font-size:13.5px;color:var(--warn-ink)}
+  .banner b{font-weight:700}
+  .flash{background:var(--err-bg);border:1px solid #f3c4bd;color:var(--err-ink);border-radius:12px;padding:12px 15px;font-size:13.5px}
+  .note{font-size:12.5px;color:var(--muted);margin:10px 0 0}
+  .offline{max-width:440px;margin:18vh auto;text-align:center;font-family:Poppins,system-ui,sans-serif;padding:0 20px}
+  .tbl{overflow-x:auto}
+  [hidden]{display:none!important}
+  @media(max-width:620px){td.act{text-align:left}.wrap{padding:16px 14px 44px}.card{padding:16px}}
+</style></head><body data-admin-console>
+<header class="top">
+  <img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span class="tag">ADMIN</span>
+  <div class="who">Signed in as <b data-admin-email>…</b>
+    <a href="#" data-admin-signout>Sign out</a></div>
+</header>
+
+<div class="wrap">
+
+  <div class="flash" data-admin-flash hidden></div>
+
+  <div class="banner" data-pending-wrap hidden>
+    <span><b><span data-pending-count>0 members are</span> waiting to be confirmed.</b>
+    Until you confirm someone they remain a Guest: they can use the Portal, but nothing calls
+    them an Agent and they are not listed in the Agent Directory.</span>
+  </div>
+
+  <section class="card">
+    <div class="hd"><h2>Members</h2><span class="count" data-members-count>…</span></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Member</th><th>Status</th><th>Agent no.</th><th>Joined</th><th></th></tr></thead>
+      <tbody data-members><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+    </table></div>
+    <p class="note">An Agent number is a label PAAIPE issues, not a counter — the value shown is a
+      suggestion and you can type any label before confirming.</p>
+  </section>
+
+  <section class="card">
+    <div class="hd"><h2>Event registrations</h2><span class="count" data-reg-count>…</span></div>
+    <div class="tbl"><table>
+      <thead><tr><th>Registrant</th><th>Event</th><th>Submitted</th><th>Wants updates</th></tr></thead>
+      <tbody data-registrations><tr><td colspan="4" class="empty">Loading…</td></tr></tbody>
+    </table></div>
+    <p class="note">Read-only. A record of what somebody submitted is not something to rewrite,
+      so nothing here — including this console — can edit or delete a registration.</p>
+  </section>
+
+</div>
+<script type="module" src="assets/js/paaipe-admin.js"></script>
+</body></html>

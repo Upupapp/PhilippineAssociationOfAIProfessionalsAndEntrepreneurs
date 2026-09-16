@@ -7,8 +7,17 @@
 # Cost controls, owner's rule for every front-end repo (Netlify credits run out):
 #   1. no build command, so nothing runs on Netlify's billed build minutes
 #   2. deploy previews and branch deploys are suppressed; preview locally instead
-#   3. production builds skip ONLY for docs-only pushes; see scripts/netlify-ignore.sh
+#   3. production builds skip when NOTHING A VISITOR SEES changed; the list is
+#      scripts/netlify-skip-paths.txt, applied by scripts/netlify-ignore.sh
 #   4. HTML always revalidates, so a fix reaches visitors on the next request
+#   5. images and calendar files are cached for an hour, so a returning visitor
+#      does not re-request them (see the note further down)
+#
+# DEPLOY WITH `sh scripts/deploysave.sh` — it prices the deploy before you spend
+# it, and refuses to burn a build on a push no visitor would notice. The saving
+# is in deploying FEWER TIMES: with no build command it is tempting to think a
+# deploy is free, but every push starts a build container and build time bills in
+# whole minutes, so one push carrying four commits costs a quarter of four.
 
 [build]
   publish = "."
@@ -21,9 +30,7 @@
 [context.branch-deploy]
   ignore = "exit 0"
 
-# Images keep Netlify's default caching (revalidate with an ETag). Their
-# filenames are not content-hashed, so marking them immutable would pin old
-# copies in visitors' browsers after an update.
+# HTML always revalidates: a fix must reach visitors on the very next request.
 [[headers]]
   for = "/"
   [headers.values]
@@ -33,3 +40,21 @@
   for = "/*.html"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
+
+# Images and calendar files: cached for one hour, then revalidated.
+#
+# Their filenames are NOT content-hashed, so `immutable` is still wrong - it
+# would pin a stale logo in someone's browser for a year. One hour is the
+# compromise: a returning visitor stops re-requesting every image on every page
+# view, which is what actually costs credits, and any replacement is picked up
+# within the hour. HTML, CSS and JS are deliberately NOT cached this way: those
+# carry fixes, and a fix must reach visitors on the very next request.
+[[headers]]
+  for = "/assets/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+
+[[headers]]
+  for = "/assets/*.ics"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"

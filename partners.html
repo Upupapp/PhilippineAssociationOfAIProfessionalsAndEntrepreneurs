@@ -167,4 +167,4 @@
   const chips=[...document.querySelectorAll('.chip')],cards=[...document.querySelectorAll('.pcard')],countEl=document.getElementById('count'),emptyEl=document.getElementById('empty');
   function apply(f){let n=0;cards.forEach(c=>{const m=f==='all'||c.dataset.cats.split(' ').includes(f);c.classList.toggle('hide',!m);if(m)n++});countEl.textContent=`Showing ${n} of ${cards.length} partners`;emptyEl.classList.toggle('show',n===0)}
   chips.forEach(ch=>ch.addEventListener('click',()=>{chips.forEach(c=>c.classList.remove('on'));ch.classList.add('on');apply(ch.dataset.filter)}));apply('all');
-</script></body></html>
+</script><script src="assets/js/paaipe-nav.js" defer></script></body></html>

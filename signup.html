@@ -119,6 +119,15 @@
   if(gb)gb.addEventListener('click',async()=>{
     const err=document.getElementById('submit-error'),lbl=gb.textContent;
     if(err)err.style.display='none';
+    // Continuing with Google must not bypass the consent the form requires -
+    // otherwise a consent record would be written that was never given.
+    const tos=document.getElementById('tos'),te=document.getElementById('toserr');
+    if(tos&&!tos.checked){
+      if(te)te.style.display='block';
+      if(err){err.textContent='Please accept the Terms of Use and Privacy Notice to continue.';err.style.display='block'}
+      tos.focus();
+      return;
+    }
     gb.disabled=true;
     try{
       const fb=await import('/assets/js/paaipe-firebase.js');

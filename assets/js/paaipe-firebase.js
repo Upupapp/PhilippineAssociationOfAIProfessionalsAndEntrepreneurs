@@ -201,11 +201,16 @@ export async function signInWithGoogle() {
   const cred = await A.signInWithPopup(a, new A.GoogleAuthProvider());
   const F = await import(`${SDK}/firebase-firestore.js`);
   const ref = F.doc(await db(), COLLECTIONS.agents, cred.user.uid);
-  // First Google sign-in also creates the Agent profile. Again: no number.
+  // First Google sign-in also creates the profile - as a GUEST, with no number.
+  // Consent is recorded here too: the button sits under the same Terms and
+  // Privacy Notice as the form, so the same versions apply.
   if (!(await F.getDoc(ref)).exists()) {
     await F.setDoc(ref, {
       full_name: cred.user.displayName || "", email: cred.user.email || "",
       updates: false, status: STATUS.GUEST, directoryVisible: false,
+      termsVersion: DOC_VERSIONS.terms,
+      privacyVersion: DOC_VERSIONS.privacy,
+      consentedAt: F.serverTimestamp(),
       createdAt: F.serverTimestamp(), source: "paaipe.org/google",
     });
   }
@@ -320,6 +325,14 @@ export function friendlyAuthError(e) {
     "auth/network-request-failed":"Network problem. Please check your connection and try again.",
     "auth/popup-closed-by-user": "The Google window was closed before sign-in finished.",
     "auth/popup-blocked":        "Your browser blocked the Google pop-up. Allow pop-ups and try again.",
-    "auth/operation-not-allowed":"That sign-in method is not enabled for PAAIPE yet.",
+    "auth/operation-not-allowed":"Google sign-in is not switched on for PAAIPE yet. Please use your email and password.",
+    // Firebase only permits OAuth from domains on its authorized list. Until
+    // paaipe.org is added there, Google sign-in fails with exactly this code -
+    // a generic "something went wrong" would hide a one-setting fix.
+    "auth/unauthorized-domain":"Google sign-in is not available on this site yet. Please use your email and password.",
+    // Signed up with a password, now trying Google with the same address.
+    "auth/account-exists-with-different-credential":
+      "That email already has a PAAIPE account. Sign in with your password instead.",
+    "auth/cancelled-popup-request":"Only one sign-in window at a time — try again.",
   }[c] || "Something went wrong. Please try again.";
 }

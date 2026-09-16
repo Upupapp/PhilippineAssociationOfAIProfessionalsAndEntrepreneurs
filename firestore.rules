@@ -183,6 +183,100 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // --- PAAIPE: events, organizations and sponsorships ------------
+    //
+    // ONE SOURCE OF TRUTH. The public event pages, the registration page, the
+    // member portal and the admin console all read these same documents, live.
+    // There is no build step and no server: paaipe.org is static, so "change it
+    // in admin and it appears everywhere" works by every surface READING the
+    // record at runtime rather than by re-rendering and re-deploying. That is
+    // simpler than revalidation and it is instant.
+    //
+    // Because there is no server, anything a visitor's browser can fetch is
+    // public. So secrecy has to live in the RULES, not in a render boundary:
+    // an unpublished event is unreadable, a sponsorship that is only proposed is
+    // unreadable, and the Zoom link is in a separate document (below) that no
+    // client may read at all.
+
+    match /paaipe_organizations/{id} {
+      // Names, logos and websites are public marketing facts - the Partners page
+      // has shown them for months. Only an administrator may change one, and a
+      // change here reaches every event that credits the organization.
+      allow read: if true;
+      allow create, update: if isAdmin()
+                    && request.resource.data.name is string
+                    && request.resource.data.name.size() > 0
+                    && request.resource.data.name.size() <= 120
+                    && request.resource.data.status in ['active','inactive'];
+      // Deleting an organization would orphan every sponsorship that cites it.
+      // Deactivate instead - that is a status, and it keeps the history.
+      allow delete: if false;
+    }
+
+    match /paaipe_events/{id} {
+      // A DRAFT IS NOT PUBLIC. On a static host there is no server to answer 404,
+      // so the rule is the boundary: an unpublished event simply cannot be read,
+      // and the page says it was not found.
+      allow read: if isAdmin() || (resource.data.status is string
+                                   && resource.data.status != 'draft');
+      allow create, update: if isAdmin()
+                    && request.resource.data.title is string
+                    && request.resource.data.title.size() > 0
+                    && request.resource.data.title.size() <= 200
+                    && request.resource.data.slug is string
+                    && request.resource.data.slug.matches('^[a-z0-9][a-z0-9-]{0,80}$')
+                    && request.resource.data.status in
+                         ['draft','published','registration_open','registration_closed','held','cancelled'];
+      allow delete: if false;
+    }
+
+    // THE ZOOM LINK LIVES HERE, ON ITS OWN.
+    //
+    // The brief asks that it never leave the server. There is no server, and
+    // Firestore rules cannot hide one FIELD of a document - so it is not a field
+    // of the event at all. It is a separate record no client may read, which is
+    // the closest thing to a server boundary this stack has. Getting it to a
+    // registered guest is a mail-sending problem, and mail is not wired yet.
+    match /paaipe_event_private/{eventId} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /paaipe_event_sponsors/{id} {
+      // A PROPOSED sponsorship is a conversation PAAIPE is having, not a fact
+      // about the world. Publishing one would announce a partner who has not
+      // agreed - the Partners page's own notice forbids exactly that. So only
+      // confirmed and delivered rows are readable at all.
+      allow read: if isAdmin() || (resource.data.status is string
+                                   && resource.data.status in ['confirmed','delivered']);
+      allow create, update: if isAdmin()
+                    && request.resource.data.eventId is string
+                    && request.resource.data.organizationId is string
+                    && request.resource.data.tier in ['presenting','supporting','community']
+                    && request.resource.data.status in ['proposed','confirmed','delivered'];
+      allow delete: if isAdmin();
+    }
+
+    match /paaipe_recordings/{eventId} {
+      // Published recordings only, and only to signed-in members unless the
+      // recording says otherwise. Absence means "not published", never "missing".
+      allow read: if isAdmin()
+                  || (resource.data.publishedAt != null
+                      && (resource.data.visibility == 'public'
+                          || (request.auth != null && resource.data.visibility in ['members','registrants'])));
+      allow write: if isAdmin();
+    }
+
+    match /paaipe_activity_log/{id} {
+      // Who changed what. Append-only: an audit trail that can be edited is not
+      // one, so nothing may rewrite or remove an entry, administrators included.
+      allow read: if isAdmin();
+      allow create: if isAdmin()
+                    && request.resource.data.at == request.time
+                    && request.resource.data.actor == request.auth.token.email;
+      allow update, delete: if false;
+    }
+
     // --- PAAIPE: the Agent number counter -------------------------
     // Server-only. No client may read or write it.
     match /paaipe_counters/{doc} {

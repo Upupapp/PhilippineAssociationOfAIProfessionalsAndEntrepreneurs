@@ -83,7 +83,18 @@
   .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
 
   .res-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:24px;margin-top:34px}
-  .res-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:opacity .25s ease,box-shadow .18s ease,transform .18s ease}
+  .res-card{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:opacity .25s ease,box-shadow .18s ease,transform .18s ease}
+  /* Whole card is clickable, but only where the card has a real destination:
+     the primary link stretches over the card. Cards still awaiting their file
+     use a <button>, so they stay inert. The icon link sits above the overlay. */
+  .res-card:has(.foot a.btn-gold){cursor:pointer}
+  .res-card .foot a.btn-gold::after{content:"";position:absolute;inset:0;z-index:1}
+  /* The shared .btn-gold:hover lift would turn this anchor into a containing block
+     for its own ::after, collapsing the overlay onto the button the instant the
+     pointer arrives — the card would look clickable but not be. The card itself
+     still lifts on hover, so the affordance is unchanged. */
+  .res-card .foot a.btn-gold:hover{transform:none}
+  .res-card .foot .iconbtn{position:relative;z-index:2}
   .res-card:hover{box-shadow:0 20px 44px rgba(6,33,102,.1);transform:translateY(-2px)}
   .res-card.hide{display:none}
 
@@ -236,13 +247,13 @@
           <div class="play"><span><svg viewBox="0 0 24 24" fill="#002166"><polygon points="5,3 19,12 5,21"/></svg></span></div>
         </div>
         <div class="card-body">
-          <span class="filemeta">MP4 · AI Exchange opening film</span>
+          <span class="filemeta">YouTube · AI Exchange opening film</span>
           <h3>Which Side of the Change</h3>
           <p class="desc">Our short film on why PAAIPE exists: the speed of AI, what it means for Filipino jobs and industries, and the community built in response.</p>
           <span class="tag">Philippine AI Community</span>
           <div class="foot">
-            <a class="btn btn-gold btn-sm" href="https://streamable.com/q2877z" target="_blank" rel="noopener">Watch video</a>
-            <a class="iconbtn" href="https://streamable.com/q2877z" target="_blank" rel="noopener" aria-label="Open in a new tab"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 14 20 4M19 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
+            <a class="btn btn-gold btn-sm" href="https://youtu.be/dMqTRHLiDn8" target="_blank" rel="noopener">Watch video</a>
+            <a class="iconbtn" href="https://youtu.be/dMqTRHLiDn8" target="_blank" rel="noopener" aria-label="Open in a new tab"><svg viewBox="0 0 24 24"><path d="M14 4h6v6M10 14 20 4M19 13v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg></a>
           </div>
         </div>
       </article>

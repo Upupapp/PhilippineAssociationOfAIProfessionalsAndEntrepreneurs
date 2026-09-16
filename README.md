@@ -36,6 +36,11 @@ the `data-leave` attribute. **Continue** goes to the link, and the cancel button
 Esc or a click outside the dialog stays on the page. Without JavaScript, the
 links work as plain links.
 
+Each resource card is clickable as a whole: the card's primary link is stretched
+over the card in CSS, so clicking anywhere on it opens the same destination as
+the button. Cards whose file is not ready yet carry a `<button>` rather than a
+link, so they stay inert.
+
 The Events page lists every AI Exchange edition and filters them into All,
 Upcoming and Past; the featured card counts down to the next session and is
 hidden in the Past view. Each edition has its own page with the program,
@@ -58,8 +63,9 @@ python3 -m http.server 8000   # then open http://localhost:8000
 ## External dependencies at runtime
 
 - **Google Fonts**: Poppins, falling back to `system-ui`.
-- **Streamable**: the 60-second film is embedded from
-  `https://streamable.com/e/q2877z`.
+- **YouTube**: the 60-second film is embedded from
+  `https://www.youtube.com/embed/dMqTRHLiDn8`; the Resources page links to
+  `https://youtu.be/dMqTRHLiDn8`.
 
 ## Deployment
 

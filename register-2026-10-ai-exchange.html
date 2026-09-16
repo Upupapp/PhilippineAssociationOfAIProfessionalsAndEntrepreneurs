@@ -80,13 +80,13 @@
       <section class="step on" data-step="1">
         <h2>First, who's joining?</h2><p class="hint">We only ask for what we need to send your Zoom access details and reminders.</p>
         <div class="fields">
-          <div class="f"><label for="fn">Full name</label><input id="fn" name="full_name" type="text" autocomplete="name" required placeholder="Juan Dela Cruz"><span class="err">Please enter your name.</span></div>
-          <div class="f"><label for="em">Email address</label><input id="em" name="email" type="email" autocomplete="email" required placeholder="you@example.com"><span class="help">Your confirmation and Zoom access details go here. Please double-check it.</span><span class="err">Please enter a valid email.</span></div>
-          <div class="f"><label for="role">Position or professional role</label><input id="role" name="position" type="text" autocomplete="organization-title" placeholder="e.g., Marketing Manager, Teacher, Founder"></div>
-          <div class="f"><label for="org">Company or organization</label><input id="org" name="organization" type="text" autocomplete="organization" placeholder="Company, school or agency"></div>
+          <div class="f"><label for="fn">Full name</label><input id="fn" name="full_name" type="text" autocomplete="name" required placeholder="Juan Dela Cruz" maxlength="120"><span class="err">Please enter your name.</span></div>
+          <div class="f"><label for="em">Email address</label><input id="em" name="email" type="email" autocomplete="email" required placeholder="you@example.com" maxlength="254"><span class="help">Your confirmation and Zoom access details go here. Please double-check it.</span><span class="err">Please enter a valid email.</span></div>
+          <div class="f"><label for="role">Position or professional role</label><input id="role" name="position" type="text" autocomplete="organization-title" placeholder="e.g., Marketing Manager, Teacher, Founder" maxlength="160"></div>
+          <div class="f"><label for="org">Company or organization</label><input id="org" name="organization" type="text" autocomplete="organization" placeholder="Company, school or agency" maxlength="160"></div>
           <div class="f full"><label>Which best describes you?</label><div class="opts">
             <label class="opt"><input type="radio" name="profile" value="founder"><div><b>Business owner or founder</b></div></label><label class="opt"><input type="radio" name="profile" value="marketing"><div><b>Marketing, media or communications professional</b><small>Brand or content professional</small></div></label><label class="opt"><input type="radio" name="profile" value="strategist"><div><b>Researcher or strategist</b><small>SEO or digital professional</small></div></label><label class="opt"><input type="radio" name="profile" value="educator"><div><b>Educator or student</b></div></label><label class="opt"><input type="radio" name="profile" value="government"><div><b>Government or public-sector professional</b></div></label><label class="opt"><input type="radio" name="profile" value="tech"><div><b>Technology professional</b></div></label>
-            <label class="opt"><input type="radio" name="profile" value="other"><div><b>Other</b><input type="text" name="profile_other" placeholder="Tell us" style="margin-top:6px;padding:8px 10px;font-size:13.5px"></div></label>
+            <label class="opt"><input type="radio" name="profile" value="other"><div><b>Other</b><input type="text" name="profile_other" placeholder="Tell us" style="margin-top:6px;padding:8px 10px;font-size:13.5px" maxlength="160"></div></label>
           </div><span class="err">Pick the one that fits best.</span></div>
         </div>
         <div class="nudge"><svg viewBox="0 0 24 24"><path d="M12 3l2.2 5.8L20 11l-5.8 2.2L12 19l-2.2-5.8L4 11l5.8-2.2z"/></svg><span>Registered participants get the Zoom access details, event reminders, and the session materials where the speaker allows it.</span></div>
@@ -96,8 +96,8 @@
       <section class="step" data-step="2">
         <h2>Make the session yours</h2><p class="hint">Your answers go to the speaker and help us plan the Q&amp;A.</p>
         <div class="fields">
-          <div class="f full"><label for="learn">What would you most like to learn from this session?</label><textarea id="learn" name="learn" required placeholder="A problem you're facing, a skill you want to pick up, a decision you need to make..."></textarea><span class="err">A sentence is enough. It helps us shape the session.</span></div>
-          <div class="f full"><label for="ask">What question would you like to ask our speaker? <small>(optional)</small></label><textarea id="ask" name="speaker_question" placeholder="We'll bring the best questions into the live Q&amp;A."></textarea></div>
+          <div class="f full"><label for="learn">What would you most like to learn from this session?</label><textarea id="learn" name="learn" required placeholder="A problem you're facing, a skill you want to pick up, a decision you need to make..." maxlength="2000"></textarea><span class="err">A sentence is enough. It helps us shape the session.</span></div>
+          <div class="f full"><label for="ask">What question would you like to ask our speaker? <small>(optional)</small></label><textarea id="ask" name="speaker_question" placeholder="We'll bring the best questions into the live Q&amp;A." maxlength="2000"></textarea></div>
         </div>
         <div class="actions"><button class="btn btn-ghost" type="button" data-prev>Back</button><button class="btn btn-gold" type="button" data-next>Continue</button></div>
       </section>
@@ -156,6 +156,8 @@
       btn.disabled=false;btn.textContent=label;
       err.textContent=(ex&&ex.message==='not-configured')
         ? 'Registration is not connected yet. Nothing was saved - please email PAAIPE to register for now.'
+        : (ex&&ex.code==='permission-denied')
+        ? 'Sorry, we could not save your registration. Nothing was saved. One of your answers may be too long - please shorten it and try again.'
         : 'Sorry, we could not save your registration. Nothing was saved. Please check your connection and try again.';
       err.style.display='block';
       err.scrollIntoView({behavior:'smooth',block:'center'});

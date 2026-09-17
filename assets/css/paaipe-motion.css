@@ -1,0 +1,203 @@
+/* PAAIPE System motion tokens v1 — admin + Agent portal (Inter).
+ *
+ * Components use these tokens; do not invent one-off ms in chrome.
+ * Animate transform, opacity, color, border-color, box-shadow only.
+ * No layout animation, Vibration API, decorative loops, or >300ms chrome.
+ */
+
+:root{
+  --motion-fast: 100ms;     /* press, focus ring settle */
+  --motion-snappy: 160ms;   /* hover, chips, tab ink */
+  --motion-smooth: 240ms;   /* drawers/modals only if already animated */
+  --motion-ease: cubic-bezier(0.4, 0, 0.2, 1);
+  --motion-focus-color: var(--blue, #1E6FE8);
+}
+
+/* ============================================================== buttons ===
+   Primary + ghost/secondary share press timing; ghost hover is lighter.
+   Disabled: no hover/press motion. Focus ring never fades away. */
+.btn,
+.bigbtn{
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    filter var(--motion-snappy) var(--motion-ease),
+    background-color var(--motion-snappy) var(--motion-ease),
+    border-color var(--motion-snappy) var(--motion-ease),
+    box-shadow var(--motion-snappy) var(--motion-ease),
+    color var(--motion-snappy) var(--motion-ease);
+}
+.btn:hover:not(:disabled):not([disabled]),
+.bigbtn:hover:not(:disabled):not([disabled]){
+  transform: translateY(-1px);
+  filter: brightness(1.04);
+}
+.btn-ghost:hover:not(:disabled):not([disabled]),
+.btn-navy:hover:not(:disabled):not([disabled]){
+  filter: brightness(1.02);
+}
+.btn:active:not(:disabled):not([disabled]),
+.bigbtn:active:not(:disabled):not([disabled]){
+  transform: scale(0.98);
+  filter: brightness(0.98);
+}
+.btn:focus-visible,
+.bigbtn:focus-visible,
+.iconbtn:focus-visible,
+.xbtn:focus-visible,
+.email-action:focus-visible,
+.email-timing:focus-visible{
+  outline: 2px solid var(--motion-focus-color);
+  outline-offset: 2px;
+}
+.btn:disabled,
+.btn[disabled],
+.bigbtn:disabled,
+.bigbtn[disabled]{
+  transform: none !important;
+  filter: none !important;
+  transition: none;
+  cursor: not-allowed;
+}
+
+/* ======================================================= underline tabs ===
+   Admin event (.etabs), Learnings (.learn-tabs), Email (.email-sub),
+   portal hub (.vtabs). Ink underline scales in (~snappy) with label color. */
+.etabs button,
+.email-sub button,
+.vtabs button{
+  position: relative;
+  transition:
+    color var(--motion-snappy) var(--motion-ease),
+    border-color var(--motion-snappy) var(--motion-ease);
+}
+.etabs button::after,
+.email-sub button::after,
+.vtabs button::after{
+  content: "";
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 2px 2px 0 0;
+  background: var(--gold, #F2A71B);
+  transform: scaleX(0);
+  transform-origin: center;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    transform var(--motion-snappy) var(--motion-ease),
+    opacity var(--motion-snappy) var(--motion-ease);
+}
+.etabs button[aria-selected="true"]::after,
+.email-sub button[aria-selected="true"]::after,
+.vtabs button.on::after,
+.vtabs button[aria-selected="true"]::after{
+  transform: scaleX(1);
+  opacity: 1;
+}
+/* Keep the existing gold edge for non-pseudo fallbacks, but hide double ink
+   when ::after is painting — border stays transparent so only the ink slides. */
+.etabs button[aria-selected="true"],
+.email-sub button[aria-selected="true"],
+.vtabs button.on,
+.vtabs button[aria-selected="true"]{
+  border-bottom-color: transparent;
+}
+.etabs button:focus-visible,
+.email-sub button:focus-visible,
+.vtabs button:focus-visible{
+  outline: 2px solid var(--motion-focus-color);
+  outline-offset: 2px;
+}
+.etabs button:disabled,
+.etabs button[disabled],
+.email-sub button:disabled,
+.email-sub button[disabled],
+.vtabs button:disabled,
+.vtabs button[disabled]{
+  transition: none;
+}
+.etabs button:disabled::after,
+.etabs button[disabled]::after,
+.email-sub button:disabled::after,
+.email-sub button[disabled]::after,
+.vtabs button:disabled::after,
+.vtabs button[disabled]::after{
+  transition: none;
+}
+
+/* =========================================================== pill tabs ===
+   Portal .tabs/.tab and admin publish-rail .chip — pill ink to active. */
+.tab,
+.chip{
+  transition:
+    transform var(--motion-fast) var(--motion-ease),
+    background-color var(--motion-snappy) var(--motion-ease),
+    border-color var(--motion-snappy) var(--motion-ease),
+    color var(--motion-snappy) var(--motion-ease),
+    box-shadow var(--motion-snappy) var(--motion-ease);
+}
+.tab:hover:not(.on):not(:disabled),
+.chip:hover:not(.on):not(:disabled):not([disabled]){
+  filter: brightness(1.02);
+}
+.tab:active:not(:disabled),
+.chip:active:not(:disabled):not([disabled]){
+  transform: scale(0.98);
+}
+.tab:focus-visible,
+.chip:focus-visible{
+  outline: 2px solid var(--motion-focus-color);
+  outline-offset: 2px;
+}
+.chip:disabled,
+.chip[disabled]{
+  transform: none !important;
+  filter: none !important;
+  transition: none;
+}
+
+/* ================================================= form focus settle ===
+   Instant visible ring; color/shadow may settle on the fast token only. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible{
+  transition:
+    border-color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease);
+}
+
+/* ======================================================== reduced motion ===
+   Strip travel/scale; keep instant state changes + visible focus. */
+@media (prefers-reduced-motion: reduce){
+  :root{
+    --motion-fast: 0ms;
+    --motion-snappy: 0ms;
+    --motion-smooth: 0ms;
+  }
+  .btn:hover:not(:disabled):not([disabled]),
+  .bigbtn:hover:not(:disabled):not([disabled]),
+  .btn:active:not(:disabled):not([disabled]),
+  .bigbtn:active:not(:disabled):not([disabled]),
+  .tab:active:not(:disabled),
+  .chip:active:not(:disabled):not([disabled]){
+    transform: none;
+    filter: none;
+  }
+  .etabs button::after,
+  .email-sub button::after,
+  .vtabs button::after{
+    transition: none;
+  }
+  .etabs button[aria-selected="true"]::after,
+  .email-sub button[aria-selected="true"]::after,
+  .vtabs button.on::after,
+  .vtabs button[aria-selected="true"]::after{
+    transform: none;
+    opacity: 1;
+    /* Instant full underline — no travel */
+    left: 12px;
+    right: 12px;
+  }
+}

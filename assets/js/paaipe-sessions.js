@@ -37,16 +37,18 @@ export const PAST_SESSIONS = [
     slidesLabel: "Slides (Gamma)",
 
     // Two landscape recordings from the same Sept 15 Exchange (unlisted).
+    // URL slugs: ?session=2026-09&rec=presentation|qa
+    // Legacy aliases 2026-09-part1 / 2026-09-part2 still resolve in the watch page.
     // Titles match the published YouTube titles (cleaned slightly for members).
     recordings: [
       {
-        id: "2026-09-part1",
+        id: "presentation",
         youtubeId: "ePw_wlPqYUk",
         title: "Part 1 — Presentation",
         thumb: "assets/img/ai-exchange-session.jpg",
       },
       {
-        id: "2026-09-part2",
+        id: "qa",
         youtubeId: "0PkiRVczWdQ",
         title: "Part 2 — Q&A",
         thumb: "assets/img/ai-exchange-session.jpg",

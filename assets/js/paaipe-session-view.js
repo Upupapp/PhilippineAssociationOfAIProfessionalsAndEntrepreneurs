@@ -374,7 +374,20 @@ function watchMetaLine(s, rec) {
     const pickInitial = () => {
       const wanted = params.get("rec");
       if (wanted) {
-        const hit = recordings.find(r => r.id === wanted || r.youtubeId === wanted);
+        // Canonical slugs: presentation | qa. Legacy ids still accepted.
+        const aliases = {
+          "2026-09-part1": "presentation",
+          "part1": "presentation",
+          "part-1": "presentation",
+          "2026-09-part2": "qa",
+          "part2": "qa",
+          "part-2": "qa",
+          "q&a": "qa",
+        };
+        const key = aliases[wanted] || wanted;
+        const hit = recordings.find(
+          r => r.id === key || r.id === wanted || r.youtubeId === wanted
+        );
         if (hit) return hit;
       }
       return recordings[0];
@@ -414,6 +427,13 @@ function watchMetaLine(s, rec) {
       });
     };
 
+    // Canonicalise the address bar to the clean rec slug (presentation|qa).
+    {
+      const url = new URL(location.href);
+      url.searchParams.set("session", s.id);
+      url.searchParams.set("rec", active.id);
+      history.replaceState(null, "", url);
+    }
     paint(active);
     document.documentElement.setAttribute("data-session-view", s.id);
     document.documentElement.setAttribute("data-ss-active-rec", active.id);

@@ -34,7 +34,7 @@ export const PAST_SESSIONS = [
 
     // Real, and public: the deck Sven presented.
     slidesUrl: "https://gamma.app/docs/Sven-Bally-09v66kz53a10hm0",
-    slidesLabel: "Slides (Gamma)",
+    slidesLabel: "Open slides",
 
     // Two landscape recordings from the same Sept 15 Exchange (unlisted).
     // URL slugs: ?session=2026-09&rec=presentation|qa

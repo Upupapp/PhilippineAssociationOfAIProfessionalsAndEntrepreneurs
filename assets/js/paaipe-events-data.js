@@ -132,7 +132,7 @@ export const SUPPORT_TYPES = [
 ];
 
 export const PARTNER_SOURCES = [
-  "public_event", "events_list", "success_page", "portal_sessions", "portal_session",
+  "public_event", "events_list", "success_page", "portal_sessions", "portal_events", "portal_session",
 ];
 
 /** An event that can still gain a partner. Held and cancelled cannot - offering

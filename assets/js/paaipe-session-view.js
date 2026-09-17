@@ -230,9 +230,10 @@ function applySession(root, s) {
   // slides: real, and it is a Gamma deck rather than a PDF
   root.querySelectorAll("[data-ss-slides]").forEach(a => {
     if (!s.slidesUrl) return hide(a);
-    a.href = s.slidesUrl;
-    a.target = "_blank";
-    a.rel = "noopener";
+    // Stay inside the member portal — open the in-portal slides viewer, never gamma.app.
+    a.href = `portal-session-slides.html?session=${encodeURIComponent(s.id)}`;
+    a.removeAttribute("target");
+    a.removeAttribute("rel");
     a.textContent = s.slidesLabel || "Slides";
   });
 
@@ -254,7 +255,10 @@ function applySession(root, s) {
   if (!hasReel) root.querySelectorAll("[data-ss-needs='reels']").forEach(hide);
   if (!sessionHasChapters(s)) root.querySelectorAll("[data-ss-needs='chapters']").forEach(hide);
   if (!s.durationLabel) root.querySelectorAll("[data-ss-needs='duration']").forEach(hide);
-  if (!s.qaCount) root.querySelectorAll("[data-ss-needs='qa']").forEach(hide);
+  const hasQaRec = sessionRecordings(s).some(
+    r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || "")
+  );
+  if (!s.qaCount && !hasQaRec) root.querySelectorAll("[data-ss-needs='qa']").forEach(hide);
   if (!s.transcriptUrl) root.querySelectorAll("[data-ss-needs='transcript']").forEach(hide);
   if (s.attended == null) root.querySelectorAll("[data-ss-needs='attended']").forEach(hide);
   if (s.watchedPercent == null) root.querySelectorAll("[data-ss-needs='watched']").forEach(hide);
@@ -273,29 +277,153 @@ function watchMetaLine(s, rec) {
 }
 
 (function () {
+  
+function catalogHasReels() {
+  return PAST_SESSIONS.some(s => sessionHasReels(s));
+}
+
+function applyReelsChrome(root = document) {
+  const has = catalogHasReels();
+  root.querySelectorAll('[data-ss-needs="reels"]').forEach(el => {
+    if (!has) hide(el);
+    else el.hidden = false;
+  });
+  root.querySelectorAll("[data-ss-tabs-reels]").forEach(el => {
+    // Whole Recordings|Reels row only when reels exist; otherwise hide tabs entirely
+    if (!has) hide(el);
+    else el.hidden = false;
+  });
+}
+
   const page = document.documentElement.getAttribute("data-page");
 
-  if (page === "sessions-past") {
-    // the template's own parent is the list; requiring a separate [data-ss-list]
-    // container meant one missing attribute silently rendered nothing
-    const tpl = document.querySelector("[data-ss-item]");
-    if (tpl) {
-      const count = PAST_SESSIONS.length;
+
+
+  if (page === "sessions-hub") {
+    applyReelsChrome(document);
+
+    const withRec = PAST_SESSIONS.filter(sessionHasRecording);
+    const latest = withRec[0] || PAST_SESSIONS[0] || null;
+
+    // Continue learning: latest published recording. Never invent progress %.
+    const cont = document.querySelector("[data-ss-continue]");
+    if (cont && latest) {
+      applySession(cont, latest);
+      const recs = sessionRecordings(latest);
+      const first = recs[0];
+      const watchUrl = first
+        ? `portal-session-watch.html?session=${encodeURIComponent(latest.id)}&rec=${encodeURIComponent(first.id)}`
+        : `portal-session-watch.html?session=${encodeURIComponent(latest.id)}`;
+      cont.querySelectorAll("[data-ss-watch]").forEach(a => { a.href = watchUrl; });
+      const label = cont.querySelector("[data-ss-continue-label]");
+      const primary = cont.querySelector("a.btn-gold[data-ss-watch]");
+      if (latest.resumeAt != null || latest.watchedPercent != null) {
+        if (label) label.textContent = "Continue learning";
+        if (primary) primary.textContent = "Continue watching";
+      } else {
+        if (label) label.textContent = "Latest recording";
+        if (primary) primary.textContent = "Watch";
+      }
+      // Hub secondary Q&A → Part 2 recording when present
+      const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
+      cont.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
+        if (!qa) return;
+        a.href = `portal-session-watch.html?session=${encodeURIComponent(latest.id)}&rec=${encodeURIComponent(qa.id)}`;
+        a.textContent = "Q&A";
+      });
+    } else if (cont) {
+      hide(cont);
+    }
+
+    // Lesson library from the same catalog — not event/calendar rows.
+    const tpl = document.querySelector("[data-ss-lesson]");
+    const list = document.querySelector("[data-ss-lesson-list]");
+    if (tpl && list) {
+      const lessons = withRec.length ? withRec : PAST_SESSIONS;
       setText(
         document,
         "[data-ss-count]",
-        count === 1 ? "1 past session" : `${count} past sessions`
+        lessons.length === 1 ? "1 lesson" : `${lessons.length} lessons`
       );
       const frag = document.createDocumentFragment();
-      PAST_SESSIONS.forEach(s => {
+      lessons.forEach(s => {
+        const el = tpl.cloneNode(true);
+        el.removeAttribute("data-ss-lesson");
+        el.hidden = false;
+        el.style.display = "";
+        el.setAttribute("data-ss-lesson-id", s.id);
+        applySession(el, s);
+        const recs = sessionRecordings(s);
+        const first = recs[0];
+        const watchUrl = first
+          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(first.id)}`
+          : `portal-session-watch.html?session=${encodeURIComponent(s.id)}`;
+        el.querySelectorAll("[data-ss-watch]").forEach(a => { a.href = watchUrl; });
+        const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
+        el.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
+          if (!qa) return;
+          a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(qa.id)}`;
+          a.textContent = "Q&A";
+        });
+        frag.appendChild(el);
+      });
+      tpl.replaceWith(frag);
+
+      const search = document.querySelector("[data-ss-lesson-search]");
+      if (search) {
+        search.addEventListener("input", () => {
+          const q = search.value.trim().toLowerCase();
+          list.querySelectorAll("[data-ss-lesson-id]").forEach(row => {
+            const text = row.textContent.toLowerCase();
+            row.style.display = !q || text.includes(q) ? "" : "none";
+          });
+        });
+      }
+    }
+
+    document.documentElement.setAttribute("data-sessions-ready", "hub");
+    return;
+  }
+
+  if (page === "sessions-past") {
+    // Full "All recordings" library — same catalog as the hub.
+    const tpl = document.querySelector("[data-ss-item]");
+    if (tpl) {
+      const lessons = PAST_SESSIONS.filter(sessionHasRecording);
+      const count = lessons.length || PAST_SESSIONS.length;
+      setText(
+        document,
+        "[data-ss-count]",
+        count === 1 ? "1 recording" : `${count} recordings`
+      );
+      const frag = document.createDocumentFragment();
+      (lessons.length ? lessons : PAST_SESSIONS).forEach(s => {
         const el = tpl.cloneNode(true);
         el.removeAttribute("data-ss-item");
+        const recs = sessionRecordings(s);
+        const first = recs[0];
+        const watchUrl = first
+          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(first.id)}`
+          : `portal-session-watch.html?session=${encodeURIComponent(s.id)}`;
         el.querySelectorAll("[data-ss-watch]").forEach(a => {
-          a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}`;
+          a.href = watchUrl;
+          // Honest CTA: "Continue watching" only when resume/progress exists.
+          if (
+            a.classList.contains("btn-gold") === false &&
+            /continue watching/i.test(a.textContent || "")
+          ) {
+            if (s.resumeAt == null && s.watchedPercent == null) {
+              a.textContent = "Watch";
+            }
+          }
         });
         applySession(el, s);
-        // Compact reels row under the event — only if markup exists AND reels do.
-        // This ticket ships empty reels; hide any stub so there is no dead carousel.
+        const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
+        el.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
+          if (!qa) return;
+          a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(qa.id)}`;
+          a.textContent = "Q&A";
+        });
         el.querySelectorAll("[data-ss-reels-row]").forEach(row => {
           if (!sessionHasReels(s)) hide(row);
         });
@@ -303,6 +431,7 @@ function watchMetaLine(s, rec) {
       });
       tpl.replaceWith(frag);
     }
+    applyReelsChrome(document);
     document.documentElement.setAttribute(
       "data-sessions-ready",
       String(PAST_SESSIONS.length)
@@ -330,7 +459,7 @@ function watchMetaLine(s, rec) {
     if (!s) {
       if (main)
         main.innerHTML =
-          '<div class="crumbs"><a href="portal-sessions-past.html">Past &amp; recordings</a>' +
+          '<div class="crumbs"><a href="portal-sessions-past.html">Recordings</a>' +
           "<span>&rsaquo;</span><span>Session not found</span></div>" +
           '<div class="card" style="text-align:center;padding:48px 24px">' +
           '<h1 style="font-size:22px;margin-bottom:8px">That session is not available</h1>' +
@@ -338,7 +467,7 @@ function watchMetaLine(s, rec) {
           (id
             ? "We could not find a session with that reference."
             : "No session was specified.") +
-          '</p><a class="btn btn-gold" href="portal-sessions-past.html">Back to past sessions</a></div>';
+          '</p><a class="btn btn-gold" href="portal-sessions-past.html">Back to recordings</a></div>';
       document.documentElement.setAttribute("data-session-view", "not-found");
       return;
     }

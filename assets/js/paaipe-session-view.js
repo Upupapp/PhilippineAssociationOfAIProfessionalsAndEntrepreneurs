@@ -59,6 +59,8 @@ function ensureYtApi() {
 function mountYtGrabShield(player) {
   // Full-surface shield: owns pointer events so YouTube chrome cannot be clicked
   // or right-clicked. Play/pause goes through the IFrame API instead.
+  // Opaque corner plates hide the paused-state link icon (bottom-left) and
+  // "Watch on YouTube" (bottom-right) that controls=0 does not remove.
   const grab = document.createElement("div");
   grab.setAttribute("data-yt-shield", "grab");
   grab.setAttribute("role", "button");
@@ -66,6 +68,33 @@ function mountYtGrabShield(player) {
   grab.setAttribute("aria-label", "Play or pause recording");
   grab.style.cssText =
     "position:absolute;inset:0;z-index:5;cursor:pointer;background:transparent;touch-action:manipulation";
+
+  const plates = [
+    // bottom-left chain/link control
+    ["bl", "left:0;bottom:0;width:72px;height:72px"],
+    // bottom-right Watch on YouTube
+    ["br", "right:0;bottom:0;width:min(46%,220px);height:64px"],
+    // top-right YouTube logo / share affordance
+    ["tr", "top:0;right:0;width:min(30%,130px);height:56px"],
+  ];
+  plates.forEach(([kind, box]) => {
+    const plate = document.createElement("div");
+    plate.setAttribute("data-yt-plate", kind);
+    plate.setAttribute("aria-hidden", "true");
+    plate.style.cssText =
+      `position:absolute;z-index:6;${box};background:#0a1c3e;pointer-events:auto`;
+    plate.addEventListener("contextmenu", e => {
+      e.preventDefault();
+      e.stopPropagation();
+    });
+    // Plates sit on top of grab for paint; clicks on plates should still toggle.
+    plate.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      grab.click();
+    });
+    player.appendChild(plate);
+  });
 
   const blockMenu = e => {
     e.preventDefault();

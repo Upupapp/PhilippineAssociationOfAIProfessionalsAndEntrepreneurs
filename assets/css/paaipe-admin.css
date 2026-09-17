@@ -411,8 +411,7 @@ td.act{text-align:right;white-space:nowrap}
   .sprow-meta,.sprow-extra,.sprow-acts{grid-column:2}
 }
 
-/* 
-========================================= partner applications ===
+/* ================================================= partner applications ===
    Denser inbox only. Other consoles keep the shared spacing. Placeholder
    global search is hidden here until there is an index to search. */
 body[data-admin-partners] .top .search{display:none}
@@ -452,7 +451,6 @@ body[data-admin-partners] .note-tools .f{flex:1;margin:0;min-width:0}
   body[data-admin-partners] .detail .answers{grid-template-columns:1fr}
   body[data-admin-partners] .note-tools{flex-direction:column;align-items:stretch}
 }
-=======
 /* -------------------------------------------------------------- event Email */
 .cols.email-open{grid-template-columns:1fr}
 .email-sub{display:flex;gap:2px;margin:-4px 0 14px;border-bottom:1px solid var(--line)}

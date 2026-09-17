@@ -3,9 +3,9 @@
   *{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
   a{color:inherit;text-decoration:none}img{max-width:100%;display:block}button,input,select,textarea{font:inherit}h1,h2,h3,h4{color:var(--navy);margin:0;line-height:1.2;letter-spacing:-.01em}p{margin:0}
   h1{font-size:26px;font-weight:700}h2{font-size:18px;font-weight:700}h3{font-size:15.5px;font-weight:600}
-  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13.5px;cursor:pointer;border:0;transition:transform .15s,box-shadow .15s;white-space:nowrap}
-  .btn-gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy);box-shadow:0 6px 18px rgba(242,167,27,.24)}.btn-gold:hover{transform:translateY(-1px)}
-  .btn-navy{background:var(--navy);color:#fff}.btn-ghost{background:#fff;color:var(--navy);border:2px solid var(--line)}.btn-ghost:hover{border-color:var(--royal)}.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13.5px;cursor:pointer;border:0;white-space:nowrap}
+  .btn-gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy);box-shadow:0 6px 18px rgba(242,167,27,.24)}
+  .btn-navy{background:var(--navy);color:#fff}.btn-ghost{background:#fff;color:var(--navy);border:2px solid var(--line)}.btn-ghost:hover{border-color:var(--royal)}.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none;transform:none}
   .btn-sm{padding:7px 13px;font-size:12.5px}.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);display:inline-block;flex:none}
   .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 10px 4px 8px;border-radius:999px;white-space:nowrap}.pill svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:3}
@@ -95,7 +95,8 @@
     .card,.hd,.main,.acts{min-width:0}
     .card{overflow-wrap:anywhere}
   }
-</style></head><body><div class="shell">
+</style>
+<link rel="stylesheet" href="assets/css/paaipe-motion.css"></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
   <a class="logo" href="portal.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>AI PORTAL</span></a>
   <ul class="menu"><li><a class="on" href="portal.html"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a></li><li><a class="" href="portal-events.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Events</a></li><li><a class="" href="portal-sessions.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg>Learnings</a></li><li><a class="" href="portal-benefits.html"><svg viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v14"/></svg>Benefits</a></li><li><a class="" href="portal-resources.html"><svg viewBox="0 0 24 24"><path d="M4 5.5C4 4.1 5.1 3 6.5 3H12v18H6.5C5.1 21 4 19.9 4 18.5z"/><path d="M20 5.5C20 4.1 18.9 3 17.5 3H12v18h5.5c1.4 0 2.5-1.1 2.5-2.5z"/></svg>Resources</a></li><li class="sec">COMMUNITY</li><li><a class="" href="portal-directory.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 8 0"/></svg>Agent Directory</a></li><li><a class="" href="portal-programs.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>Programs</a></li><li><a class="" href="portal-community.html"><svg viewBox="0 0 24 24"><path d="M4 5h11a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M19 9h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3-3h-4"/></svg>Announcements<span class="badge">3</span></a></li><li class="sec">YOU</li><li><a class="" href="portal-profile.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>My Profile</a></li></ul>

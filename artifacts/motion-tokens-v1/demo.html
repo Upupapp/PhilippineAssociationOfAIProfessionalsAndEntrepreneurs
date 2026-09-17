@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Motion tokens v1 demo</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../../assets/css/paaipe-admin.css">
+<style>
+  body{padding:32px;max-width:920px;margin:0 auto}
+  h1{font-size:22px;margin-bottom:8px}
+  .note{margin-bottom:22px}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:12px 0 28px}
+  .label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:18px 0 8px}
+  .card{padding:20px}
+  /* portal-ish pill tabs use same classes */
+  .tabs{display:flex;gap:8px;margin-bottom:8px}
+  .tab{border:2px solid var(--line);background:#fff;color:var(--royal);font-weight:600;font-size:13.5px;padding:8px 16px;border-radius:999px;cursor:pointer}
+  .tab.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .vtabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .vtabs button{appearance:none;background:transparent;border:0;border-bottom:3px solid transparent;padding:10px 14px;font:inherit;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer}
+  .vtabs button.on,.vtabs button[aria-selected="true"]{color:var(--navy);border-bottom-color:transparent}
+</style>
+</head>
+<body>
+  <h1>PAAIPE motion tokens v1</h1>
+  <p class="note">Demo for screenshots — admin underline tabs + portal pill/hub tabs + buttons.</p>
+
+  <div class="card">
+    <div class="label">Buttons</div>
+    <div class="row" id="btns">
+      <button type="button" class="btn btn-gold" id="btn-primary">Primary</button>
+      <button type="button" class="btn btn-ghost" id="btn-ghost">Ghost</button>
+      <button type="button" class="btn btn-gold" disabled>Disabled</button>
+      <button type="button" class="btn btn-ghost" id="btn-focus">Focus me</button>
+    </div>
+
+    <div class="label">Admin event / Learnings tabs (.etabs)</div>
+    <div class="etabs learn-tabs" role="tablist" aria-label="Admin tabs" id="admin-tabs">
+      <button type="button" role="tab" aria-selected="true" data-i="0">Sessions <span class="tb">3</span></button>
+      <button type="button" role="tab" aria-selected="false" data-i="1">Micros <span class="tb">2</span></button>
+      <button type="button" role="tab" aria-selected="false" data-i="2">Email</button>
+    </div>
+
+    <div class="label">Portal hub tabs (.vtabs)</div>
+    <div class="vtabs" role="tablist" aria-label="Portal hub" id="portal-hub">
+      <button type="button" class="on" role="tab" aria-selected="true">Sessions</button>
+      <button type="button" role="tab" aria-selected="false">Micros</button>
+    </div>
+
+    <div class="label">Portal pill tabs (.tab)</div>
+    <div class="tabs" id="portal-pills">
+      <button type="button" class="tab on">Upcoming</button>
+      <button type="button" class="tab">Past</button>
+    </div>
+  </div>
+<script>
+function wire(sel, attrTrue, attrFalse){
+  const root = document.querySelector(sel);
+  root.addEventListener('click', e => {
+    const b = e.target.closest('button');
+    if(!b || !root.contains(b)) return;
+    root.querySelectorAll('button').forEach(x => {
+      x.setAttribute('aria-selected', 'false');
+      x.classList.remove('on');
+      if(attrFalse) x.classList.remove('on');
+    });
+    b.setAttribute('aria-selected', 'true');
+    b.classList.add('on');
+  });
+}
+wire('#admin-tabs');
+wire('#portal-hub');
+document.querySelector('#portal-pills').addEventListener('click', e => {
+  const b = e.target.closest('.tab');
+  if(!b) return;
+  document.querySelectorAll('#portal-pills .tab').forEach(x => x.classList.remove('on'));
+  b.classList.add('on');
+});
+</script>
+</body>
+</html>

@@ -1,3 +1,6 @@
+/* Motion tokens + recipes (admin + portal shared). */
+@import url("./paaipe-motion.css");
+
 /* PAAIPE admin — one stylesheet for every admin page.
  *
  * The mockup pastes the same CSS into eleven files, which is how a fix lands on
@@ -111,7 +114,7 @@ h1,h2,h3{color:var(--navy);margin:0;line-height:1.25;letter-spacing:-.01em}
 label{display:block;font-size:13px;font-weight:600;color:var(--navy);margin-bottom:7px}
 label .sub{font-weight:400;color:var(--muted);font-size:12.5px}
 input,select,textarea{width:100%;padding:13px 16px;border-radius:12px;border:1px solid var(--line);
-  font:inherit;font-size:14px;background:#fff;color:var(--ink);transition:border-color .12s,box-shadow .12s}
+  font:inherit;font-size:14px;background:#fff;color:var(--ink);transition:border-color var(--motion-fast) var(--motion-ease),box-shadow var(--motion-fast) var(--motion-ease)}
 input:focus,select:focus,textarea:focus{outline:0;border-color:var(--blue);box-shadow:0 0 0 3px rgba(30,111,232,.12)}
 input[type=checkbox]{width:auto;padding:0;margin-right:9px}
 textarea{resize:vertical;line-height:1.5}
@@ -130,9 +133,8 @@ code{background:var(--pale);padding:2px 6px;border-radius:5px;font-size:12px}
 /* ============================================================= buttons === */
 .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 20px;
   border-radius:12px;font:inherit;font-weight:600;font-size:14px;cursor:pointer;border:1px solid transparent;
-  white-space:nowrap;text-decoration:none;transition:transform .12s,filter .12s}
-.btn:hover{transform:translateY(-1px)}
-.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  white-space:nowrap;text-decoration:none}
+.btn:disabled{opacity:.5;cursor:not-allowed}
 .btn-gold{background:linear-gradient(135deg,var(--lgold),var(--gold));color:#3A2B05;
   box-shadow:0 2px 8px rgba(242,167,27,.3)}
 .btn-ghost{background:#fff;border-color:var(--line);color:var(--navy)}
@@ -260,9 +262,8 @@ td.act{text-align:right;white-space:nowrap}
 .door input{border:1px solid rgba(255,255,255,.22);background:rgba(2,14,44,.55);color:#fff}
 .door input:focus{border-color:transparent;box-shadow:0 0 0 3px rgba(242,167,27,.35)}
 .bigbtn{width:100%;padding:13px 18px;border:0;border-radius:999px;font:inherit;font-weight:700;font-size:14px;
-  cursor:pointer;background:linear-gradient(135deg,var(--lgold),var(--gold));color:#3A2B05;transition:transform .15s}
-.bigbtn:hover{transform:translateY(-1px)}
-.bigbtn:disabled{opacity:.65;cursor:progress;transform:none}
+  cursor:pointer;background:linear-gradient(135deg,var(--lgold),var(--gold));color:#3A2B05}
+.bigbtn:disabled{opacity:.65;cursor:progress}
 .bigbtn[data-busy]::after{content:" …"}
 .row{display:flex;justify-content:space-between;align-items:center;margin:-4px 0 18px;gap:12px}
 .row a,.linkish{font-size:12.5px;color:#9fd0f7;text-decoration:none;background:none;border:0;padding:0;
@@ -327,7 +328,7 @@ td.act{text-align:right;white-space:nowrap}
   color:var(--muted);padding:10px 14px 12px;cursor:pointer;border-bottom:3px solid transparent;
   display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 .etabs button:hover{color:var(--royal)}
-.etabs button[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--gold)}
+.etabs button[aria-selected="true"]{color:var(--navy);border-bottom-color:transparent}
 .etabs .tb{display:inline-grid;place-items:center;min-width:19px;height:19px;padding:0 5px;
   border-radius:999px;background:var(--pale);color:var(--royal);font-size:11px;font-weight:800}
 .etabs button[aria-selected="true"] .tb{background:var(--gold);color:var(--navy)}
@@ -457,7 +458,7 @@ body[data-admin-partners] .note-tools .f{flex:1;margin:0;min-width:0}
 .email-sub button{appearance:none;border:0;background:none;font:inherit;font-size:13.5px;font-weight:600;
   color:var(--muted);padding:8px 14px 10px;cursor:pointer;border-bottom:3px solid transparent}
 .email-sub button:hover{color:var(--royal)}
-.email-sub button[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--gold)}
+.email-sub button[aria-selected="true"]{color:var(--navy);border-bottom-color:transparent}
 .email-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
 @media(max-width:1100px){.email-layout{grid-template-columns:1fr}}
 .email-rail{display:flex;flex-direction:column;gap:18px;position:sticky;top:96px}
@@ -533,3 +534,6 @@ body[data-admin-learnings] .learn-aspect-preview .ph{
   padding:16px;text-align:center}
 body[data-admin-learnings] .detail .grow{margin-left:auto}
 body[data-admin-learnings] .btn.danger{color:var(--err-ink);border-color:#F0C8C0}
+
+
+/* Motion recipes: assets/css/paaipe-motion.css (imported at top). */

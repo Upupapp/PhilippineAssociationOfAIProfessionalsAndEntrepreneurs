@@ -18,7 +18,7 @@
   --side1:#0B2A6B; --side2:#0A2050;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:Poppins,system-ui,sans-serif;background:var(--bg);color:var(--ink);
+body{margin:0;font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
   line-height:1.55;-webkit-font-smoothing:antialiased}
 a{color:var(--royal)}
 h1,h2,h3{color:var(--navy);margin:0;line-height:1.25;letter-spacing:-.01em}

@@ -147,6 +147,7 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
         <a class="btn btn-gold btn-sm" data-ss-watch href="#">Watch</a>
         <a class="btn btn-ghost btn-sm" data-ss-slides href="#">Slides</a>
+        <a class="btn btn-ghost btn-sm" data-ss-needs="qa" href="#">Q&amp;A</a>
         <a class="btn btn-ghost btn-sm" href="portal-sessions-past.html">All recordings</a>
       </div>
     </div>
@@ -156,12 +157,12 @@
 <section class="card" style="margin-bottom:16px">
   <div class="hd"><h2>Library</h2><small data-ss-count>Recordings</small></div>
   <div class="tbar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-    <input type="search" data-ss-lesson-search placeholder="Search lessons, speakers, topics" style="border:2px solid var(--line);border-radius:999px;padding:8px 14px;min-width:220px;background:#fff;font:inherit">
+    <input type="search" data-ss-lesson-search placeholder="Search recordings, speakers, topics" style="border:2px solid var(--line);border-radius:999px;padding:8px 14px;min-width:220px;background:#fff;font:inherit">
     <div class="fchips" data-ss-filter-type role="group" aria-label="Filter by type">
       <button type="button" class="fchip on" data-type="all">All</button>
       <button type="button" class="fchip" data-type="recording">Recording</button>
       <button type="button" class="fchip" data-type="slides">Has slides</button>
-      <button type="button" class="fchip" data-type="qa">Has Q&amp;A</button>
+      <button type="button" class="fchip" data-type="qa">Q&amp;A</button>
     </div>
     <select class="fsel" data-ss-filter-speaker aria-label="Filter by speaker">
       <option value="">All speakers</option>
@@ -190,7 +191,7 @@
       </div>
     </div>
   </div>
-  <p class="note" style="margin:12px 0 0" data-ss-filter-empty hidden>No lessons match these filters.</p>
+  <p class="note" style="margin:12px 0 0" data-ss-filter-empty hidden>No recordings match these filters.</p>
   <p class="note" style="margin:12px 0 0">Calendar and registration live under <a href="portal-events.html"><b>Events</b></a>.</p>
 </section>
 </div>

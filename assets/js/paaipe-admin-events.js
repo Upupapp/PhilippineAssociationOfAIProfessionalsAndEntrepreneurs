@@ -235,19 +235,26 @@ function programRow(r = {}) {
  *  Organizations & sponsors page, and two screens that both write the same rows
  *  are two screens that can disagree. The proposed count is shown but the names
  *  are not - saying WHO is only proposed would leak the conversation. */
+
 function sponsorSummary(rows) {
   const live = rows.filter(r => ["confirmed", "delivered"].includes(r.status) && r.organization);
   const proposed = rows.filter(r => r.status === "proposed").length;
-  if (!live.length && !proposed)
+  const broken = rows.filter(r =>
+    ["confirmed", "delivered"].includes(r.status) && !r.organization).length;
+  if (!live.length && !proposed && !broken)
     return `<p class="note" style="margin-top:0">No sponsor has been added to this event.</p>`;
   return `<div class="sponrow">
     ${live.map(r => `<span class="sponchip">
-        <img src="${esc(r.organization.logoUrl)}" alt="${esc(r.organization.name)}">
+        ${r.organization.logoUrl
+          ? `<img src="${esc(r.organization.logoUrl)}" alt="${esc(r.organization.name)}">`
+          : `<span class="sponname">${esc(r.organization.name)}</span>`}
         <span class="tierpill tier-${esc(r.tier)}">${esc(String(r.tier).toUpperCase())}</span>
       </span>`).join("")}
     ${proposed ? `<span class="hiddenpill">${proposed} proposed (hidden)</span>` : ""}
+    ${broken ? `<span class="brokenpill">${broken} confirmed with missing organization</span>` : ""}
   </div>`;
 }
+
 
 function openEditor(id) {
   // Per-event caches. Without this, opening October after September shows
@@ -991,57 +998,81 @@ function tierCount(tier, exceptId) {
   return SPONSORS.filter(s => s.tier === tier && s.id !== exceptId).length;
 }
 
+
 function sponsorRow(s) {
   const o = ORGS.find(x => x.id === s.organizationId);
   const done = Array.isArray(s.deliverablesDone) ? s.deliverablesDone : [];
   const full = t => t !== TIER.COMMUNITY && tierCount(t, s.id) >= TIER_LIMITS[t];
-  return `<div class="sprow" data-sp-row="${esc(s.id)}">
-    <span class="slogo">${o?.logoUrl ? `<img src="${esc(o.logoUrl)}" alt="">` : "logo"}</span>
-    <div><b>${esc(o?.name || s.organizationId)}</b>
-      <small>${esc(o?.website || "no website on record")}</small>
+  const live = [SPONSOR_STATUS.CONFIRMED, SPONSOR_STATUS.DELIVERED].includes(s.status);
+  const broken = live && !o;
+  const statusClass = s.status === SPONSOR_STATUS.PROPOSED ? "st-proposed"
+    : live ? "st-live" : "st-other";
+  return `<div class="sprow${broken ? " sprow-broken" : ""}" data-sp-row="${esc(s.id)}">
+    <span class="slogo">${o?.logoUrl ? `<img src="${esc(o.logoUrl)}" alt="">`
+      : `<span class="slogo-fallback">${esc((o?.name || "?").slice(0, 2))}</span>`}</span>
+    <div class="sprow-main"><b>${esc(o?.name || s.organizationId)}</b>
+      <small>${broken
+        ? `Organization id <code>${esc(s.organizationId)}</code> not found - credit cannot resolve`
+        : esc(o?.website || "no website on record")}</small>
+      ${broken ? `<div class="join-warn">Broken join - fix the organization link or recreate the row.</div>` : ""}
       <div class="deliv">${(DELIVERABLES[s.tier] || []).map((d, i) =>
         `<label><input type="checkbox" data-dv="${i}"${done.includes(i) ? " checked" : ""}>${esc(d)}</label>`).join("")}</div>
     </div>
-    <div><select data-sp-tier aria-label="Tier">
+    <div class="sprow-meta">
+      <span class="stchip ${statusClass}">${esc(s.status)}</span>
+      <select data-sp-tier aria-label="Tier">
       ${Object.values(TIER).map(t => `<option value="${t}"${s.tier === t ? " selected" : ""}
         ${full(t) && s.tier !== t ? " disabled" : ""}>${t}${
         full(t) && s.tier !== t ? ` (max ${TIER_LIMITS[t]} reached)` : ""}</option>`).join("")}
-    </select>
-    <select data-sp-status aria-label="Status" style="margin-top:6px">
+      </select>
+      <select data-sp-status aria-label="Status">
       ${Object.values(SPONSOR_STATUS).map(v =>
         `<option value="${v}"${s.status === v ? " selected" : ""}>${v}</option>`).join("")}
-    </select></div>
-    <div><input data-sp-contrib value="${esc(s.contributionType || "")}" placeholder="cash / in-kind"
-        maxlength="60" style="font-size:12.5px">
+      </select>
+    </div>
+    <div class="sprow-extra"><input data-sp-contrib value="${esc(s.contributionType || "")}" placeholder="cash / in-kind"
+        maxlength="60">
       <input data-sp-order type="number" value="${Number(s.order ?? s.displayOrder ?? 100)}"
-        aria-label="Display order" style="font-size:12.5px;margin-top:6px"></div>
-    <div><button type="button" class="btn btn-gold btn-sm" data-sp-save>Save</button>
-      <button type="button" class="btn btn-ghost btn-sm" data-sp-del style="margin-top:6px">Remove</button></div>
+        aria-label="Display order"></div>
+    <div class="sprow-acts"><button type="button" class="btn btn-gold btn-sm" data-sp-save>Save</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-sp-del>Remove</button></div>
   </div>`;
 }
 
+
 /** The public blocks, rendered from the same rows and the same grouping helper
  *  the public page uses - so this is a preview, not a drawing of one. */
+
 function placementPreview() {
-  const rows = SPONSORS
-    .filter(s => [SPONSOR_STATUS.CONFIRMED, SPONSOR_STATUS.DELIVERED].includes(s.status))
-    .map(s => ({ ...s, organization: ORGS.find(o => o.id === s.organizationId) }))
-    .filter(s => s.organization);
-  const g = groupSponsors(rows);
-  const hidden = SPONSORS.length - rows.length;
-  const logos = (list, cls = "") => list.map(r => r.organization.logoUrl
+  const publicStatus = s =>
+    [SPONSOR_STATUS.CONFIRMED, SPONSOR_STATUS.DELIVERED].includes(s.status);
+  const joined = SPONSORS.map(s => ({
+    ...s,
+    organization: ORGS.find(o => o.id === s.organizationId) || null,
+  }));
+  const live = joined.filter(s => publicStatus(s) && s.organization);
+  const broken = joined.filter(s => publicStatus(s) && !s.organization);
+  const pending = joined.filter(s => !publicStatus(s));
+  const g = groupSponsors(live);
+  const logos = (list) => list.map(r => r.organization.logoUrl
     ? `<img src="${esc(r.organization.logoUrl)}" alt="${esc(r.organization.name)}">`
-    : `<span class="muted small">${esc(r.organization.name)}</span>`).join("");
+    : `<span class="plogos-name">${esc(r.organization.name)}</span>`).join("");
   return `<div class="ppreview">
     ${g.presenting.length ? `<h4>PRESENTED WITH</h4><div class="plogos big">${logos(g.presenting)}</div>` : ""}
     ${g.supporting.length ? `<h4 style="margin-top:14px">WITH SUPPORT FROM</h4><div class="plogos">${logos(g.supporting)}</div>` : ""}
     ${g.community.length ? `<h4 style="margin-top:14px">IN PARTNERSHIP WITH</h4><div class="plogos">${logos(g.community)}</div>` : ""}
     ${g.any ? "" : `<p class="muted small" style="margin:0">Nothing appears publicly yet.</p>`}
-    ${hidden > 0 ? `<p class="muted small" style="margin:10px 0 0">${hidden} proposed
-      ${hidden === 1 ? "sponsorship is" : "sponsorships are"} hidden until confirmed — the rules
+    ${live.length ? `<p class="muted small" style="margin:10px 0 0">${live.length} live on the public page.</p>` : ""}
+    ${pending.length ? `<p class="muted small" style="margin:8px 0 0">${pending.length}
+      ${pending.length === 1 ? "sponsorship is" : "sponsorships are"} hidden until confirmed - the rules
       refuse to serve a proposed one, so it cannot leak.</p>` : ""}
+    ${broken.length ? `<p class="join-warn" style="margin:8px 0 0">${broken.length}
+      confirmed/delivered ${broken.length === 1 ? "row has" : "rows have"} no matching organization
+      (${broken.map(s => esc(s.organizationId || s.id)).join(", ")}). Fix the join - these are not
+      "proposed".</p>` : ""}
   </div>`;
 }
+
 
 function renderSponsorsTab() {
   const host = panel("sponsors");
@@ -1089,8 +1120,8 @@ function renderSponsorsTab() {
 
       <h3 class="ehead">Placement preview</h3>
       ${placementPreview()}
-      <p class="note">Rendered from these rows with the same grouping the public page uses, so it is
-        a preview rather than a drawing of one. Only <b>confirmed</b> and <b>delivered</b> appear.</p>
+      <p class="note quiet">Same grouping as the public page. Only <b>confirmed</b> and <b>delivered</b>
+        with a resolved organization appear here.</p>
     </section>`;
 }
 

@@ -380,6 +380,7 @@ function applyReelsChrome(root = document) {
         ? `portal-session-watch.html?session=${encodeURIComponent(latest.id)}&rec=${encodeURIComponent(first.id)}`
         : `portal-session-watch.html?session=${encodeURIComponent(latest.id)}`;
       cont.querySelectorAll("[data-ss-watch]").forEach(a => { a.href = watchUrl; });
+      if (first && first.title) setText(cont, "[data-ss-title]", first.title);
       const label = cont.querySelector("[data-ss-continue-label]");
       const primary = cont.querySelector("a.btn-gold[data-ss-watch]");
       if (latest.resumeAt != null || latest.watchedPercent != null) {
@@ -399,21 +400,32 @@ function applyReelsChrome(root = document) {
       hide(cont);
     }
 
-    // Lesson library + Type/Speaker filters (AND with search).
+    // Library lists each landscape recording as its own row (Part 1 + Part 2
+    // both visible). Session-level slides still link from every sibling row.
     const tpl = document.querySelector("[data-ss-lesson]");
     const list = document.querySelector("[data-ss-lesson-list]");
     if (tpl && list) {
-      const lessons = withRec.length ? withRec : PAST_SESSIONS;
+      const sessions = withRec.length ? withRec : PAST_SESSIONS;
+      const items = [];
+      sessions.forEach(s => {
+        const recs = sessionRecordings(s);
+        if (recs.length) {
+          recs.forEach(r => items.push({ session: s, rec: r }));
+        } else if (sessionHasRecording(s)) {
+          items.push({ session: s, rec: null });
+        }
+      });
+
       setText(
         document,
         "[data-ss-count]",
-        lessons.length === 1 ? "1 lesson" : `${lessons.length} lessons`
+        items.length === 1 ? "1 recording" : `${items.length} recordings`
       );
 
       // Speaker select from distinct catalog speakers (no invented names).
       const speakerSel = document.querySelector("[data-ss-filter-speaker]");
       if (speakerSel) {
-        const speakers = [...new Set(lessons.map(s => s.speaker).filter(Boolean))].sort();
+        const speakers = [...new Set(sessions.map(s => s.speaker).filter(Boolean))].sort();
         speakers.forEach(name => {
           const opt = document.createElement("option");
           opt.value = name;
@@ -423,30 +435,44 @@ function applyReelsChrome(root = document) {
       }
 
       const frag = document.createDocumentFragment();
-      lessons.forEach(s => {
+      items.forEach(({ session: s, rec }) => {
         const el = tpl.cloneNode(true);
         el.removeAttribute("data-ss-lesson");
         el.hidden = false;
         el.style.display = "";
-        el.setAttribute("data-ss-lesson-id", s.id);
-        const recs = sessionRecordings(s);
-        const hasRec = sessionHasRecording(s);
-        const hasSlides = !!s.slidesUrl;
-        const hasQa = recs.some(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || "")) || !!s.qaCount;
-        el.setAttribute("data-ss-has-recording", hasRec ? "1" : "0");
-        el.setAttribute("data-ss-has-slides", hasSlides ? "1" : "0");
-        el.setAttribute("data-ss-has-qa", hasQa ? "1" : "0");
+        const recId = rec ? rec.id : "";
+        const isQa = !!(rec && (rec.id === "qa" || /q\s*&?\s*a/i.test(rec.title || "")));
+        el.setAttribute("data-ss-lesson-id", recId ? `${s.id}::${recId}` : s.id);
+        el.setAttribute("data-ss-session-id", s.id);
+        el.setAttribute("data-ss-rec-id", recId);
+        el.setAttribute("data-ss-has-recording", "1");
+        el.setAttribute("data-ss-has-slides", s.slidesUrl ? "1" : "0");
+        el.setAttribute("data-ss-has-qa", isQa ? "1" : "0");
         el.setAttribute("data-ss-speaker", s.speaker || "");
         applySession(el, s);
-        const first = recs[0];
-        const watchUrl = first
-          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(first.id)}`
+        // Title = recording part name; keep edition/speaker from session.
+        const partTitle = rec && rec.title
+          ? rec.title
+          : s.title;
+        setText(el, "[data-ss-title]", partTitle);
+        if (rec && rec.thumb) {
+          el.querySelectorAll("[data-ss-poster]").forEach(img => {
+            img.src = rec.thumb;
+          });
+        }
+        const pill = el.querySelector("[data-ss-needs='recording']");
+        if (pill) pill.textContent = isQa ? "Q&A" : "Recording";
+        const watchUrl = rec
+          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(rec.id)}`
           : `portal-session-watch.html?session=${encodeURIComponent(s.id)}`;
         el.querySelectorAll("[data-ss-watch]").forEach(a => { a.href = watchUrl; });
-        const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
+        // Row-level Q&A link: only useful on non-Q&A rows when a sibling Q&A exists.
+        const qaRec = sessionRecordings(s).find(
+          r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || "")
+        );
         el.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
-          if (!qa) return;
-          a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(qa.id)}`;
+          if (!qaRec || isQa) return hide(a);
+          a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(qaRec.id)}`;
           a.textContent = "Q&A";
         });
         frag.appendChild(el);
@@ -477,7 +503,7 @@ function applyReelsChrome(root = document) {
         setText(
           document,
           "[data-ss-count]",
-          visible === 1 ? "1 lesson" : `${visible} lessons`
+          visible === 1 ? "1 recording" : `${visible} recordings`
         );
       }
 
@@ -498,28 +524,36 @@ function applyReelsChrome(root = document) {
   }
 
   if (page === "sessions-past") {
-    // Full "All recordings" library — same catalog as the hub.
+    // Full "All recordings" library — one row per landscape recording.
     const tpl = document.querySelector("[data-ss-item]");
     if (tpl) {
-      const lessons = PAST_SESSIONS.filter(sessionHasRecording);
-      const count = lessons.length || PAST_SESSIONS.length;
+      const sessions = PAST_SESSIONS.filter(sessionHasRecording);
+      const items = [];
+      (sessions.length ? sessions : PAST_SESSIONS).forEach(s => {
+        const recs = sessionRecordings(s);
+        if (recs.length) recs.forEach(r => items.push({ session: s, rec: r }));
+        else items.push({ session: s, rec: null });
+      });
       setText(
         document,
         "[data-ss-count]",
-        count === 1 ? "1 recording" : `${count} recordings`
+        items.length === 1 ? "1 recording" : `${items.length} recordings`
       );
       const frag = document.createDocumentFragment();
-      (lessons.length ? lessons : PAST_SESSIONS).forEach(s => {
+      items.forEach(({ session: s, rec }) => {
         const el = tpl.cloneNode(true);
         el.removeAttribute("data-ss-item");
-        const recs = sessionRecordings(s);
-        const first = recs[0];
-        const watchUrl = first
-          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(first.id)}`
+        const isQa = !!(rec && (rec.id === "qa" || /q\s*&?\s*a/i.test(rec.title || "")));
+        applySession(el, s);
+        if (rec && rec.title) setText(el, "[data-ss-title]", rec.title);
+        if (rec && rec.thumb) {
+          el.querySelectorAll("[data-ss-poster]").forEach(img => { img.src = rec.thumb; });
+        }
+        const watchUrl = rec
+          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(rec.id)}`
           : `portal-session-watch.html?session=${encodeURIComponent(s.id)}`;
         el.querySelectorAll("[data-ss-watch]").forEach(a => {
           a.href = watchUrl;
-          // Honest CTA: "Continue watching" only when resume/progress exists.
           if (
             a.classList.contains("btn-gold") === false &&
             /continue watching/i.test(a.textContent || "")
@@ -529,10 +563,9 @@ function applyReelsChrome(root = document) {
             }
           }
         });
-        applySession(el, s);
-        const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
+        const qa = sessionRecordings(s).find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
         el.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
-          if (!qa) return;
+          if (!qa || isQa) return hide(a);
           a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(qa.id)}`;
           a.textContent = "Q&A";
         });

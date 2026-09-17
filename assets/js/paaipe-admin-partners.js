@@ -47,7 +47,7 @@ const STATUS_PILL = {
 };
 const SOURCE_LABEL = {
   public_event: "Event page", events_list: "Events list", success_page: "After registering",
-  portal_sessions: "Portal · Sessions", portal_session: "Portal · Session",
+  portal_sessions: "Portal · Sessions", portal_events: "Portal · Events", portal_session: "Portal · Session",
 };
 
 const toDate = v =>

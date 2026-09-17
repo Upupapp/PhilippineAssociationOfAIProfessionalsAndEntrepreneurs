@@ -32,11 +32,14 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
  *  to "#", so four partners who agreed to be credited got a dead link each. */
 function logo(row, cls) {
   const o = row.organization;
-  const img = `<img src="${esc(o.logoUrl)}" alt="${esc(o.name)}" loading="lazy">`;
+  // Missing logo must not erase the credit — name alone is enough.
+  const mark = o.logoUrl
+    ? `<img src="${esc(o.logoUrl)}" alt="${esc(o.name)}" loading="lazy">`
+    : `<span class="spon-nameonly">${esc(o.name)}</span>`;
   return o.website
     ? `<a class="${cls}" href="${esc(o.website)}" target="_blank" rel="noopener"
-         title="${esc(o.name)}">${img}</a>`
-    : `<span class="${cls}" title="${esc(o.name)}">${img}</span>`;
+         title="${esc(o.name)}">${mark}</a>`
+    : `<span class="${cls}" title="${esc(o.name)}">${mark}</span>`;
 }
 
 export function renderSponsors(host, rows) {
@@ -52,10 +55,11 @@ export function renderSponsors(host, rows) {
   const parts = [];
 
   if (g.presenting.length) {
+    // Logo (or name fallback) only — do not also print the org name beside it.
+    // That looked like a second "partner" (e.g. GetHired logo + "GetHired Online").
     parts.push(`<div class="spon-presenting">
       <h3>Presented with</h3>
-      <div class="spon-lead">${g.presenting.map(r => logo(r, "spon-big")).join("")}
-        <b>${g.presenting.map(r => esc(r.organization.name)).join(", ")}</b></div></div>`);
+      <div class="spon-lead">${g.presenting.map(r => logo(r, "spon-big")).join("")}</div></div>`);
   }
   if (g.supporting.length) {
     parts.push(`<div class="spon-supporting">

@@ -23,26 +23,63 @@ const hide = el => { if (el) el.style.display = "none"; };
 const setText = (root, sel, text) =>
   root.querySelectorAll(sel).forEach(e => { e.textContent = text; });
 
-/** Modest-branding nocookie embed. Id is unavoidable in src. */
+/** In-portal nocookie embed. Video id still appears in iframe src / network —
+ *  unlisted ≠ DRM. We block YouTube's "open on YouTube" / logo navigation as far
+ *  as the embed API allows (no allow-popups sandbox + click shields). Completely
+ *  removing YouTube chrome requires self-hosting, not embed params. */
 function embedSrc(youtubeId) {
   const id = encodeURIComponent(youtubeId);
-  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1`;
+  const origin = encodeURIComponent(location.origin);
+  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1&fs=1&origin=${origin}`;
+}
+
+function mountYtClickShields(player) {
+  // Cover the regions where YouTube paints its logo / "Watch on YouTube" control.
+  // Shields sit above the iframe and eat pointer events so members cannot follow
+  // those links out of the portal. Playback controls in the centre/bottom stay usable.
+  const specs = [
+    ["data-yt-shield", "tr", "top:0;right:0;width:min(28%,120px);height:58px"],
+    ["data-yt-shield", "title", "top:0;left:0;right:0;height:48px"],
+  ];
+  specs.forEach(([, kind, box]) => {
+    const el = document.createElement("div");
+    el.setAttribute("data-yt-shield", kind);
+    el.setAttribute("aria-hidden", "true");
+    el.style.cssText =
+      `position:absolute;z-index:4;${box};pointer-events:auto;background:transparent`;
+    // Swallow context-menu / middle-click attempts on the shield itself.
+    el.addEventListener("contextmenu", e => e.preventDefault());
+    el.addEventListener("auxclick", e => e.preventDefault());
+    player.appendChild(el);
+  });
 }
 
 function mountEmbed(player, rec) {
   if (!player || !rec?.youtubeId) return;
   player.innerHTML = "";
+  player.classList.add("is-embed");
   player.style.background = "#0a1c3e";
-  // Fill the existing 16:9 .player box without inventing a parallel layout.
+  if (getComputedStyle(player).position === "static") {
+    player.style.position = "relative";
+  }
+
   const frame = document.createElement("iframe");
   frame.src = embedSrc(rec.youtubeId);
   frame.title = rec.title || "Session recording";
   frame.setAttribute("allowfullscreen", "");
+  // No web-share — reduces one path to hand the video out of the portal.
   frame.setAttribute(
     "allow",
-    "accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
   );
   frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+  // Block navigation/popups out to youtube.com when the logo / Watch link is hit.
+  // Scripts + same-origin + presentation keep the player working; omit allow-popups
+  // and allow-top-navigation so those controls cannot open YouTube.
+  frame.setAttribute(
+    "sandbox",
+    "allow-scripts allow-same-origin allow-presentation allow-forms"
+  );
   Object.assign(frame.style, {
     position: "absolute",
     inset: "0",
@@ -50,11 +87,8 @@ function mountEmbed(player, rec) {
     height: "100%",
     border: "0",
   });
-  // Ensure the player is a positioning context for the absolute iframe.
-  if (getComputedStyle(player).position === "static") {
-    player.style.position = "relative";
-  }
   player.appendChild(frame);
+  mountYtClickShields(player);
 }
 
 /** Compact switcher when a session has more than one landscape recording. */

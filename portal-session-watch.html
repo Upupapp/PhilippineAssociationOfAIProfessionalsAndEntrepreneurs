@@ -96,6 +96,11 @@
   .rec .res{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.rec .res a{font-size:12.5px;font-weight:600;color:var(--royal);border:1px solid var(--line);border-radius:999px;padding:5px 11px;display:inline-flex;gap:6px;align-items:center}.rec .res svg{width:13px;height:13px;stroke:var(--royal);fill:none;stroke-width:2}
   .empty{text-align:center;padding:36px 20px;color:var(--muted);font-size:14px}.empty .ic{width:48px;height:48px;border-radius:14px;background:var(--pale);display:grid;place-items:center;margin:0 auto 10px}.empty .ic svg{width:22px;height:22px;stroke:var(--royal);fill:none;stroke-width:1.8}
   .player{position:relative;border-radius:var(--radius);overflow:hidden;background:#0a1c3e;aspect-ratio:16/9;box-shadow:0 24px 60px rgba(3,27,82,.25)}.player img{width:100%;height:100%;object-fit:cover;opacity:.85}
+  /* Best-effort: keep YouTube logo / Watch-on-YouTube from being clickable out of portal */
+  .player.is-embed{isolation:isolate}
+  .player.is-embed iframe{z-index:1}
+  .player.is-embed [data-yt-shield]{z-index:4;cursor:default}
+
   .player .pl{position:absolute;inset:0;display:grid;place-items:center}.player .pl span{width:84px;height:84px;border-radius:50%;background:rgba(255,255,255,.95);display:grid;place-items:center;box-shadow:0 12px 30px rgba(0,0,0,.35)}.player .pl svg{width:30px;height:30px;fill:var(--navy);margin-left:5px}
   .player .ov{position:absolute;left:14px;top:14px;display:flex;gap:8px}.player .ov .pill{background:rgba(3,13,40,.75);color:#fff;border:1px solid rgba(255,255,255,.35)}
   .player .ctl{position:absolute;left:0;right:0;bottom:0;padding:14px 16px;background:linear-gradient(0deg,rgba(3,13,40,.85),transparent);color:#fff;font-size:12px;display:flex;align-items:center;gap:12px}.player .ctl .prog{flex:1;height:5px;background:rgba(255,255,255,.3);border-radius:5px;overflow:hidden}.player .ctl .prog i{display:block;height:100%;width:38%;background:var(--gold)}

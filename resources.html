@@ -7,6 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
+  /* MEMBERS ONLY — hidden until assets/js/paaipe-members-only.js says otherwise.
+     This rule is here, in the page's own <style>, so the library is never
+     painted and then withdrawn: a gate that renders first has already shown the
+     thing it was guarding. <noscript> below explains the JavaScript-off case. */
+  /* :not(noscript) matters. Without it the JavaScript-off explanation is hidden
+     by the very rule it exists to explain, and the visitor gets a blank page. */
+  html:not([data-gate="ok"]) body>*:not([data-gate-panel]):not(noscript){visibility:hidden}
+  html[data-gate="ok"] body>*{visibility:visible}
+
   :root{
     --navy:#002166; --royal:#065092; --blue:#1E6FE8; --cyan:#15BBEA; --gold:#F2A71B; --lgold:#F6DB74;
     --pale:#EAF3FC; --pale2:#DCEBFA; --ink:#0f1e3d; --muted:#4a5a7a; --line:#c9dcf3; --amber-ink:#7a4a06; --amber-bg:#fdf1dd;
@@ -180,7 +189,16 @@
 
 </style>
 </head>
-<body>
+<body data-members-page>
+<noscript><div style="position:fixed;inset:0;display:grid;place-items:center;padding:24px;
+  background:#FBF8F1;z-index:9999;font-family:Poppins,system-ui,sans-serif;text-align:center">
+  <div style="max-width:44ch">
+    <h1 style="font-size:24px;color:#061A4A;margin:0 0 10px">The member library needs JavaScript</h1>
+    <p style="color:#5A6B8C;font-size:14.5px;line-height:1.65;margin:0 0 20px">This page is for
+      PAAIPE members, and we check that in your browser. Turn JavaScript on for paaipe.org and
+      reload, or <a href="signin.html" style="color:#1C46B4;font-weight:600">sign in</a> first.</p>
+    <a href="index.html" style="color:#1C46B4;font-weight:600">Back to paaipe.org</a>
+  </div></div></noscript>
 
 <nav>
   <div class="wrap">
@@ -426,5 +444,5 @@
 </script>
 
 <script src="assets/js/leave-dialog.js" data-cancel="Back to Resources" data-title="This resource opens on another site"></script>
-<script src="assets/js/paaipe-nav.js" defer></script></body>
+<script type="module" src="assets/js/paaipe-members-only.js"></script><script src="assets/js/paaipe-nav.js" defer></script></body>
 </html>

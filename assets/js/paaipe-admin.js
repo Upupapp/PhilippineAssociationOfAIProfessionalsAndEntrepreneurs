@@ -68,36 +68,131 @@ function statusOf(m) {
  * are waiting for, rather than linking to a page of invented rows. Showing the
  * gap is honest; hiding it would make the console look finished.
  */
+/* The admin sidebar, in ONE place, grouped the way the design groups it.
+ *
+ * `built: false` marks a destination the design draws but PAAIPE cannot yet fill
+ * with anything true. Those appear, greyed and not clickable, saying what they
+ * are waiting for. Six pages of sample rows would make the console look
+ * finished; naming the gap says where the work actually is.
+ *
+ * `badge` is a COUNT, filled in at render time from real data. It is never a
+ * hardcoded number: a badge saying 38 next to an empty list is a lie with a
+ * very short shelf life.
+ */
 export const ADMIN_NAV = [
-  { href: "admin.html",               label: "Dashboard",         built: true  },
-  { href: "admin-registrations.html", label: "Registrations",     built: true  },
-  { href: "admin-speaker-brief.html", label: "Speaker brief",     built: true  },
-  { href: "admin-agents.html",        label: "Sign-ups (Agents)", built: true  },
-  { href: "admin-events.html",        label: "Events",            built: true  },
-  { href: "admin-organizations.html", label: "Organizations & sponsors", built: true },
-  { sec: "NOT BUILT YET" },
-  { label: "Benefits & Partners", waiting: "no benefit, code or claim data exists" },
-  { label: "Programs",            waiting: "no enrolment data exists" },
-  { label: "Resources",           waiting: "resources are a static page" },
-  { label: "Announcements",       waiting: "no announcement data exists" },
-  { label: "Communications",      waiting: "sending mail needs an SMTP provider" },
-  { label: "Roles & Settings",    waiting: "there is one administrator, named in firestore.rules" },
+  { href: "admin.html",               label: "Dashboard",         icon: "home",   built: true },
+  { sec: "EVENTS" },
+  { href: "admin-events.html",        label: "Events",            icon: "cal",    built: true },
+  { href: "admin-registrations.html", label: "Registrations",     icon: "check",  built: true, badge: "registrations" },
+  { href: "admin-speaker-brief.html", label: "Speaker brief",     icon: "doc",    built: true },
+  { sec: "PEOPLE" },
+  { href: "admin-agents.html",        label: "Sign-ups (Agents)", icon: "people", built: true },
+  { href: "admin-agents.html#pending", label: "Verifications",    icon: "shield", built: true, badge: "pending" },
+  { sec: "CONTENT" },
+  { href: "admin-organizations.html", label: "Organizations",     icon: "org",    built: true },
+  { label: "Benefits",       icon: "ticket", waiting: "no benefit, code or claim data exists" },
+  { label: "Programs",       icon: "compass", waiting: "no enrolment data exists" },
+  { label: "Resources",      icon: "book",   waiting: "resources are a static page" },
+  { label: "Announcements",  icon: "mega",   waiting: "no announcement data exists" },
+  { label: "Communications", icon: "mail",   waiting: "sending mail needs an SMTP provider" },
+  { sec: "SYSTEM" },
+  { label: "Roles & Settings", icon: "cog",  waiting: "there is one administrator, named in firestore.rules" },
 ];
 
-const ICON = `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>`;
+const ICONS = {
+  home:   '<path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  cal:    '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  check:  '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="m8 12 3 3 5-6"/>',
+  doc:    '<path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/>',
+  people: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 8 0"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="m9 12 2 2 4-4"/>',
+  org:    '<rect x="3" y="7" width="8" height="14" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/><path d="M6 11h2M6 15h2M16 7h2M16 11h2M16 15h2"/>',
+  ticket: '<path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v14"/>',
+  compass:'<circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/>',
+  book:   '<path d="M4 5.5C4 4.1 5.1 3 6.5 3H12v18H6.5C5.1 21 4 19.9 4 18.5z"/><path d="M20 5.5C20 4.1 18.9 3 17.5 3H12v18h5.5c1.4 0 2.5-1.1 2.5-2.5z"/>',
+  mega:   '<path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
+  mail:   '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  cog:    '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+};
+const svg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k] || ICONS.doc}</svg>`;
+
+/** Counts for the sidebar badges. Set by whichever page knows them; a badge with
+ *  no count simply does not render, because an empty badge is a question mark
+ *  where a fact should be. */
+const BADGES = {};
+export function setNavBadge(key, n) {
+  BADGES[key] = n;
+  document.querySelectorAll(`[data-badge="${key}"]`).forEach(el => {
+    el.textContent = n > 0 ? String(n) : "";
+    el.hidden = !(n > 0);
+  });
+}
 
 export function renderAdminNav(current) {
   const host = document.querySelector("[data-admin-nav]");
   if (!host) return;
   host.innerHTML = ADMIN_NAV.map(i => {
     if (i.sec) return `<li class="sec">${esc(i.sec)}</li>`;
-    if (i.built === true) {
-      const on = i.href === current ? ' class="on"' : "";
-      return `<li><a${on} href="${esc(i.href)}">${ICON}${esc(i.label)}</a></li>`;
+    const badge = i.badge
+      ? `<span class="nbadge" data-badge="${esc(i.badge)}" hidden></span>` : "";
+    if (i.built) {
+      const on = (i.href || "").split("#")[0] === current ? ' class="on"' : "";
+      return `<li><a${on} href="${esc(i.href)}">${svg(i.icon)}<span>${esc(i.label)}</span>${badge}</a></li>`;
     }
-    return `<li><span class="soon" title="${esc(i.waiting)}">${ICON}${esc(i.label)}` +
-           `<em>${esc(i.waiting)}</em></span></li>`;
+    // The reason lives in the tooltip, not inline: spelling it out under every
+    // row doubled the height of the sidebar. The dot is the signal that the
+    // destination is not built; hovering says why.
+    return `<li><span class="soon" title="Not built yet — ${esc(i.waiting)}">${svg(i.icon)}` +
+           `<span>${esc(i.label)}</span><i class="soondot" aria-hidden="true"></i>` +
+           `<span class="sr">Not built yet: ${esc(i.waiting)}</span></span></li>`;
   }).join("");
+  Object.entries(BADGES).forEach(([k, n]) => setNavBadge(k, n));
+}
+
+/** The topbar: page title, subtitle, search and the bell. One renderer, because
+ *  five pages pasting the same header is five places for it to drift.
+ *
+ *  The search box is PRESENTATIONAL and says so in its placeholder - there is no
+ *  search index yet. It is rendered disabled rather than as a box that swallows
+ *  what you type. */
+export function renderAdminTop({ title, subtitle = "", email = "" }) {
+  const host = document.querySelector("[data-admin-top]");
+  if (!host) return;
+  host.innerHTML = `
+    <div class="ttl"><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div>
+    <div class="tools">
+      <label class="search" title="Search is not built yet — there is no index to search.">
+        <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input disabled placeholder="Search is not built yet"
+               style="border:0;background:none;padding:0;height:auto;font-size:13.5px">
+      </label>
+      <span class="who">Signed in as <b data-admin-email>${esc(email)}</b>
+        <a href="#" data-admin-signout>Sign out</a></span>
+    </div>`;
+}
+
+/** Breadcrumbs. Each entry is [label, href] or just a label for the last one. */
+export function renderCrumbs(items) {
+  const host = document.querySelector("[data-crumbs]");
+  if (!host) return;
+  host.innerHTML = items.map((it, i) => {
+    const last = i === items.length - 1;
+    const [label, href] = Array.isArray(it) ? it : [it, null];
+    const node = href && !last
+      ? `<a href="${esc(href)}">${esc(label)}</a>` : `<span>${esc(label)}</span>`;
+    return node + (last ? "" : '<span class="sep">›</span>');
+  }).join("");
+}
+
+/** The green/amber/red state chip under the crumbs. */
+export function renderStateChip(text, kind = "ok") {
+  const host = document.querySelector("[data-state-chip]");
+  if (!host) return;
+  const tick = kind === "ok"
+    ? '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>' : "";
+  host.className = `statechip ${kind === "ok" ? "" : kind}`.trim();
+  host.innerHTML = tick + `<span>${esc(text)}</span>`;
+  host.hidden = false;
 }
 
 /* ---------------------------------------------------------------- the door */
@@ -277,6 +372,7 @@ function renderMembers(list, adminEmail) {
   if (pendEl) pendEl.textContent = plural(pending.length, "member is", "members are");
   const pendWrap = $("[data-pending-wrap]");
   if (pendWrap) pendWrap.hidden = pending.length === 0;
+  setNavBadge("pending", pending.length);
   const sm = $("[data-stat-members]"); if (sm) sm.textContent = String(list.length);
   const sp = $("[data-stat-pending]"); if (sp) sp.textContent = String(pending.length);
 
@@ -362,6 +458,7 @@ function wireMemberActions(adminEmail) {
 }
 
 function renderRegistrations(list) {
+  setNavBadge("registrations", list.length);
   const sr = $("[data-stat-regs]"); if (sr) sr.textContent = String(list.length);
   const recentR = $("[data-recent-regs]");
   if (recentR) recentR.innerHTML = list.length
@@ -425,7 +522,13 @@ async function openConsole(who) {
   if (!me) return panel("signin");
 
   showConsoleChrome(true);
-  renderAdminNav(location.pathname.split("/").pop() || "admin.html");
+  const page = location.pathname.split("/").pop() || "admin.html";
+  renderAdminNav(page);
+  renderAdminTop(page === "admin-agents.html"
+    ? { title: "Sign-ups (Agents)", subtitle: "People who created a PAAIPE account", email: me.email }
+    : { title: "Dashboard", subtitle: "What needs attention today", email: me.email });
+  renderCrumbs(page === "admin-agents.html"
+    ? [["Dashboard", "admin.html"], "Sign-ups"] : ["Dashboard"]);
   $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
   $("[data-admin-signout]")?.addEventListener("click", async e => {
     e.preventDefault();

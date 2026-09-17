@@ -11,7 +11,7 @@
  * The second is absolute: the rules refuse delete outright, for everyone.
  */
 import { currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
-import { renderAdminNav } from "/assets/js/paaipe-admin.js";
+import { renderAdminNav, renderAdminTop, renderCrumbs } from "/assets/js/paaipe-admin.js";
 import {
   COL, TIER, SPONSOR_STATUS, TIER_LIMITS,
   listOrganizations, listEvents, listEventSponsors, groupSponsors,
@@ -216,9 +216,12 @@ async function loadSponsors() {
   if (!ok) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
 
   ME = me.email;
-  $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
-  $("[data-admin-signout]")?.addEventListener("click", async e => {
-    e.preventDefault(); await signOutNow().catch(() => {}); location.replace("admin.html");
+  renderAdminTop({ title: 'Organizations & sponsors', subtitle: 'Stored once, credited everywhere', email: me.email });
+  renderCrumbs([["Dashboard","admin.html"],"Organizations"]);
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-admin-signout]")) {
+      e.preventDefault(); signOutNow().catch(() => {}).then(() => location.replace("admin.html"));
+    }
   });
 
   try {

@@ -14,7 +14,7 @@ import {
   currentAgent, isAdminNow, signOutNow,
   listRegistrations, setRegistrationStatus, REG_STATUS, regStatusOf,
 } from "/assets/js/paaipe-firebase.js";
-import { renderAdminNav } from "/assets/js/paaipe-admin.js";
+import { renderAdminNav, renderAdminTop, renderCrumbs, setNavBadge } from "/assets/js/paaipe-admin.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -262,9 +262,12 @@ function fillSelect(sel, values, allLabel) {
   if (!ok) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
 
   ME = me.email;
-  $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
-  $("[data-admin-signout]")?.addEventListener("click", async e => {
-    e.preventDefault(); await signOutNow().catch(() => {}); location.replace("admin.html");
+  renderAdminTop({ title: 'Registrations', subtitle: 'Everyone who filled in the form on paaipe.org', email: me.email });
+  renderCrumbs([["Dashboard","admin.html"],"Registrations"]);
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-admin-signout]")) {
+      e.preventDefault(); signOutNow().catch(() => {}).then(() => location.replace("admin.html"));
+    }
   });
 
   try {
@@ -275,6 +278,7 @@ function fillSelect(sel, values, allLabel) {
     return;
   }
 
+  setNavBadge("registrations", ALL.length);
   fillSelect($("[data-f-event]"),   eventsIn(ALL),   "All events");
   fillSelect($("[data-f-profile]"), profilesIn(ALL), "All profiles");
   wireFilters();

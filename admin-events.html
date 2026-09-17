@@ -7,16 +7,14 @@
   </aside>
 
   <div class="amain">
-    <header class="top">
-      <b style="color:var(--navy);font-size:17px">Events</b>
-      <div class="who">Signed in as <b data-admin-email>…</b>
-        <a href="#" data-admin-signout>Sign out</a></div>
-    </header>
+    <header class="top" data-admin-top></header>
 
     <div class="wrap">
+      <nav class="crumbs" data-crumbs></nav>
+      <div class="statechip" data-state-chip hidden></div>
       <div class="flash" data-flash hidden></div>
 
-      <section class="card">
+      <section class="card" data-event-list>
         <div class="hd"><h2>All events</h2><span class="count" data-event-count>…</span></div>
         <div class="tbl"><table>
           <thead><tr><th>Event</th><th>Date</th><th>Status</th><th></th></tr></thead>
@@ -26,9 +24,10 @@
           one to the public, so an unpublished event cannot leak even if somebody has the link.</p>
       </section>
 
-      <section class="card">
-        <div class="detail" data-event-editor hidden></div>
-      </section>
+      <div class="cols" data-editor-cols hidden>
+        <div class="colmain" data-event-editor></div>
+        <div class="colside" data-publish-rail></div>
+      </div>
     </div>
   </div>
 </div>

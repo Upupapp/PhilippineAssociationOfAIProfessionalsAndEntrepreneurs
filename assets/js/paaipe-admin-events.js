@@ -16,10 +16,12 @@
  *   in a page, and a page is the thing we are keeping it out of.
  */
 import { currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
-import { renderAdminNav } from "/assets/js/paaipe-admin.js";
+import {
+  renderAdminNav, renderAdminTop, renderCrumbs, renderStateChip, setNavBadge,
+} from "/assets/js/paaipe-admin.js";
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
 import {
-  COL, EVENT_STATUS, listEvents, registrationState, eventDateLong,
+  COL, EVENT_STATUS, listEvents, listEventSponsors, registrationState, eventDateLong,
 } from "/assets/js/paaipe-events-data.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
@@ -126,126 +128,255 @@ function renderList() {
 
 /* ------------------------------------------------------------------ editor */
 
-const field = (label, key, value, attrs = "") =>
-  `<div class="f"><label>${esc(label)}</label>
+const field = (label, key, value, attrs = "", sub = "") =>
+  `<div class="f"><label>${esc(label)}${sub ? ` <span class="sub">${esc(sub)}</span>` : ""}</label>
      <input data-e="${key}" value="${esc(value ?? "")}" ${attrs}></div>`;
+
+const STATUS_CHIPS = [
+  [EVENT_STATUS.DRAFT, "Draft"], [EVENT_STATUS.PUBLISHED, "Published"],
+  [EVENT_STATUS.REGISTRATION_OPEN, "Registration open"],
+  [EVENT_STATUS.REGISTRATION_CLOSED, "Closed"], [EVENT_STATUS.HELD, "Held"],
+  [EVENT_STATUS.CANCELLED, "Cancelled"],
+];
+
+const TICK  = '<svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+const CROSS = '<svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+/** What publishing actually does, and what the design says it does but cannot.
+ *  The struck-through lines are kept rather than deleted: they answer "why isn't
+ *  this doing that?" in the place the question gets asked. */
+function publishList() {
+  const yes = [
+    "Serves this record on the public event page — title, sponsors and the Register button follow it",
+    "Opens registration at the date you set, with nothing running on a schedule",
+    "Offers a calendar file generated from this record",
+  ];
+  const no = [
+    ["Creates the public event page and registration page",
+     "paaipe.org is static — a new event needs its page added to the repository once"],
+    ["Generates the banner and calendar files",
+     "no image tooling or storage bucket is wired; the calendar file IS generated"],
+    ["Adds the event to the portal Sessions list",
+     "the portal still reads its own static data"],
+  ];
+  return `<ul class="plist">
+    ${yes.map(s => `<li class="yes">${TICK}<span>${esc(s)}</span></li>`).join("")}
+    ${no.map(([s, why]) => `<li class="no" title="${esc(why)}">${CROSS}<span><span class="sr">Does not: </span>${esc(s)}</span></li>`).join("")}
+  </ul>`;
+}
+
+function renderRail(e) {
+  const rail = $("[data-publish-rail]");
+  if (!rail) return;
+  rail.innerHTML = `
+    <section class="card">
+      <div class="hd"><h2>Publish</h2></div>
+      <div class="chips">
+        ${STATUS_CHIPS.map(([s, label]) => `<button class="chip${s === e.status ? " on" : ""}"
+          data-status="${s}"${s === e.status ? " disabled" : ""}>${esc(label)}</button>`).join("")}
+      </div>
+      <div class="stack">
+        <button class="btn btn-gold btn-block" data-save-event>Save changes</button>
+        <a class="btn btn-ghost btn-block" href="${esc(e.slug || "#")}.html" target="_blank"
+           rel="noopener">Preview public page</a>
+        ${e.status === EVENT_STATUS.REGISTRATION_OPEN
+          ? `<button class="btn btn-ghost btn-block" data-status="${EVENT_STATUS.REGISTRATION_CLOSED}">Close registration</button>`
+          : `<button class="btn btn-ghost btn-block" data-status="${EVENT_STATUS.REGISTRATION_OPEN}">Open registration</button>`}
+        ${e.status === EVENT_STATUS.DRAFT
+          ? `<button class="btn btn-ghost btn-block" data-status="${EVENT_STATUS.PUBLISHED}">Publish</button>`
+          : `<button class="btn btn-ghost btn-block" data-status="${EVENT_STATUS.DRAFT}">Unpublish</button>`}
+        <button class="btn btn-ghost btn-block" data-ics>Download calendar file</button>
+        <button class="btn btn-ghost btn-block" data-duplicate>Duplicate as a new event</button>
+        <button class="btn btn-ghost btn-block" data-back>Back to all events</button>
+      </div>
+      <h3 class="ehead">What publishing does</h3>
+      ${publishList()}
+      <p class="note">The crossed-out lines are what the design promises and this stack cannot do.
+        Hover each for the reason.</p>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h2>History</h2></div>
+      <div data-history><p class="muted small">Loading…</p></div>
+    </section>`;
+}
+
+const ROLES = ["Speaker", "Host", "Opening remarks", "Closing remarks"];
+
+/** One speaker row. The avatar shows the stored photo, or the word "photo" when
+ *  there is none - a blank circle looks like a failed image. */
+function speakerRow(s = {}) {
+  const img = s.photoUrl
+    ? `<img class="avatar" src="${esc(s.photoUrl)}" alt="">`
+    : `<span class="avatar ph">photo</span>`;
+  return `<div class="row2" data-sp>
+    ${img}
+    <input data-sp-name  value="${esc(s.name || "")}"  placeholder="Speaker to be announced" maxlength="120">
+    <input data-sp-title value="${esc(s.title || "")}" placeholder="Title, organization" maxlength="160">
+    <select data-sp-role>${ROLES.map(r =>
+      `<option${(s.role || "Speaker") === r ? " selected" : ""}>${r}</option>`).join("")}</select>
+    <button type="button" class="xbtn" data-rm-sp title="Remove">×</button>
+  </div>`;
+}
+
+function programRow(r = {}) {
+  return `<div class="rowp" data-pr>
+    <input data-pr-time value="${esc(r.time || "")}" placeholder="8:00 PM" maxlength="20">
+    <input data-pr-item value="${esc(r.item || "")}" placeholder="What happens" maxlength="200">
+    <button type="button" class="xbtn" data-rm-pr title="Remove">×</button>
+  </div>`;
+}
+
+/** The sponsor summary. Read-only here: tiers, order and logos are edited on the
+ *  Organizations & sponsors page, and two screens that both write the same rows
+ *  are two screens that can disagree. The proposed count is shown but the names
+ *  are not - saying WHO is only proposed would leak the conversation. */
+function sponsorSummary(rows) {
+  const live = rows.filter(r => ["confirmed", "delivered"].includes(r.status) && r.organization);
+  const proposed = rows.filter(r => r.status === "proposed").length;
+  if (!live.length && !proposed)
+    return `<p class="note" style="margin-top:0">No sponsor has been added to this event.</p>`;
+  return `<div class="sponrow">
+    ${live.map(r => `<span class="sponchip">
+        <img src="${esc(r.organization.logoUrl)}" alt="${esc(r.organization.name)}">
+        <span class="tierpill tier-${esc(r.tier)}">${esc(String(r.tier).toUpperCase())}</span>
+      </span>`).join("")}
+    ${proposed ? `<span class="hiddenpill">${proposed} proposed (hidden)</span>` : ""}
+  </div>`;
+}
 
 function openEditor(id) {
   CURRENT = EVENTS.find(e => e.id === id) || null;
+  const cols = $("[data-editor-cols]");
   const d = $("[data-event-editor]");
-  if (!CURRENT) { d.hidden = true; return; }
+  if (!CURRENT) { if (cols) cols.hidden = true; return; }
   const e = CURRENT;
+  cols.hidden = false;
+  $("[data-event-list]").hidden = true;
+
+  renderAdminTop({ title: "Edit event", subtitle: e.title || "(untitled)", email: ME });
+  renderCrumbs([["Events", "admin-events.html"], e.title || "(untitled)", "Edit"]);
+  const st = registrationState(e);
+  renderStateChip(
+    e.status === EVENT_STATUS.DRAFT
+      ? `Draft · ${consequence(e)}`
+      : `${STATUS_LABEL[e.status]} · ${consequence(e)}`,
+    e.status === EVENT_STATUS.DRAFT ? "warn"
+      : e.status === EVENT_STATUS.CANCELLED ? "err"
+      : st.open ? "ok" : "info");
+
+  const speakers = Array.isArray(e.speakers) && e.speakers.length ? e.speakers : [{}];
+  const program  = Array.isArray(e.program)  && e.program.length  ? e.program  : [{}];
 
   d.innerHTML = `
-    <div class="dhead">
-      <div><b>${esc(e.title || "(untitled)")}</b><small>${esc(e.id)}</small></div>
-      <button class="btn btn-ghost btn-sm" data-close>Close</button>
-    </div>
+    <section class="card">
+      <div class="hd"><h2>Basics</h2></div>
+      ${field("Title", "title", e.title, 'maxlength="200"')}
+      <div class="frow">
+        ${field("Series", "series", e.series, 'maxlength="80"')}
+        <div class="f"><label>Format</label><select data-e="format">
+          ${[["zoom","Online · Zoom"],["in_person","In person"],["hybrid","Hybrid"]]
+            .map(([v,l]) => `<option value="${v}"${e.format === v ? " selected" : ""}>${l}</option>`).join("")}
+        </select></div>
+      </div>
+      <div class="frow">
+        ${field("Date", "date", e.date, 'type="date"')}
+        <div class="f"><label>Time (PHT)</label><div class="frow">
+          <input data-e="startTime" type="time" value="${esc(e.startTime || "")}">
+          <input data-e="endTime" type="time" value="${esc(e.endTime || "")}"></div></div>
+      </div>
+      <div class="frow">
+        <div class="f"><label>Zoom link <span class="sub">(sent only to registrants)</span></label>
+          <input data-zoom placeholder="${e.hasZoom ? "https://zoom.us/j/•••••••••" : "https://…"}" maxlength="500"></div>
+        ${field("Capacity", "capacity", e.capacity ?? "", 'type="number" min="1"', "blank = no limit")}
+      </div>
+      <p class="note"><b>The link is stored separately and never shown back.</b> It lives in a record no
+        client may read, because rules cannot hide one field of a document — so this box can write it
+        and cannot display it. The dots mean one is stored. <b>Nothing sends it to registrants yet</b>:
+        that needs a mail sender.</p>
+    </section>
 
-    <p class="dmeta"><span class="pill ${PILL_FOR[e.status] || "warn"}">${esc(STATUS_LABEL[e.status] || e.status)}</span>
-      <span class="muted" data-consequence>${esc(consequence(e))}</span></p>
+    <section class="card">
+      <div class="hd"><h2>Content</h2>
+        <span class="hint">Shown on the public event page and the registration page</span></div>
+      ${field("Topic", "topic", e.topic, 'maxlength="160" placeholder="Topic to be announced"')}
+      <div class="f"><label>Description</label>
+        <textarea data-e="description" rows="3" maxlength="1200">${esc(e.description || "")}</textarea></div>
+      <div class="f"><label>What to expect <span class="sub">one per line</span></label>
+        <textarea data-e="whatToExpect" rows="3">${esc((e.whatToExpect || []).join("\n"))}</textarea></div>
 
-    <h3 class="ehead">Status</h3>
-    <div class="dacts">
-      ${[[EVENT_STATUS.DRAFT,"Unpublish"],[EVENT_STATUS.PUBLISHED,"Publish"],
-         [EVENT_STATUS.REGISTRATION_OPEN,"Open registration"],[EVENT_STATUS.REGISTRATION_CLOSED,"Close registration"],
-         [EVENT_STATUS.HELD,"Mark as held"],[EVENT_STATUS.CANCELLED,"Cancel event"]]
-        .map(([s, label]) => `<button class="btn ${s === e.status ? "btn-gold" : "btn-ghost"} btn-sm"
-              data-status="${s}"${s === e.status ? " disabled" : ""}>${label}</button>`).join("")}
-    </div>
-    <p class="note">Each of these changes what a visitor sees the moment it is saved. Unpublishing
-      makes the event unreadable to the public — the rules refuse it, so the link stops working too.</p>
+      <h3 class="ehead">Speakers and program team</h3>
+      <div class="rep" data-speakers>${speakers.map(speakerRow).join("")}</div>
+      <button type="button" class="btn btn-ghost btn-sm addrow" data-add-sp>+ Add person</button>
+      <p class="note"><b>Type a name, or paste an Agent's photo path.</b> The design offers an Agent
+        picker that fills the photo and title in; that is not wired, so this takes the values directly
+        rather than pretending to look anybody up.</p>
 
-    <h3 class="ehead">Basics</h3>
-    ${field("Title", "title", e.title, 'maxlength="200"')}
-    ${field("Slug (the page it belongs to)", "slug", e.slug, 'maxlength="80" pattern="[a-z0-9-]+"')}
-    ${field("Series", "series", e.series, 'maxlength="80"')}
-    ${field("Topic", "topic", e.topic, 'maxlength="160"')}
-    <div class="f"><label>Description</label>
-      <textarea data-e="description" rows="3" maxlength="1200">${esc(e.description || "")}</textarea></div>
+      <h3 class="ehead">Program</h3>
+      <div class="rep" data-program>${program.map(programRow).join("")}</div>
+      <button type="button" class="btn btn-ghost btn-sm addrow" data-add-pr>+ Add row</button>
 
-    <h3 class="ehead">When</h3>
-    <div class="frow">
-      ${field("Date", "date", e.date, 'type="date"')}
-      ${field("Start", "startTime", e.startTime, 'type="time"')}
-      ${field("End", "endTime", e.endTime, 'type="time"')}
-    </div>
-    <p class="note">Times are ${esc(e.timezone || "Asia/Manila")}.</p>
+      <h3 class="ehead">Sponsors &amp; partners</h3>
+      <div data-sponsor-summary><p class="note" style="margin-top:0">Loading…</p></div>
+      <p class="note">Managed on the <a href="admin-organizations.html">Organizations &amp; sponsors</a>
+        page: tiers, status, order and logos. Only confirmed sponsors appear publicly — the rules refuse
+        to serve a proposed one, so a proposal cannot leak.</p>
 
-    <h3 class="ehead">Registration</h3>
-    <div class="frow">
-      ${field("Capacity (blank = no limit)", "capacity", e.capacity ?? "", 'type="number" min="1"')}
-      ${field("Opens at", "registrationOpensAt", e.registrationOpensAt || "", 'type="datetime-local"')}
-      ${field("Closes at", "registrationClosesAt", e.registrationClosesAt || "", 'type="datetime-local"')}
-    </div>
-    <div class="f"><label><input type="checkbox" data-e="waitlistEnabled"
-      ${e.waitlistEnabled === true ? "checked" : ""}> Offer a waitlist once capacity is reached</label></div>
+      <h3 class="ehead">Cover, banner and recording</h3>
+      <p class="note" style="margin-top:0"><b>Banners are not generated.</b> The design says the square
+        and wide banners are made from templates on publish; that needs image tooling and a storage
+        bucket, neither of which is wired. The <b>calendar file IS generated</b>, from this record, by
+        the button in the Publish panel. Recordings are not wired either.</p>
+    </section>
 
-    <h3 class="ehead">Content</h3>
-    <div class="f"><label>What to expect — one per line</label>
-      <textarea data-e="whatToExpect" rows="3">${esc((e.whatToExpect || []).join("\n"))}</textarea></div>
+    <section class="card">
+      <div class="hd"><h2>Registration settings</h2></div>
+      <div class="frow">
+        ${field("Opens", "registrationOpensAt", e.registrationOpensAt || "", 'type="datetime-local"')}
+        ${field("Closes", "registrationClosesAt", e.registrationClosesAt || "", 'type="datetime-local"')}
+      </div>
+      <div class="frow">
+        <div class="f"><label>Who can register</label><select data-e="whoCanRegister">
+          ${[["members_and_guests","Members and guests"],["members_only","Members only"]]
+            .map(([v,l]) => `<option value="${v}"${e.whoCanRegister === v ? " selected" : ""}>${l}</option>`).join("")}
+        </select></div>
+        <div class="f"><label>Waitlist when full</label><select data-e="waitlistEnabled">
+          <option value="off"${e.waitlistEnabled !== true ? " selected" : ""}>Off</option>
+          <option value="on"${e.waitlistEnabled === true ? " selected" : ""}>On</option>
+        </select></div>
+      </div>
+      ${field("Page address (slug)", "slug", e.slug, 'maxlength="80"', "lower-case, hyphens")}
 
-    <h3 class="ehead">Program</h3>
-    <div class="f"><label>One per line: <code>time | what happens</code></label>
-      <textarea data-e="program" rows="4" placeholder="8:00 PM | Welcome and opening remarks">${esc(rowsToLines(e.program, ["time","item"]))}</textarea></div>
+      <h3 class="ehead">Questions to ask</h3>
+      <div class="qlist">
+        <label class="fixed"><input type="checkbox" checked disabled> Full name, email — always asked</label>
+        ${OPTIONAL_QUESTIONS.map(([k, label]) => `<label><input type="checkbox" data-q="${k}"
+          ${(e.questionsEnabled || []).includes(k) ? "checked" : ""}> ${esc(label)}</label>`).join("")}
+        <label class="fixed"><input type="checkbox" checked disabled> Updates opt-in · Zoom consent — always asked</label>
+      </div>
+      <p class="note">The greyed rows are not optional, so they are not offered as choices. The public
+        form renders exactly the ticked list — unticking one removes the question; it does not delete
+        answers people have already given.</p>
 
-    <h3 class="ehead">Speakers and program team</h3>
-    <div class="f"><label>One per line: <code>name | title | organisation | photo path</code></label>
-      <textarea data-e="speakers" rows="3" placeholder="Sven Bally | Founder | Neap &amp; Spring | assets/img/sven-bally.jpg">${esc(rowsToLines(e.speakers, ["name","title","org","photoUrl"]))}</textarea></div>
+      <h3 class="ehead">Confirmation email</h3>
+      <div class="f"><textarea data-e="confirmationEmailText" rows="3" maxlength="2000"
+        placeholder="You're registered for the PAAIPE AI Exchange…">${esc(e.confirmationEmailText || "")}</textarea></div>
+      <p class="note"><b>Stored, not sent.</b> PAAIPE has no mail sender wired, so nothing goes out when
+        somebody registers. Keeping the wording here means it is decided once.</p>
+    </section>`;
 
-    <h3 class="ehead">Questions to ask</h3>
-    <p class="note">Full name, email, the updates opt-in and the Zoom consent are always asked — they
-      are not optional, so they are not listed as if they were.</p>
-    <div class="qlist">
-      ${OPTIONAL_QUESTIONS.map(([k, label]) => `<label><input type="checkbox" data-q="${k}"
-        ${(e.questionsEnabled || []).includes(k) ? "checked" : ""}> ${esc(label)}</label>`).join("")}
-    </div>
-    <p class="note">The public registration form renders exactly this list. Unticking one removes the
-      question from the form; it does not delete answers people have already given.</p>
-
-    <h3 class="ehead">Confirmation email</h3>
-    <div class="f"><label>Body</label>
-      <textarea data-e="confirmationEmailText" rows="3" maxlength="2000">${esc(e.confirmationEmailText || "")}</textarea></div>
-    <p class="note"><b>Stored, not sent.</b> PAAIPE has no mail sender wired, so nothing goes out when
-      somebody registers. This text is kept so it is ready, and so the wording is decided once rather
-      than retyped into whatever eventually does the sending.</p>
-
-    <h3 class="ehead">Zoom link</h3>
-    <div class="f"><label>Join link</label>
-      <input data-zoom placeholder="${e.hasZoom ? "A link is stored. Type a new one to replace it." : "https://…"}" maxlength="500"></div>
-    <p class="note"><b>Stored separately, and never shown back.</b> The link lives in a document no
-      client may read, because security rules cannot hide one field of a record. This box can write
-      it and cannot display it — showing it would put it in a page, which is exactly what keeping it
-      out of the event record prevents. <b>Nothing sends it to registrants yet</b>: that needs a mail
-      sender, which PAAIPE does not have.</p>
-
-    <h3 class="ehead">What publishing does</h3>
-    <ul class="plist">
-      <li><b>Yes:</b> the public event page starts serving this record — title, sponsors and the
-        Register button all follow it, with no rebuild.</li>
-      <li><b>Yes:</b> registration opens by itself at the date you set. Nothing has to run on a
-        schedule: the button is worked out from the window each time somebody loads the page.</li>
-      <li><b>Yes:</b> a calendar file is offered, generated from this record.</li>
-      <li><b>No:</b> it does not CREATE a page. paaipe.org is static — a new event needs its HTML
-        page added to the repository once. Publishing decides what an existing page shows.</li>
-      <li><b>No:</b> no banner is generated. That needs image tooling and a storage bucket, neither
-        of which is wired.</li>
-      <li><b>No:</b> the portal Sessions list is still its own static data, not this record.</li>
-    </ul>
-
-    <h3 class="ehead">History</h3>
-    <div data-history><p class="muted small">Loading…</p></div>
-
-    <div class="dacts">
-      <button class="btn btn-gold btn-sm" data-save-event>Save changes</button>
-      <a class="btn btn-ghost btn-sm" href="${esc(e.slug || "#")}.html" target="_blank" rel="noopener">View public page</a>
-      <button class="btn btn-ghost btn-sm" data-ics>Download calendar file</button>
-      <button class="btn btn-ghost btn-sm" data-duplicate>Duplicate as a new event</button>
-    </div>`;
-  d.hidden = false;
   d.dataset.event = id;
-  renderList();
+  renderRail(e);
   loadHistory(id);
+  loadSponsorSummary(id);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function loadSponsorSummary(eventId) {
+  const host = $("[data-sponsor-summary]");
+  if (!host) return;
+  try { host.innerHTML = sponsorSummary(await listEventSponsors(eventId, { asAdmin: true })); }
+  catch (ex) { host.innerHTML = `<p class="note" style="margin-top:0">Sponsors could not be read: ${esc(ex?.message || ex)}</p>`; }
 }
 
 function readForm() {
@@ -257,13 +388,23 @@ function readForm() {
     date: val("date"), startTime: val("startTime"), endTime: val("endTime"),
     registrationOpensAt: val("registrationOpensAt") || null,
     registrationClosesAt: val("registrationClosesAt") || null,
-    waitlistEnabled: $('[data-e="waitlistEnabled"]', d)?.checked === true,
+    format: $('[data-e="format"]', d)?.value || "zoom",
+    waitlistEnabled: $('[data-e="waitlistEnabled"]', d)?.value === "on",
   };
   const cap = val("capacity");
   patch.capacity = cap === "" ? null : Number(cap);
   patch.whatToExpect = String(val("whatToExpect")).split("\n").map(s => s.trim()).filter(Boolean);
-  patch.program  = linesToRows(val("program"),  ["time", "item"]);
-  patch.speakers = linesToRows(val("speakers"), ["name", "title", "org", "photoUrl"]);
+  patch.whoCanRegister = $('[data-e="whoCanRegister"]', d)?.value || "members_and_guests";
+  patch.speakers = $$("[data-sp]", d).map(r => ({
+    name:  $("[data-sp-name]",  r).value.trim(),
+    title: $("[data-sp-title]", r).value.trim(),
+    role:  $("[data-sp-role]",  r).value,
+    photoUrl: r.querySelector("img.avatar")?.getAttribute("src") || "",
+  })).filter(s => s.name);
+  patch.program = $$("[data-pr]", d).map(r => ({
+    time: $("[data-pr-time]", r).value.trim(),
+    item: $("[data-pr-item]", r).value.trim(),
+  })).filter(x => x.time || x.item);
   patch.confirmationEmailText = val("confirmationEmailText");
   patch.questionsEnabled = $$("[data-q]", d).filter(c => c.checked).map(c => c.dataset.q);
   return patch;
@@ -437,14 +578,28 @@ async function duplicateEvent(id) {
   if (!ok) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
 
   ME = me.email;
-  $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
-  $("[data-admin-signout]")?.addEventListener("click", async e => {
-    e.preventDefault(); await signOutNow().catch(() => {}); location.replace("admin.html");
+  renderAdminTop({ title: "Events", subtitle: "Every AI Exchange, and what the public sees of it",
+                   email: me.email });
+  renderCrumbs([["Dashboard", "admin.html"], "Events"]);
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-admin-signout]")) {
+      e.preventDefault(); signOutNow().catch(() => {}).then(() => location.replace("admin.html"));
+    }
   });
 
   try {
     // asAdmin: the console is the one caller that must see drafts
     EVENTS = await listEvents({ asAdmin: true });
+    // Whether a Zoom link EXISTS, so the field can show a masked placeholder.
+    // The value itself is never kept or rendered - knowing one is stored is a
+    // different fact from knowing what it is.
+    const F = await import(`${SDK}/firebase-firestore.js`);
+    await Promise.all(EVENTS.map(async ev => {
+      try {
+        const s = await F.getDoc(F.doc(await db(), "paaipe_event_private", ev.id));
+        ev.hasZoom = s.exists() && Boolean(s.data()?.zoomLink);
+      } catch { ev.hasZoom = false; }
+    }));
   } catch (ex) {
     flash(`Could not load events: ${ex?.message || ex}`);
     document.documentElement.setAttribute("data-admin-events", "error");
@@ -455,7 +610,25 @@ async function duplicateEvent(id) {
   document.addEventListener("click", e => {
     const ed = e.target.closest("[data-edit-event]");
     if (ed) return openEditor(ed.closest("tr").dataset.event);
-    if (e.target.closest("[data-close]")) { $("[data-event-editor]").hidden = true; CURRENT = null; renderList(); return; }
+    if (e.target.closest("[data-add-sp]")) {
+      $("[data-speakers]").insertAdjacentHTML("beforeend", speakerRow()); return;
+    }
+    if (e.target.closest("[data-add-pr]")) {
+      $("[data-program]").insertAdjacentHTML("beforeend", programRow()); return;
+    }
+    const rs = e.target.closest("[data-rm-sp]");
+    if (rs) { rs.closest("[data-sp]").remove(); return; }
+    const rp = e.target.closest("[data-rm-pr]");
+    if (rp) { rp.closest("[data-pr]").remove(); return; }
+    if (e.target.closest("[data-back]")) {
+      $("[data-editor-cols]").hidden = true;
+      $("[data-event-list]").hidden = false;
+      CURRENT = null; renderList();
+      renderAdminTop({ title: "Events", subtitle: "Every AI Exchange, and what the public sees of it", email: ME });
+      renderCrumbs([["Dashboard", "admin.html"], "Events"]);
+      const chip = $("[data-state-chip]"); if (chip) chip.hidden = true;
+      return;
+    }
     if (e.target.closest("[data-save-event]")) return saveEvent($("[data-event-editor]").dataset.event);
     const st = e.target.closest("[data-status]");
     if (st) return setStatus($("[data-event-editor]").dataset.event, st.dataset.status);

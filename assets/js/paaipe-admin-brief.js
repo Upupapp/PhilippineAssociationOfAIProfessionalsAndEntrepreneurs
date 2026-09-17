@@ -16,7 +16,7 @@
 import {
   currentAgent, isAdminNow, signOutNow, listRegistrations, regStatusOf, REG_STATUS,
 } from "/assets/js/paaipe-firebase.js";
-import { renderAdminNav } from "/assets/js/paaipe-admin.js";
+import { renderAdminNav, renderAdminTop, renderCrumbs } from "/assets/js/paaipe-admin.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -121,9 +121,12 @@ function render() {
   }
   if (!ok) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
 
-  $$("[data-admin-email]").forEach(e => { e.textContent = me.email; });
-  $("[data-admin-signout]")?.addEventListener("click", async e => {
-    e.preventDefault(); await signOutNow().catch(() => {}); location.replace("admin.html");
+  renderAdminTop({ title: 'Speaker brief', subtitle: 'What the room actually asked for', email: me.email });
+  renderCrumbs([["Dashboard","admin.html"],["Registrations","admin-registrations.html"],"Speaker brief"]);
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-admin-signout]")) {
+      e.preventDefault(); signOutNow().catch(() => {}).then(() => location.replace("admin.html"));
+    }
   });
 
   try { ALL = await listRegistrations(); }

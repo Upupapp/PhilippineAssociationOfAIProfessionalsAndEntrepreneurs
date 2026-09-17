@@ -95,6 +95,55 @@
     .card,.hd,.main,.acts{min-width:0}
     .card{overflow-wrap:anywhere}
   }
+
+  /* Programs hub — additive. Shared portal chrome above is untouched. */
+  html{scroll-behavior:smooth}
+  .phero{position:relative;overflow:hidden;background:linear-gradient(165deg,#fff 8%,#EAF3FC 55%,#DCEBFA 100%);border:1px solid var(--line);border-radius:20px;padding:30px 32px 42px;display:grid;grid-template-columns:1fr minmax(240px,.4fr);gap:22px;align-items:start}
+  .phero .dots{position:absolute;right:-12%;top:-38%;width:62%;opacity:.2;pointer-events:none}
+  .phero .wave{position:absolute;left:0;right:0;bottom:-1px;width:100%;height:56px}
+  .phero-copy,.phero-side{position:relative;z-index:1}
+  .phero-title{font-size:clamp(28px,3.6vw,44px);font-weight:800;letter-spacing:-.03em;line-height:1.08;color:var(--navy);max-width:13ch}
+  .phero-title span{background:linear-gradient(90deg,var(--royal),var(--cyan));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .phero-sub{color:var(--royal);font-size:13.5px;margin-top:10px;font-weight:600;letter-spacing:.08em;text-transform:uppercase}
+  .phero-copy .btn{margin-top:20px}
+  .phero-side{display:flex;flex-direction:column;align-items:flex-end;gap:18px;padding-top:4px}
+  .brainhex{width:74px;height:82px;filter:drop-shadow(0 12px 20px rgba(242,167,27,.28))}
+  .nxcard{display:flex;align-items:center;gap:12px;background:#fff;border:1px solid var(--line);border-radius:16px;padding:12px 14px;box-shadow:0 16px 36px rgba(3,27,82,.12);min-width:236px;transition:transform .15s,box-shadow .15s}
+  .nxcard[hidden]{display:none !important}
+  .nxcard:hover{transform:translateY(-1px);box-shadow:0 20px 40px rgba(3,27,82,.16)}
+  .nxcard .cal{width:40px;height:40px;border-radius:12px;background:var(--pale);border:1px solid var(--line);display:grid;place-items:center;flex:none}
+  .nxcard .cal svg{width:18px;height:18px;stroke:var(--royal);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .nxcard b{display:block;color:var(--navy);font-size:13.5px}
+  .nxcard small{display:block;color:var(--muted);font-size:12.5px;line-height:1.35}
+  .nxcard .go{margin-left:auto;width:18px;height:18px;stroke:var(--navy);fill:none;stroke-width:2;flex:none}
+  .journey{list-style:none;margin:2px 0 0;padding:10px 4px 6px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative;scrollbar-width:thin}
+  .journey::before{content:"";position:absolute;left:40px;right:40px;top:40px;border-top:2px dashed var(--gold);opacity:.7;pointer-events:none}
+  .journey li{flex:0 0 108px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;position:relative;z-index:1;width:108px}
+  .journey .hx{width:56px;height:64px;display:block}
+  .journey small{font-size:11px;font-weight:700;color:var(--navy);letter-spacing:.01em;white-space:nowrap}
+  .journey .n{display:block;font-size:10px;color:var(--muted);font-weight:600}
+  .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;scroll-margin-top:84px}
+  .pcard{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;padding:18px 18px 16px;transition:box-shadow .15s,transform .15s}
+  .pcard:hover{box-shadow:0 16px 32px rgba(6,33,102,.08);transform:translateY(-1px)}
+  .pcard-ic{width:44px;height:44px;border-radius:12px;background:linear-gradient(160deg,var(--blue),var(--royal));display:grid;place-items:center}
+  .pcard-ic svg{width:22px;height:22px;stroke:#fff;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .pcard-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .pcard h3{font-size:16px;font-weight:700}
+  .pcard .pcard-chev{width:18px;height:18px;stroke:var(--muted);fill:none;stroke-width:2;flex:none}
+  .pcard p{color:var(--muted);font-size:13px;margin-top:4px}
+  .pcard .pill{margin-top:8px}
+  .pcard .acts{margin-top:12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .pcard .seats{font-size:12px;color:var(--muted)}
+  .ptag{margin:4px 0 0;color:var(--muted);font-size:13px;text-align:center}
+  @media (max-width:860px){
+    .phero{grid-template-columns:1fr;padding:22px 18px 36px}
+    .phero-side{align-items:stretch}
+    .phero-title{max-width:none}
+    .brainhex{align-self:flex-end}
+    .nxcard{min-width:0;width:100%}
+    .pgrid{grid-template-columns:1fr}
+    .journey{justify-content:flex-start}
+  }
 </style></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
   <a class="logo" href="portal.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>AI PORTAL</span></a>
@@ -105,6 +154,106 @@
   <header class="top"><div class="ttl"><h1>Programs</h1><small>Enrol, join waitlists and pick your circle</small></div>
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Search sessions, Agents, benefits…</div><span class="icb"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg><i></i></span><span class="av" style="width:36px;height:36px" data-agent-initials>··</span></header>
   <main class="content">
-<div class="card" style="background:linear-gradient(90deg,var(--pale),#fff)"><h2>Seven programs, in the order they launch</h2><p style="color:var(--muted);font-size:14px;margin-top:4px">Join lists and waitlists here. You'll get an email the moment a program you signed up for opens, and members who joined early get first pick of limited seats.</p></div>
-<div style="display:flex;flex-direction:column;gap:12px"><div class="card prog"><span class="n live">1</span><div><b>AI Exchange</b><small>Monthly webinar series · every 2nd Tuesday, 8:00 PM PHT</small></div><div class="acts"><span class="pill ok"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Registered for Oct 13</span><a class="btn btn-ghost btn-sm" href="portal-events.html">Events</a></div></div><div class="card prog"><span class="n">2</span><div><b>AI Safari</b><small>Field trips to AI companies and showcases · seasonal, small groups</small><div style="margin-top:6px"><span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span></div></div><div class="acts"><span class="seats">Interest list · 0 of 20 seats<i style="--w:0%"></i></span><a class="btn btn-gold btn-sm" href="#">Join interest list</a><span data-guest-notice="Seats are offered to confirmed Agents first."></span></div></div><div class="card prog"><span class="n">3</span><div><b>Build Nights</b><small>Hands-on labs of 10–20 members · periodic</small><div style="margin-top:6px"><span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span></div></div><div class="acts"><span class="seats">First cohort · seats open soon<i style="--w:0%"></i></span><a class="btn btn-ghost btn-sm" href="#">Join waitlist</a></div></div><div class="card prog"><span class="n">4</span><div><b>Certification Pathways</b><small>Cohort courses with TESDA/DICT-recognized trainers · scheduled intakes</small><div style="margin-top:6px"><span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span></div></div><div class="acts"><a class="btn btn-ghost btn-sm" href="#">Notify me</a></div></div><div class="card prog"><span class="n">5</span><div><b>Member Spotlight</b><small>Profiles and case studies of members' AI work · monthly</small><div style="margin-top:6px"><span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span></div></div><div class="acts"><a class="btn btn-ghost btn-sm" href="#">Nominate yourself or a peer</a></div></div><div class="card prog"><span class="n">6</span><div><b>Regional Circles</b><small>Local meetups led by Agents · quarterly per circle</small><div style="margin-top:6px"><span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span></div></div><div class="acts"><select style="border:2px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px"><option>Choose your circle</option><option>Metro Manila</option><option>Cebu</option><option>Davao</option><option>Other (suggest one)</option></select><a class="btn btn-ghost btn-sm" href="#">Join circle</a></div></div><div class="card prog"><span class="n">7</span><div><b>Mentorship Program</b><small>1:1 and small-group · 3-month cycles</small><div style="margin-top:6px"><span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span></div></div><div class="acts"><a class="btn btn-ghost btn-sm" href="#">Apply as mentee</a><a class="btn btn-ghost btn-sm" href="#" data-agents-only>Apply as mentor</a></div></div></div></main>
-</div></div><script type="module" src="assets/js/paaipe-portal.js"></script></body></html>
+<section class="phero" aria-labelledby="phero-title">
+  <img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
+  <div class="phero-copy">
+    <h2 class="phero-title" id="phero-title">Your path in <span>Philippine AI</span></h2>
+    <p class="phero-sub">An AI-powered Philippines</p>
+    <a class="btn btn-navy" href="#programs">Explore programs <span class="dot"></span></a>
+  </div>
+  <div class="phero-side">
+    <svg class="brainhex" viewBox="0 0 64 72" aria-hidden="true">
+      <defs><linearGradient id="hxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6DB74"/><stop offset="1" stop-color="#F2A71B"/></linearGradient></defs>
+      <polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="url(#hxg)" stroke="#C9840E" stroke-width="1.4"/>
+      <g fill="none" stroke="#002166" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M24 36c-3-1-5-3.5-5-6.5 0-4 3-7.5 8-7.5 1-3.5 4.5-6 8.5-5.2 3.5.7 6 3.5 6.5 7.2 3 .2 5.5 2.8 5.5 6.3 0 3.2-2.2 5.8-5.2 6.6v3.2c0 2.2-2.3 4-6.3 4h-6.5c-4 0-6.5-1.8-6.5-4V36z"/>
+        <path d="M32 23.5c0 4-1.2 6.5-1.2 10M27 30c2.2 1.2 4.4 1.4 6.2.2 1.8 1.2 4.2 1.2 6.4 0M27 36.5c2 .8 3.8.8 5 .2 1.4.8 3.4.8 5.2.1"/>
+      </g>
+    </svg>
+    <a class="nxcard" href="portal-events.html" data-next-exchange aria-label="Next AI Exchange — open Events">
+      <span class="cal"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></span>
+      <span><b>Next Exchange</b><small data-nx-when>Tue Oct 13</small><small data-nx-time>8:00 PM PHT</small></span>
+      <svg class="go" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+    </a>
+  </div>
+  <svg class="wave" viewBox="0 0 1440 80" preserveAspectRatio="none" aria-hidden="true"><path d="M0,48 C240,80 420,10 720,40 C1020,70 1200,8 1440,36 L1440,80 L0,80 Z" fill="#F4F8FD"/><path d="M0,42 C240,74 420,4 720,34 C1020,64 1200,2 1440,30" fill="none" stroke="#15BBEA" stroke-width="3" opacity=".55"/></svg>
+</section>
+
+<ol class="journey" aria-label="Inspirational path through PAAIPE programs">
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></g></svg><small><span class="n">1</span>Discover</small></li>
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5C4 4.1 5.1 3 6.5 3H12v18H6.5C5.1 21 4 19.9 4 18.5z"/><path d="M20 5.5C20 4.1 18.9 3 17.5 3H12v18h5.5c1.4 0 2.5-1.1 2.5-2.5z"/></g></svg><small><span class="n">2</span>Learn</small></li>
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 8 0"/></g></svg><small><span class="n">3</span>Engage</small></li>
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 8-4 4 4 4M15 8l4 4-4 4"/></g></svg><small><span class="n">4</span>Build</small></li>
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 5 7v5c0 5 3.2 8.4 7 9.5 3.8-1.1 7-4.5 7-9.5V7z"/><path d="m9 12 2 2 4-4"/></g></svg><small><span class="n">5</span>Certify</small></li>
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="8" r="2.4"/><circle cx="18" cy="6" r="2.4"/><circle cx="16" cy="17" r="2.4"/><path d="m8 9 8-2M7.8 10l7 6"/></g></svg><small><span class="n">6</span>Connect</small></li>
+  <li><svg class="hx" viewBox="0 0 64 72" aria-hidden="true"><polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="#fff" stroke="#F2A71B" stroke-width="2"/><g transform="translate(20,24)" fill="none" stroke="#F2A71B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 21V4h.5L16 8 6.5 12H6"/><path d="M18 21H6"/></g></svg><small><span class="n">7</span>Contribute</small></li>
+</ol>
+
+<div class="pgrid" id="programs">
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="6" cy="8" r="2.2"/><circle cx="18" cy="7" r="2.2"/><circle cx="12" cy="16" r="2.2"/><path d="m8 9 8-1M7.5 10l3.5 5M16.5 9.2 13.5 14"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>AI Exchange</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>Monthly webinar series · every 2nd Tuesday, 8:00 PM PHT</p>
+      <span class="pill ok"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>Registered for Oct 13</span>
+      <div class="acts"><a class="btn btn-ghost btn-sm" href="portal-events.html">Events <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div>
+    </div>
+  </article>
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="8" cy="14" r="4"/><circle cx="16" cy="14" r="4"/><path d="M8 10V7.5A2.5 2.5 0 0 1 10.5 5h3A2.5 2.5 0 0 1 16 7.5V10"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>AI Safari</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>Field trips to AI companies and showcases · seasonal, small groups</p>
+      <span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span>
+      <div class="acts"><span class="seats">Interest list · 0 of 20 seats</span><a class="btn btn-gold btn-sm" href="#">Join interest list <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a><span data-guest-notice="Seats are offered to confirmed Agents first."></span></div>
+    </div>
+  </article>
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m8 8-4 4 4 4M16 8l4 4-4 4M13 6l-2 12"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>Build Nights</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>Hands-on labs of 10–20 members · periodic</p>
+      <span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span>
+      <div class="acts"><span class="seats">First cohort · seats open soon</span><a class="btn btn-ghost btn-sm" href="#">Join waitlist <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div>
+    </div>
+  </article>
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="m8.5 13.5-1.5 7 5-2.5 5 2.5-1.5-7"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>Certification Pathways</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>Cohort courses with TESDA/DICT-recognized trainers · scheduled intakes</p>
+      <span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span>
+      <div class="acts"><a class="btn btn-ghost btn-sm" href="#">Notify me <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div>
+    </div>
+  </article>
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><polygon points="12,3 14.8,9 21,9.6 16.3,13.8 17.7,20 12,16.8 6.3,20 7.7,13.8 3,9.6 9.2,9"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>Member Spotlight</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>Profiles and case studies of members' AI work · monthly</p>
+      <span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span>
+      <div class="acts"><a class="btn btn-ghost btn-sm" href="#">Nominate yourself or a peer <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div>
+    </div>
+  </article>
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 21s6-5.5 6-11a6 6 0 0 0-12 0c0 5.5 6 11 6 11z"/><circle cx="12" cy="10" r="2.2"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>Regional Circles</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>Local meetups led by Agents · quarterly per circle</p>
+      <span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span>
+      <div class="acts"><select style="border:2px solid var(--line);border-radius:999px;padding:6px 12px;font-size:12.5px"><option>Choose your circle</option><option>Metro Manila</option><option>Cebu</option><option>Davao</option><option>Other (suggest one)</option></select><a class="btn btn-ghost btn-sm" href="#">Join circle <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a></div>
+    </div>
+  </article>
+  <article class="card pcard">
+    <span class="pcard-ic" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M3 20a6 6 0 0 1 12 0"/><path d="M19 8v6M16 11h6"/></svg></span>
+    <div>
+      <div class="pcard-hd"><h3>Mentorship</h3><svg class="pcard-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></div>
+      <p>1:1 and small-group · 3-month cycles</p>
+      <span class="pill soon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>In development</span>
+      <div class="acts"><a class="btn btn-ghost btn-sm" href="#">Apply as mentee <svg viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></a><a class="btn btn-ghost btn-sm" href="#" data-agents-only>Apply as mentor</a></div>
+    </div>
+  </article>
+</div>
+<p class="ptag">Building the Philippines&rsquo; AI-Powered Future — Together</p>
+</main>
+</div></div><script type="module" src="assets/js/paaipe-portal.js"></script><script type="module" src="assets/js/paaipe-programs.js"></script></body></html>

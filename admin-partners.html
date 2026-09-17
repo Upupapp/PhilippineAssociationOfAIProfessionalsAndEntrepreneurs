@@ -10,60 +10,46 @@
     <header class="top" data-admin-top></header>
 
     <div class="wrap">
-      <nav class="crumbs" data-crumbs></nav>
       <div class="flash" data-flash hidden></div>
 
       <section class="card">
-        <div class="hd">
-          <h2>Partner applications</h2>
-          <span class="count" data-count>…</span>
+        <div class="inbox-bar">
+          <div class="filters">
+            <select data-f-event aria-label="Filter by event"></select>
+            <select data-f-status aria-label="Filter by status">
+              <option value="">All statuses</option>
+              <option value="new">New</option>
+              <option value="contacted">Contacted</option>
+              <option value="in_discussion">In discussion</option>
+              <option value="accepted">Accepted</option>
+              <option value="declined">Declined</option>
+              <option value="spam">Spam</option>
+            </select>
+            <select data-f-source aria-label="Filter by where it came from">
+              <option value="">Everywhere</option>
+              <option value="public_event">Public event page</option>
+              <option value="events_list">Events list</option>
+              <option value="success_page">Registration success page</option>
+              <option value="portal_sessions">Portal · Sessions</option>
+              <option value="portal_events">Portal · Events</option>
+              <option value="portal_session">Portal · Session detail</option>
+            </select>
+            <input type="search" data-f-q placeholder="Search company, contact, email, reference" aria-label="Search applications">
+            <div class="tally" data-tally></div>
+            <span class="grow"></span>
+            <span class="count" data-count>…</span>
+            <button class="btn btn-ghost btn-sm" data-export>Export CSV</button>
+          </div>
         </div>
 
-        <div class="filters">
-          <select data-f-event aria-label="Filter by event"></select>
-          <select data-f-status aria-label="Filter by status">
-            <option value="">All statuses</option>
-            <option value="new">New</option>
-            <option value="contacted">Contacted</option>
-            <option value="in_discussion">In discussion</option>
-            <option value="accepted">Accepted</option>
-            <option value="declined">Declined</option>
-            <option value="spam">Spam</option>
-          </select>
-          <select data-f-source aria-label="Filter by where it came from">
-            <option value="">Everywhere</option>
-            <option value="public_event">Public event page</option>
-            <option value="events_list">Events list</option>
-            <option value="success_page">Registration success page</option>
-            <option value="portal_sessions">Portal · Sessions</option>
-            <option value="portal_events">Portal · Events</option>
-            <option value="portal_session">Portal · Session detail</option>
-          </select>
-          <input type="search" data-f-q placeholder="Search company, contact, email, reference" aria-label="Search applications">
-          <span class="grow"></span>
-          <button class="btn btn-ghost btn-sm" data-export>Export CSV</button>
-        </div>
-
-        <div class="tally" data-tally></div>
-
-        <div class="tbl" style="margin-top:14px"><table>
+        <div class="tbl"><table>
           <thead><tr><th>Reference</th><th>Company</th><th>Contact</th><th>Offering</th><th>Submitted</th><th>Status</th><th></th></tr></thead>
           <tbody data-rows><tr><td colspan="7" class="empty">Loading…</td></tr></tbody>
         </table></div>
 
         <div class="detail" data-detail hidden></div>
 
-        <p class="note">Every row is a company that offered to support an event. Nothing here is
-          visible to the public, and nothing here has been published: an application becomes a
-          Partner on that event only after you Accept, then confirm them on Organizations.</p>
-      </section>
-
-      <section class="card">
-        <div class="hd"><h2>What this screen cannot do yet</h2></div>
-        <ul class="plist" data-gaps></ul>
-        <p class="note">These are the parts of the brief this stack cannot honour. They are listed
-          rather than drawn as buttons, because a button that does nothing is worse than an absence
-          — it gets pressed, and the applicant is never contacted.</p>
+        <p class="note">Applications stay private until you Accept, then confirm them on Organizations.</p>
       </section>
     </div>
   </div>

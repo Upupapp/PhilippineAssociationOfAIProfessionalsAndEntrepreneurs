@@ -19,6 +19,17 @@
  * event page, and that is a decision about a signed agreement, not a side effect
  * of tidying an inbox. Confirming stays on the Organizations screen where the
  * tier limits are enforced.
+ *
+ * Gaps this stack cannot honour (kept here, not drawn in the admin UI):
+ * - Acknowledgement / notification emails on submit: no mail sender — no SMTP
+ *   provider and no service account. The applicant gets a reference on screen.
+ * - Communications composer with logged sends: same missing sender; templates
+ *   open the administrator's mail app.
+ * - Logo upload from the application form: no storage bucket, and a 2 MB file
+ *   does not fit in a Firestore document.
+ * - Per-role access (event_manager, content_editor, viewer): one administrator,
+ *   named in firestore.rules. Everyone who can open this page can do everything
+ *   on it.
  */
 import {
   COL, PARTNER_STATUS, SUPPORT_TYPES, TIER, SPONSOR_STATUS,
@@ -26,7 +37,7 @@ import {
   matchOrganization, referenceMatchesId, normaliseCompany,
 } from "/assets/js/paaipe-events-data.js";
 import { firebaseConfig, DATABASE_ID, currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
-import { renderAdminNav, renderAdminTop, renderCrumbs, setNavBadge } from "/assets/js/paaipe-admin.js";
+import { renderAdminNav, renderAdminTop, setNavBadge } from "/assets/js/paaipe-admin.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const $  = (s, r = document) => r.querySelector(s);
@@ -252,52 +263,38 @@ function openDetail(id) {
   d.innerHTML = `
     <div class="dhead">
       <div><b>${esc(a.companyName || "—")}</b>
-        <small>${esc(a.reference || "")} · ${esc(eventTitle(a))} · ${esc(SOURCE_LABEL[a.source] || a.source || "")}</small></div>
+        <small>${esc(a.reference || "")} · ${esc(eventTitle(a))}</small></div>
       <button class="btn btn-ghost btn-sm" data-close>Close</button>
     </div>
 
     <p class="dmeta">${pill(a.status)}
-      <span class="muted">${esc(eventTitle(a))} · submitted ${esc(dateShort(a.createdAt))}</span></p>
+      <span class="muted">submitted ${esc(dateShort(a.createdAt))}</span></p>
 
     <dl class="answers">
       <div class="ans"><dt>Contact</dt><dd>${esc(a.contactName || "—")}</dd></div>
       <div class="ans"><dt>Email</dt><dd><a href="mailto:${esc(a.email || "")}">${esc(a.email || "—")}</a></dd></div>
-      <div class="ans"><dt>Mobile</dt><dd><a href="tel:${esc(a.phone || "")}">${esc(a.phone || "—")}</a>
-        <button class="btn btn-ghost btn-sm" data-copy="${esc(a.phone || "")}" style="margin-left:8px">Copy</button></dd></div>
+      <div class="ans"><dt>Mobile</dt><dd class="phone-inline"><a href="tel:${esc(a.phone || "")}">${esc(a.phone || "—")}</a><button type="button" class="btn btn-ghost btn-sm" data-copy="${esc(a.phone || "")}">Copy</button></dd></div>
       <div class="ans"><dt>Website</dt><dd>${a.website
         ? `<a href="${esc(/^https?:\/\//i.test(a.website) ? a.website : `https://${a.website}`)}"
               target="_blank" rel="noopener">${esc(a.website)}</a>`
         : "—"}</dd></div>
-      <div class="ans"><dt>Submitted</dt><dd>${esc(dateLong(a.createdAt))}</dd></div>
-      <div class="ans"><dt>Consent given</dt><dd>${esc(dateLong(a.consentAt))} · Privacy Notice v${esc(a.privacyVersion || "—")}</dd></div>
     </dl>
+    <p class="muted small">Consent ${esc(dateLong(a.consentAt))} · Privacy Notice v${esc(a.privacyVersion || "—")}</p>
 
-    <h3 class="ehead">What they offered</h3>
+    <h3 class="ehead">Offering</h3>
     ${offeringChips(a)}
-    <dl class="answers">${a.message
-      ? `<div class="ans"><dt>Their message</dt><dd>${esc(a.message)}</dd></div>`
-      : `<p class="muted small">They did not add a message.</p>`}</dl>
+    ${a.message ? `<p>${esc(a.message)}</p>` : ""}
 
     <h3 class="ehead">Organization</h3>
-    ${org
-      ? `<p class="note">This looks like <b>${esc(org.name)}</b>, already on PAAIPE
-           (${esc(org.status || "—")}). <a href="admin-organizations.html">Open Organizations</a>.</p>`
-      : `<p class="note"><b>No existing organization matches</b> this name or website.</p>`}
-
     <div class="f"><label>Accept will use</label>
       <select data-link-org>
         <option value="">Create a new organization — "${esc(a.companyName || "")}"</option>
         ${ORGS.map(o => `<option value="${esc(o.id)}"${o.id === org?.id ? " selected" : ""}
           >${esc(o.name)}${o.website ? ` — ${esc(o.website)}` : ""}</option>`).join("")}
       </select></div>
-    <p class="note">The suggestion is worked out from the company name and website each time
-      this panel opens; it is never read from the application, which was written by a member of
-      the public. <b>Check it before accepting.</b> The matcher is deliberately strict — it would
-      rather miss a match than link the wrong company — so a company PAAIPE already knows under
-      a different trading name shows as new, and this is where you say so. Accepting with the
-      wrong one selected creates a second record for a company that already has one.</p>
+    <p class="muted small">Check the match before accepting — guessed from name and website, not stored on the application.</p>
     ${a.organizationId
-      ? `<p class="note">Linked on accept to organization <b>${esc(a.organizationId)}</b>.</p>` : ""}
+      ? `<p class="muted small">Linked to organization ${esc(a.organizationId)}.</p>` : ""}
 
     ${dupes.length ? `<h3 class="ehead">Also applied</h3>
       <ul class="plist">${dupes.map(x => `<li class="yes"><span>${esc(eventTitle(x))} —
@@ -305,25 +302,22 @@ function openDetail(id) {
         (${esc(x.reference || "")})</span></li>`).join("")}</ul>` : ""}
 
     <h3 class="ehead">Internal note</h3>
-    <div class="f"><textarea data-note rows="3" maxlength="2000"
+    <div class="f"><textarea data-note rows="2" maxlength="2000"
       placeholder="What was agreed, who is handling it, anything the next person needs.">${esc(a.adminNote || "")}</textarea></div>
-    <div class="f"><label>Assigned to</label>
-      <input data-assign maxlength="254" placeholder="an administrator's email"
-             value="${esc(a.assignedTo || "")}"></div>
-    <div class="dacts">
-      <button class="btn btn-gold btn-sm" data-save-note>Save note</button>
+    <div class="note-tools">
+      <div class="f"><label>Assigned to</label>
+        <input data-assign maxlength="254" placeholder="an administrator's email"
+               value="${esc(a.assignedTo || "")}"></div>
+      <button type="button" class="btn btn-gold btn-sm" data-save-note>Save note</button>
     </div>
 
-    <h3 class="ehead">Email ${esc(a.contactName || "the applicant")}</h3>
+    <h3 class="ehead">Email</h3>
     <div class="dacts">
       ${Object.entries(MAIL_TEMPLATES).map(([k, t]) =>
         `<a class="btn btn-ghost btn-sm" data-mail="${esc(k)}"
             href="${esc(mailtoFor(a, k))}">${esc(t.label)}</a>`).join("")}
     </div>
-    <p class="note"><b>These open your own mail app</b> with the message written and addressed.
-      PAAIPE has no mail sender wired, so nothing can be sent from this screen and nothing is
-      recorded as sent — what gets logged is that a reply was drafted, because that is the part
-      this page can actually witness.</p>
+    <p class="muted small">Opens your mail app</p>
 
     <h3 class="ehead">Decision</h3>
     <div class="dacts">
@@ -334,10 +328,7 @@ function openDetail(id) {
       <button class="btn btn-ghost btn-sm" data-status="declined" ${a.status === "declined" ? "disabled" : ""}>Decline</button>
       <button class="btn btn-ghost btn-sm danger" data-status="spam" ${a.status === "spam" ? "disabled" : ""}>Mark spam</button>
     </div>
-    <p class="note"><b>Accepting does not publish anything.</b> It creates the organization if it is
-      new, links it if it is not, and adds them as a <b>proposed</b> Partner on this event — which the rules
-      refuse to serve to the public. A logo appears on the event page only when somebody confirms
-      them on Organizations, where the tier limits are checked.</p>`;
+    <p class="muted small">Accept creates a proposed Partner — confirm on Organizations to publish.</p>`;
   d.hidden = false;
   d.dataset.app = id;
   d.scrollIntoView({ block: "nearest" });
@@ -487,29 +478,6 @@ function exportCsv() {
   logActivity("partner_application.export", `${rows.length} row(s)`);
 }
 
-/* --------------------------------------------------------------- the gaps */
-
-/** What the brief asked for that this stack cannot do. Drawn as a list, with the
- *  reason on each, rather than as controls that would do nothing. */
-const GAPS = [
-  ["Acknowledgement and notification emails on submit",
-   "PAAIPE has no mail sender - no SMTP provider and no service account. The applicant gets a reference on screen instead, and is told there is no email coming."],
-  ["A Communications composer with logged sends",
-   "same missing sender. The reply templates open your own mail app, and what is logged is that a draft was opened - not that anything was sent."],
-  ["Logo upload from the application form",
-   "no storage bucket is enabled, and a 2 MB file does not fit in a Firestore document. The logo is asked for when an application is accepted."],
-  ["Per-role access - event_manager, content_editor, viewer",
-   "there is one administrator, named in firestore.rules. Every person who can open this page can do everything on it."],
-];
-
-function renderGaps() {
-  const host = $("[data-gaps]");
-  if (!host) return;
-  const CROSS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M18 6 6 18M6 6l12 12"/></svg>';
-  host.innerHTML = GAPS.map(([what, why]) =>
-    `<li class="no"><span class="sr">Does not: </span>${CROSS}<span>${esc(what)} — ${esc(why)}</span></li>`).join("");
-}
-
 /* --------------------------------------------------------------------- boot */
 
 function refreshBadge() {
@@ -555,8 +523,6 @@ async function boot() {
   renderAdminNav("admin-partners.html");
   renderAdminTop({ title: "Partner applications",
                    subtitle: "Companies offering to support an event", email: ME });
-  renderCrumbs([["Dashboard", "admin.html"], "Partner applications"]);
-  renderGaps();
 
   try {
     [APPS, EVENTS, ORGS] = await Promise.all([

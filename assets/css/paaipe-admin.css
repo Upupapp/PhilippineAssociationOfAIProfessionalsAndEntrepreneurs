@@ -451,3 +451,59 @@ body[data-admin-partners] .note-tools .f{flex:1;margin:0;min-width:0}
   body[data-admin-partners] .detail .answers{grid-template-columns:1fr}
   body[data-admin-partners] .note-tools{flex-direction:column;align-items:stretch}
 }
+/* -------------------------------------------------------------- event Email */
+.cols.email-open{grid-template-columns:1fr}
+.email-sub{display:flex;gap:2px;margin:-4px 0 14px;border-bottom:1px solid var(--line)}
+.email-sub button{appearance:none;border:0;background:none;font:inherit;font-size:13.5px;font-weight:600;
+  color:var(--muted);padding:8px 14px 10px;cursor:pointer;border-bottom:3px solid transparent}
+.email-sub button:hover{color:var(--royal)}
+.email-sub button[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--gold)}
+.email-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+@media(max-width:1100px){.email-layout{grid-template-columns:1fr}}
+.email-rail{display:flex;flex-direction:column;gap:18px;position:sticky;top:96px}
+@media(max-width:1100px){.email-rail{position:static}}
+.email-locked,.email-to{display:flex;align-items:center;gap:10px;padding:0 14px;height:48px;
+  border:1px solid var(--line);border-radius:12px;background:var(--pale);color:var(--navy);font-size:14px}
+.email-locked input{border:0;background:transparent;padding:0;box-shadow:none;font-weight:600;cursor:default}
+.email-locked svg,.email-to svg{flex:none;color:var(--muted)}
+.email-to span{font-weight:600}
+.email-aud .email-n{font-weight:800;opacity:.75;margin-left:2px}
+.email-ed{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff}
+.email-tb{display:flex;flex-wrap:wrap;gap:2px;padding:8px 10px;border-bottom:1px solid var(--line);
+  background:var(--pale)}
+.email-tb button{appearance:none;border:1px solid transparent;background:#fff;border-radius:8px;
+  font:inherit;font-size:13px;font-weight:600;color:var(--navy);padding:6px 10px;cursor:pointer}
+.email-tb button:hover{border-color:var(--line)}
+.email-tb-gap{width:8px}
+.email-body{min-height:220px;padding:16px 18px;font-size:14.5px;line-height:1.55;outline:0}
+.email-body:focus{box-shadow:inset 0 0 0 2px rgba(30,111,232,.12)}
+.email-body p{margin:0 0 12px}
+.email-actions{align-items:center}
+.email-count{display:flex;align-items:baseline;gap:10px;color:var(--muted)}
+.email-count b{font-size:42px;line-height:1;color:var(--navy);font-weight:800;letter-spacing:-.03em}
+.email-count svg{margin-left:auto;color:var(--faint)}
+.email-timing{display:flex;align-items:center;justify-content:flex-start;gap:10px;width:100%;
+  padding:12px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;color:var(--navy);
+  font:inherit;font-weight:600;font-size:14px;cursor:pointer;text-align:left}
+.email-timing svg{flex:none}
+.email-timing.on{border-color:var(--navy);background:var(--pale);box-shadow:0 0 0 2px rgba(10,63,150,.12)}
+.email-when{margin:10px 0}
+.email-when .sub{display:block;margin-bottom:6px}
+.email-recent{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:12px}
+.email-recent li{display:flex;gap:10px;align-items:flex-start}
+.email-recent b{display:block;font-size:13.5px}
+.email-recent small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.email-modal{position:fixed;inset:0;background:rgba(18,24,40,.45);z-index:40;
+  display:grid;place-items:center;padding:24px}
+.email-modal-card{background:#fff;border-radius:18px;padding:22px 24px;width:min(560px,100%);
+  box-shadow:0 24px 60px rgba(20,30,60,.25);max-height:90vh;overflow:auto}
+.email-modal-wide{width:min(720px,100%)}
+.email-dl{margin:0 0 16px;display:flex;flex-direction:column;gap:10px}
+.email-dl div{display:grid;grid-template-columns:110px 1fr;gap:12px;padding:8px 0;
+  border-bottom:1px solid var(--line2);font-size:14px}
+.email-dl dt{color:var(--muted);font-weight:600}
+.email-dl dd{margin:0;color:var(--navy);font-weight:600}
+.email-frame{width:100%;height:min(70vh,640px);border:1px solid var(--line);border-radius:12px;background:#eef2f6}
+.email-sub + .card .empty{padding:28px 12px}
+button.linkish{font:inherit;font-weight:700;color:var(--warn-ink);background:none;border:0;
+  padding:0;cursor:pointer;text-decoration:underline}

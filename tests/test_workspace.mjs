@@ -1,4 +1,4 @@
-/* The event workspace: one event, six tabs, everything event-scoped inside it. */
+/* The event workspace: one event, seven tabs, everything event-scoped inside it. */
 import { chromium } from 'playwright';
 import { readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
@@ -46,10 +46,10 @@ async function open(opts={}){
   return p;
 }
 
-await T('the workspace has the six tabs the brief names, in order',async()=>{
+await T('the workspace has the seven tabs the brief names, in order',async()=>{
   const p=await open();
   const keys=await p.$$eval('[data-event-tabs] button',b=>b.map(x=>x.dataset.tab));
-  eq(keys,['details','media','sponsors','applications','registrations','settings'],'tab order');
+  eq(keys,['details','media','sponsors','applications','registrations','email','settings'],'tab order');
   const sponsorTab=(await p.locator('[data-tab="sponsors"]').innerText()).trim();
   ok(/Partners/.test(sponsorTab),`tab label should be Partners: ${sponsorTab}`);
   ok(!/Sponsors/.test(sponsorTab),`tab label must not still say Sponsors: ${sponsorTab}`);
@@ -305,7 +305,8 @@ await T('a failed read says so and never renders as "none"',()=>{
   const js=readFileSync(`${ROOT}/assets/js/paaipe-admin-events.js`,'utf8');
   for(const [fn,phrase] of [['loadSponsorsTab','not "no Partners"'],
                             ['loadApplicationsTab','not "no applications"'],
-                            ['loadRegistrationsTab','not "nobody registered"']]){
+                            ['loadRegistrationsTab','not "nobody registered"'],
+                            ['loadEmailTab','not "nobody registered"']]){
     const body=js.slice(js.indexOf(`async function ${fn}`),js.indexOf(`async function ${fn}`)+1400);
     ok(body.includes(phrase),`${fn} must distinguish a failure from an empty list`);
   }

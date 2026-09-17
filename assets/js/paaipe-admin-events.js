@@ -27,6 +27,7 @@ import {
   listPartnerApplicationsFor, listAllRegistrations,
   registrationState, eventDateLong, groupSponsors,
 } from "/assets/js/paaipe-events-data.js";
+import { mountEventEmail } from "/assets/js/paaipe-event-email.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const $  = (s, r = document) => r.querySelector(s);
@@ -400,6 +401,7 @@ const TABS = [
   ["sponsors",      "Partners",      "sponsors"],
   ["applications",  "Applications",  "applications"],
   ["registrations", "Registrations", "registrations"],
+  ["email",         "Email",         null],
   ["settings",      "Settings",      null],
 ];
 const TAB_COUNTS = { sponsors: null, applications: null, registrations: null };
@@ -439,6 +441,10 @@ function selectTab(key, { push = true } = {}) {
   if (!TABS.some(([k]) => k === key)) key = "details";
   TAB = key;
   TABS.forEach(([k]) => { const el = panel(k); if (el) el.hidden = k !== key; });
+  const cols = $("[data-editor-cols]");
+  if (cols) cols.classList.toggle("email-open", key === "email");
+  const rail = $("[data-publish-rail]");
+  if (rail) rail.hidden = key === "email";
   renderTabs();
   if (push && CURRENT) {
     const h = `#event=${encodeURIComponent(CURRENT.id)}&tab=${key}`;
@@ -447,9 +453,10 @@ function selectTab(key, { push = true } = {}) {
   loadTab(key);
 }
 
-/* Each tab fetches once, the first time it is opened. Loading all six up front
- * would make opening an event five requests slower for the five tabs nobody
- * looked at. */
+/* Each tab fetches once, the first time it is opened. Loading every tab up
+ * front would make opening an event slower for the tabs nobody looked at.
+ * Email remounts on every visit so the audience count is the live registration
+ * list, not a number from the last time somebody opened the tab. */
 function loadTab(key) {
   if (!CURRENT) return;
   const id = CURRENT.id;
@@ -457,6 +464,7 @@ function loadTab(key) {
   if (key === "sponsors"      && once("sponsors"))      loadSponsorsTab(id);
   if (key === "applications"  && once("applications"))  loadApplicationsTab(id);
   if (key === "registrations" && once("registrations")) loadRegistrationsTab(id);
+  if (key === "email")                                  loadEmailTab(id);
 }
 
 /** The counts the tab strip shows, fetched when an event opens rather than when
@@ -819,7 +827,10 @@ async function duplicateEvent(id) {
     if (e.target.closest("[data-reg-csv]")) return exportEventRegistrations();
 
     if (e.target.closest("[data-back]")) {
-      $("[data-editor-cols]").hidden = true;
+      const cols = $("[data-editor-cols]");
+      cols.hidden = true;
+      cols.classList.remove("email-open");
+      const rail = $("[data-publish-rail]"); if (rail) rail.hidden = false;
       $("[data-event-list]").hidden = false;
       CURRENT = null; renderList();
       renderAdminTop({ title: "Events", subtitle: "Every AI Exchange, and what the public sees of it", email: ME });
@@ -1306,6 +1317,33 @@ async function loadRegistrationsTab(eventId) {
   } catch (ex) {
     host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Registrations could
       not be read: ${esc(ex?.message || ex)}. This is not "nobody registered".</p></section>`;
+  }
+}
+
+/* ============================================================ the EMAIL tab
+ *
+ * Compose to THIS event's registrants, preview the official branded shell, and
+ * keep drafts. There is no mail sender, so Send / Schedule / Send test refuse
+ * rather than queue a letter that would never leave. The UI lives in
+ * paaipe-event-email.js so this file does not grow another editor. */
+async function loadEmailTab(eventId) {
+  const host = panel("email");
+  if (!host) return;
+  host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Loading…</p></section>`;
+  try {
+    REGS = await listAllRegistrations();
+    const ev = EVENTS.find(e => e.id === eventId) || CURRENT;
+    mountEventEmail(host, {
+      event: ev,
+      registrations: REGS.filter(r => registrationMatchesEvent(r, ev)),
+      actor: ME,
+      flash,
+      goToRegistrations: () => selectTab("registrations"),
+    });
+  } catch (ex) {
+    host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Registrations could
+      not be read: ${esc(ex?.message || ex)}. This is not "nobody registered", and the Email tab
+      cannot count an audience it cannot see.</p></section>`;
   }
 }
 

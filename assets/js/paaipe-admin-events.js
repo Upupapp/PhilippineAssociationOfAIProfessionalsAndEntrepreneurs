@@ -901,6 +901,17 @@ function renderMediaTab(e) {
               "top of the public event and registration pages; falls back to the wide banner")}
       <p class="note">These are what the public pages read. A URL is a URL — the repository, a
         bucket or a CDN all work, so these fields are useful with or without an uploader.</p>
+      <h3 class="ehead">The share card</h3>
+      <div class="helpbox">
+        <p class="note" style="margin:0"><b>The square banner is not the share card yet, and this
+          screen cannot make it one.</b> <code>og:image</code> is read by crawlers — Facebook,
+          LinkedIn, Messenger — and they do not run JavaScript, so a value written from here would
+          change nothing a sharer ever sees while looking, in a browser, exactly as though it had
+          worked. It has to be in the page's HTML. Paste this into
+          <code>${esc(e.slug || "the event page")}.html</code> and deploy:</p>
+        <p class="note" style="margin:8px 0 0"><code>&lt;meta property="og:image"
+          content="https://paaipe.org/${esc(e.bannerSquareUrl || "assets/img/…")}"&gt;</code></p>
+      </div>
     </section>
 
     <section class="card">
@@ -934,14 +945,21 @@ async function paintUploadBox() {
   }
   host.innerHTML = `
     <div class="flash" style="position:static;margin:0 0 14px">
-      <b>Uploading is not available: this project has no storage bucket.</b>
+      <b>There is no upload box, because this project has no storage bucket.</b>
       Checked just now — <code>${esc(BUCKET || "no bucket configured")}</code> returns
       “The specified bucket does not exist”. <code>storageBucket</code> is in the Firebase config
       because Firebase writes that string by default, not because Storage was ever switched on.
-      <br><br>Turning it on creates a Google Cloud bucket on <b>postflowit-autos</b>, which PAAIPE
-      shares with PostFlow, in a region that cannot be changed afterwards — so it is a decision for
-      PAAIPE, not something this screen should do quietly. Until then the URL fields below are the
-      way to set a picture, and everything that reads them already works.
+    </div>
+    <div class="helpbox" style="margin:0 0 14px">
+      <b>How to set a picture today</b>
+      <ol class="note" style="margin:8px 0 0;padding-left:20px;line-height:1.8">
+        <li>Put the file in the repository under <code>assets/img/</code> — that is where every
+            picture on paaipe.org lives now.</li>
+        <li>Paste its path below, exactly as <code>assets/img/your-file.png</code>.</li>
+        <li>Save here, then deploy the repository once. The path is stored in the event record, so
+            changing which picture an event uses afterwards needs no deploy at all — only adding a
+            new file does.</li>
+      </ol>
     </div>`;
 }
 

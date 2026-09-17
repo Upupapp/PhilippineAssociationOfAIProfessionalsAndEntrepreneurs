@@ -365,3 +365,9 @@ td.act{text-align:right;white-space:nowrap}
 .ppreview .big img{height:52px}
 @media (max-width:900px){.mgrid{grid-template-columns:1fr}
   .sprow{grid-template-columns:44px 1fr;row-gap:8px}}
+.helpbox{background:var(--pale);border:1px solid var(--pale2);border-radius:12px;padding:14px 16px;
+  margin:10px 0;font-size:13px;color:var(--ink)}
+.helpbox b{color:var(--navy)}
+.helpbox code{background:#fff;border:1px solid var(--line);border-radius:5px;padding:1px 5px;
+  font-size:12px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+.helpbox ol{margin:8px 0 0;padding-left:20px;line-height:1.8;color:var(--muted)}

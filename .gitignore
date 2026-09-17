@@ -15,3 +15,7 @@ paaipe-admin-event-page/
 paaipe-admin-editevent/
 paaipe-admin-edit*/
 paaipe-admin*/
+
+# Playwright, installed per-machine. Never published.
+tests/node_modules/
+tests/package*.json

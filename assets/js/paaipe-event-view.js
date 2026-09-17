@@ -18,7 +18,7 @@
  */
 import {
   getEventBySlug, listEventSponsors, listOrganizations,
-  groupSponsors, registrationState, TIER,
+  groupSponsors, registrationState, TIER, coverFor, galleryOf,
 } from "/assets/js/paaipe-events-data.js";
 import { currentAgent } from "/assets/js/paaipe-firebase.js";
 import { samePage } from "/assets/js/paaipe-samepage.js";
@@ -83,6 +83,110 @@ export function renderRegisterCta(host, ev) {
   host.setAttribute("data-cta-state", st.reason);
 }
 
+/* ------------------------------------------------------------- the pictures */
+
+const GALLERY_CSS = `
+.pgal{margin-top:40px}
+.pgal h2{margin-bottom:6px}
+.pgal .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin-top:16px}
+@media (min-width:760px){.pgal .grid{grid-template-columns:repeat(3,1fr)}}
+.pgal figure{margin:0;border-radius:14px;overflow:hidden;background:var(--pale,#EAF3FC);cursor:zoom-in;
+  border:0;padding:0;display:block;width:100%;text-align:left}
+.pgal figure img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;transition:transform .25s}
+.pgal figure:hover img{transform:scale(1.03)}
+.pgal figcaption{font-size:12.5px;color:var(--muted,#4a5a7a);padding:8px 10px;line-height:1.45}
+.plb{border:0;padding:0;background:transparent;max-width:none;width:100vw;height:100vh;max-height:none}
+.plb::backdrop{background:rgba(3,15,45,.88)}
+.plb .in{display:grid;place-items:center;height:100%;padding:24px}
+.plb img{max-width:min(1100px,92vw);max-height:78vh;object-fit:contain;border-radius:12px;display:block}
+.plb .cap{color:#EAF3FC;font-size:14px;margin-top:14px;text-align:center;max-width:60ch}
+.plb .x{position:fixed;top:18px;right:18px;width:42px;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.3);
+  background:rgba(255,255,255,.1);color:#fff;font-size:22px;line-height:1;cursor:pointer}
+.plb .nav{position:fixed;top:50%;transform:translateY(-50%);width:44px;height:44px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);color:#fff;font-size:20px;cursor:pointer}
+.plb .prev{left:18px}.plb .next{right:18px}`;
+
+/* A lightbox, opened from the gallery. Esc and the backdrop close it, the arrow
+ * keys move, and focus returns to the photo that opened it - a viewer who came
+ * in by keyboard must not be dropped at the top of the page on the way out. */
+function openLightbox(rows, start, opener) {
+  let i = start;
+  const d = document.createElement("dialog");
+  d.className = "plb";
+  // Focusable, and re-focused after every repaint. Replacing the contents
+  // destroys whatever had focus, which drops it to <body> - and <body> is not
+  // inside the dialog, so the arrow keys stopped reaching this handler after the
+  // first move. Caught by the test for it.
+  d.tabIndex = -1;
+  const paint = () => {
+    const g = rows[i];
+    d.innerHTML = `<button class="x" type="button" data-x aria-label="Close">&times;</button>
+      ${rows.length > 1 ? `<button class="nav prev" type="button" data-prev aria-label="Previous">&#8249;</button>
+        <button class="nav next" type="button" data-next aria-label="Next">&#8250;</button>` : ""}
+      <div class="in"><div><img src="${esc(g.url)}" alt="${esc(g.alt)}">
+        ${g.caption ? `<p class="cap">${esc(g.caption)}</p>` : ""}</div></div>`;
+    d.focus();
+  };
+  paint();
+  document.body.appendChild(d);
+  const move = n => { i = (i + n + rows.length) % rows.length; paint(); };
+  d.addEventListener("click", e => {
+    if (e.target.closest("[data-x]") || e.target === d) return d.close();
+    if (e.target.closest("[data-prev]")) return move(-1);
+    if (e.target.closest("[data-next]")) return move(1);
+  });
+  d.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft") move(-1);
+    if (e.key === "ArrowRight") move(1);
+  });
+  d.addEventListener("close", () => { d.remove(); opener?.focus(); }, { once: true });
+  d.showModal();
+}
+
+/** The Photos section, from the record. Hidden entirely when there is nothing -
+ *  an empty gallery is not a thing to show. */
+export function renderGallery(host, ev) {
+  if (!host) return 0;
+  const rows = galleryOf(ev);
+  if (!rows.length) { host.innerHTML = ""; host.hidden = true; return 0; }
+  if (!document.querySelector("[data-gallery-styles]")) {
+    const st = document.createElement("style");
+    st.setAttribute("data-gallery-styles", "");
+    st.textContent = GALLERY_CSS;
+    document.head.appendChild(st);
+  }
+  host.hidden = false;
+  host.className = "pgal";
+  host.innerHTML = `<h2>Photos</h2>
+    <div class="grid">${rows.map((g, i) => `
+      <figure role="button" tabindex="0" data-ph-open="${i}" aria-label="${esc(g.alt)} — open larger">
+        <img src="${esc(g.url)}" alt="${esc(g.alt)}" loading="lazy">
+        ${g.caption ? `<figcaption>${esc(g.caption)}</figcaption>` : ""}
+      </figure>`).join("")}</div>`;
+  const open = el => openLightbox(rows, Number(el.dataset.phOpen), el);
+  $$("[data-ph-open]", host).forEach(el => {
+    el.addEventListener("click", () => open(el));
+    el.addEventListener("keydown", e => {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(el); }
+    });
+  });
+  return rows.length;
+}
+
+/** The picture at the top of the page, from the record.
+ *
+ *  THE SHARE CARD IS NOT DONE HERE, and cannot be. og:image is read by
+ *  crawlers - Facebook, LinkedIn, Messenger - which do not run JavaScript, so
+ *  rewriting the meta tag from here would change nothing a sharer ever sees
+ *  while looking, in a browser, exactly like it worked. It stays in the page's
+ *  HTML, and the admin Media tab says which line to paste and why. */
+function renderCover(ev) {
+  const img = $("[data-cover] img") || $(".cover img");
+  const url = coverFor(ev);
+  // A missing picture must never blank a page that already had one.
+  if (img && url) img.setAttribute("src", url);
+}
+
 async function renderEventPage() {
   const root = $("[data-event-slug]");
   if (!root) return;
@@ -108,12 +212,17 @@ async function renderEventPage() {
     }
     const spon = $("[data-sponsors]");
     if (spon) { spon.innerHTML = ""; spon.hidden = true; }
+    const gal = $("[data-gallery-mount]");
+    if (gal) { gal.innerHTML = ""; gal.hidden = true; }
     document.documentElement.setAttribute("data-event-view", "not-found");
     return;
   }
 
   $$("[data-ev-title]").forEach(e => { e.textContent = ev.title; });
   renderRegisterCta($("[data-register-cta]"), ev);
+  renderCover(ev);
+  const shots = renderGallery($("[data-gallery-mount]"), ev);
+  document.documentElement.setAttribute("data-gallery", String(shots));
 
   try {
     renderSponsors($("[data-sponsors]"), await listEventSponsors(ev.id));

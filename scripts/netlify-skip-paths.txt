@@ -32,3 +32,6 @@ firestore.rules
 # Build and deploy tooling. Published only because publish = "." — no page
 # references them.
 scripts/
+
+# Playwright suites. Changing a test changes nothing a visitor sees.
+tests/

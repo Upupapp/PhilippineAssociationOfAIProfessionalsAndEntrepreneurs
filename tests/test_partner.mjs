@@ -540,13 +540,15 @@ await T('Partner applications is a built destination in the shared nav',async()=
   await p.close();
 });
 
-await T('the admin page lists what it cannot do rather than drawing dead buttons',()=>{
+await T('the admin inbox does not list missing capabilities as a card',()=>{
+  const html=readFileSync(`${ROOT}/admin-partners.html`,'utf8');
+  ok(!/What this screen cannot do yet/.test(html),'the gaps card is gone');
+  ok(!/data-gaps/.test(html),'and its mount is gone');
   const js=readFileSync(`${ROOT}/assets/js/paaipe-admin-partners.js`,'utf8');
-  const gaps=js.slice(js.indexOf('const GAPS = ['),js.indexOf('function renderGaps'));
-  ok(/no mail sender|SMTP/i.test(gaps),'the missing sender');
-  ok(/no storage bucket/i.test(gaps),'the missing bucket');
-  ok(/one administrator/i.test(gaps),'the missing roles');
-  ok(/Does not: /.test(js),'and each is SPOKEN, not only struck through');
+  ok(/no mail sender|SMTP/i.test(js),'the missing sender stays in comments');
+  ok(/no storage bucket/i.test(js),'the missing bucket stays in comments');
+  ok(/one administrator/i.test(js),'the missing roles stay in comments');
+  ok(!/function renderGaps/.test(js),'and they are not drawn');
 });
 
 await T('accepting proposes a sponsorship and never confirms one',()=>{

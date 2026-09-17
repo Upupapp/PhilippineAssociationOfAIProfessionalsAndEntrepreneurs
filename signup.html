@@ -69,7 +69,7 @@
     <ul class="chips" aria-label="What you join"><li>Exchange</li><li>Portal benefits</li><li>Verified network</li></ul>
     <div class="f"><label for="nm">Full name</label><input id="nm" type="text" autocomplete="name" required placeholder="Juan Dela Cruz"><span class="err">Please enter your name.</span></div>
     <div class="f"><label for="em">Email address</label><input id="em" type="email" autocomplete="email" required placeholder="you@example.com"><span class="help">We'll send your verification link here.</span><span class="err">Please enter a valid email.</span></div>
-    <div class="f"><label for="pw">Password</label><div class="pw"><input id="pw" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters"><button type="button" aria-label="Show password" data-toggle="pw"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div><div class="meter" id="meter" data-s="0" aria-hidden="true"><i></i><i></i><i></i></div><div class="meter-l" id="meterl">Use 8+ characters with a number or symbol.</div><span class="err">Password needs at least 8 characters.</span></div>
+    <div class="f"><label for="pw">Password</label><div class="pw"><input id="pw" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters"><button type="button" aria-label="Show password" data-toggle="pw"><svg viewBox="0 0 24 24"><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></button></div><div class="meter" id="meter" data-s="0" aria-hidden="true"><i></i><i></i><i></i></div><div class="meter-l" id="meterl">Use 8+ characters with a number or symbol.</div><span class="err">Password needs 8+ characters with a number or symbol.</span></div>
     <label class="check"><input type="checkbox" id="tos" required><span>I agree to PAAIPE's <a href="terms-of-use.html" target="_blank" rel="noopener">Terms of Use</a> and <a href="privacy-notice.html" target="_blank" rel="noopener">Privacy Notice</a>.</span></label><span class="err" id="toserr" style="margin-left:26px">Please accept the terms to continue.</span>
     <label class="check"><input type="checkbox" id="upd"><span>Keep me posted on AI Exchange sessions and PAAIPE programs. <span style="color:var(--muted);font-weight:400">Optional &mdash; you can unsubscribe at any time, and your account works either way.</span></span></label>
     <div class="cta"><p class="err" id="submit-error" role="alert" style="display:none;margin-bottom:10px"></p><button class="btn btn-gold" type="submit">Create my Agent account</button><p class="next">Next: verify email → portal as Guest.</p></div>
@@ -126,7 +126,7 @@
   function fieldInvalid(box){
     const r=box.querySelector('[required]');if(!r)return false;
     if(r.type==='email')return!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.value.trim());
-    if(r.type==='password')return r.value.length<8;
+    if(r.type==='password')return score(r.value)<2;
     return!r.value.trim();
   }
   [nm,em,pw].forEach(i=>i.addEventListener('blur',()=>{const box=i.closest('.f');if(box)box.classList.toggle('invalid',fieldInvalid(box))}));

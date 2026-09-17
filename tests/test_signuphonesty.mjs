@@ -42,11 +42,12 @@ await T('Google is equal-weight and labelled Fastest',()=>{
      'Google uses a navy border, not the pale line');
 });
 
-await T('password meter is three steps; submit still only requires 8+',()=>{
+await T('password meter is three steps; blur and submit require 8+ with a number or symbol',()=>{
   ok(/<div class="meter"[^>]*>\s*<i><\/i><i><\/i><i><\/i>\s*<\/div>/.test(html),'three bars');
   ok(/Use 8\+ characters with a number or symbol\./.test(html),'rule copy');
-  ok(/if\(r\.type==='password'\)return r\.value\.length<8/.test(html),
-     'submit rule must stay length-only');
+  ok(/Password needs 8\+ characters with a number or symbol\./.test(html),'error copy');
+  ok(/if\(r\.type==='password'\)return score\(r\.value\)<2/.test(html),
+     'submit/blur must use the meter rule, not length-only');
   ok(!/Inter/.test(html),'public signup stays Poppins');
   ok(/family=Poppins/.test(html),'Poppins loaded');
 });
@@ -75,6 +76,30 @@ await T('blur on an empty name shows the field error',async()=>{
   ok(await p.locator('#nm').evaluate(el=>el.closest('.f').classList.contains('invalid')),
      'name field should be invalid after blur');
   ok(await p.locator('#nm + .err').isVisible(),'name error visible');
+  await p.close();
+});
+
+await T('blur and submit reject 8 letters with no number or symbol',async()=>{
+  const p=await br.newPage();
+  await p.goto(`${BASE}/signup.html`,{waitUntil:'load'});
+  await p.fill('#pw','password');
+  await p.locator('#nm').focus();
+  ok(await p.locator('#pw').evaluate(el=>el.closest('.f').classList.contains('invalid')),
+     '8 letters is still weak, so blur must flag it');
+  ok(await p.getByText('Password needs 8+ characters with a number or symbol.').isVisible(),
+     'aligned error visible');
+  await p.fill('#nm','Juan Dela Cruz');
+  await p.fill('#em','juan@example.com');
+  await p.check('#tos');
+  await p.click('[type=submit]');
+  ok(await p.locator('#pw').evaluate(el=>el.closest('.f').classList.contains('invalid')),
+     'submit must not pass a letters-only password');
+  eq((await p.locator('[type=submit]').innerText()).trim(),'Create my Agent account',
+     'must not start creating the account');
+  await p.fill('#pw','password1');
+  await p.locator('#nm').focus();
+  ok(!(await p.locator('#pw').evaluate(el=>el.closest('.f').classList.contains('invalid'))),
+     '8+ with a number is enough');
   await p.close();
 });
 

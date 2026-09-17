@@ -10,6 +10,14 @@
  *
  * The slides are a GAMMA deck, not a PDF: the September deck was published that
  * way, and the public Resources page links the same URL.
+ *
+ * Recordings: landscape (16:9) full-session videos, played in-portal via
+ * youtube-nocookie embed. The youtubeId still appears in the iframe src and in
+ * network requests; unlisted is not DRM and does not make the URL unshareable.
+ * Do not surface a raw YouTube URL or "Open on YouTube" in the UI.
+ *
+ * Reels: optional 9:16 clips on the same event. Empty until real assets exist —
+ * the UI must hide empty reels rows, never invent them.
  */
 export const PAST_SESSIONS = [
   {
@@ -28,9 +36,33 @@ export const PAST_SESSIONS = [
     slidesUrl: "https://gamma.app/docs/Sven-Bally-09v66kz53a10hm0",
     slidesLabel: "Slides (Gamma)",
 
-    // Not held. The September event page says materials appear "as they are
-    // approved", and no recording of this session has been published.
-    recordingUrl: null,
+    // Two landscape recordings from the same Sept 15 Exchange (unlisted).
+    // Titles match the published YouTube titles (cleaned slightly for members).
+    recordings: [
+      {
+        id: "2026-09-part1",
+        youtubeId: "ePw_wlPqYUk",
+        title: "Part 1 — Presentation",
+        thumb: "assets/img/ai-exchange-session.jpg",
+      },
+      {
+        id: "2026-09-part2",
+        youtubeId: "0PkiRVczWdQ",
+        title: "Part 2 — Q&A",
+        thumb: "assets/img/ai-exchange-session.jpg",
+      },
+    ],
+
+    // No reels yet. Keep the array so Past/Watch can hide empty reels chrome.
+    reels: [],
+
+    // No real chapter markers yet — Watch must hide the Chapters card.
+    chapters: [],
+
+    // Compat for older checks: truthy when any landscape recording exists.
+    // Not a navigable URL — playback is in-portal only (see session-view).
+    recordingUrl: "in-portal",
+
     durationLabel: null,
     qaCount: null,
     transcriptUrl: null,
@@ -45,4 +77,35 @@ export const PAST_SESSIONS = [
 
 export function findSession(id) {
   return PAST_SESSIONS.find(s => s.id === id) || null;
+}
+
+/** Landscape recordings for a session (never invents). */
+export function sessionRecordings(s) {
+  if (!s) return [];
+  if (Array.isArray(s.recordings) && s.recordings.length) return s.recordings;
+  return [];
+}
+
+export function sessionHasRecording(s) {
+  return sessionRecordings(s).length > 0 || !!(s && s.recordingUrl);
+}
+
+/** 9:16 reels for a session (empty until real assets exist). */
+export function sessionReels(s) {
+  if (!s || !Array.isArray(s.reels)) return [];
+  return s.reels;
+}
+
+export function sessionHasReels(s) {
+  return sessionReels(s).length > 0;
+}
+
+/** Chapter markers for a session (empty until real per-recording data exists). */
+export function sessionChapters(s) {
+  if (!s || !Array.isArray(s.chapters)) return [];
+  return s.chapters;
+}
+
+export function sessionHasChapters(s) {
+  return sessionChapters(s).length > 0;
 }

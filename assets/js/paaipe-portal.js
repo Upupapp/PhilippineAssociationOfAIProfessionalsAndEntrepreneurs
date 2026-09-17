@@ -45,7 +45,9 @@ var AMBER_CSS =
   ".pg-steps b{width:18px;height:18px;border-radius:50%;display:grid;place-items:center;font-size:11px;flex:none;" +
     "background:var(--line,#c9dcf3);color:#fff}" +
   ".pg-steps li.done{color:var(--ink,#0f1e3d)}.pg-steps li.done b{background:var(--green-ink,#0a5c3a)}" +
-  ".pg-note{display:block;font-size:12.5px;color:var(--amber-ink,#7a4a06);margin-top:6px}";
+  ".pg-note{display:block;font-size:12.5px;color:var(--amber-ink,#7a4a06);margin-top:6px}" +
+  "[data-agents-only].btn-ghost{color:var(--muted,#4a5a7a);box-shadow:none}" +
+  "[data-agents-only].btn-ghost:hover{transform:none}";
 var CLOCK='<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
 var LOCK='<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>';
 function icon(d){return '<svg viewBox="0 0 24 24">'+d+'</svg>';}
@@ -206,6 +208,8 @@ function applyMembership(agent, ms) {
     document.querySelectorAll("[data-agents-only]").forEach(function (btn) {
       btn.innerHTML = icon(LOCK) + " Agents only";
       btn.setAttribute("title", "Available after your Agent confirmation.");
+      btn.classList.remove("btn-gold");
+      btn.classList.add("btn-ghost");
       if (ms.gated) { btn.setAttribute("disabled", "disabled"); return; }
       btn.removeAttribute("disabled");
       btn.addEventListener("click", function (e) {

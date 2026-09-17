@@ -29,7 +29,7 @@
   .icb{width:40px;height:40px;border-radius:12px;border:2px solid var(--line);background:#fff;display:grid;place-items:center;position:relative}.icb svg{width:18px;height:18px;stroke:var(--navy);fill:none;stroke-width:1.9}.icb i{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--gold)}
   .content{padding:28px 32px 48px;display:flex;flex-direction:column;gap:22px}
   .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:22px}
-  .grid2{display:grid;grid-template-columns:1.4fr .8fr;gap:22px;align-items:start}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:1.4fr .8fr;gap:22px;align-items:start}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
   .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.hd a{font-size:13px;font-weight:600;color:var(--royal)}
   /* agent card */
   .acard{position:relative;border-radius:16px;background:linear-gradient(135deg,#0A3F96,#031B52);border:1px solid rgba(255,255,255,.28);color:#fff;padding:18px 20px;display:flex;flex-direction:column;justify-content:space-between;aspect-ratio:1.62;overflow:hidden;box-shadow:0 18px 44px rgba(3,27,82,.28)}
@@ -57,8 +57,12 @@
   .voucher{border:2px dashed var(--gold);background:linear-gradient(180deg,#fffaf0,#fff);border-radius:14px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}.voucher code{font-size:18px;font-weight:800;letter-spacing:.14em;color:var(--navy);background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 12px}
   /* directory */
   .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}.filters select,.filters input{width:auto;min-width:180px;border:2px solid var(--line);border-radius:999px;padding:8px 14px;background:#fff;font-size:13.5px;color:var(--ink)}.filters input{flex:1}
+  .grid3>.card.agent{min-height:308px;height:100%;overflow:visible}
   .agent{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:22px 16px}.agent img,.agent .av{width:78px;height:78px;border-radius:50%;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold);object-fit:cover;font-size:22px}
   .agent b{color:var(--navy);font-size:15px;margin-top:6px}.agent small{color:var(--muted);font-size:12.5px}.agent .tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:6px}.agent .tags span{font-size:11px;font-weight:600;color:var(--royal);background:var(--pale2);border-radius:7px;padding:3px 8px}
+  .agent .agent-open{display:flex;flex-direction:column;align-items:center;gap:6px;width:100%;min-width:0;color:inherit}.agent .agent-open:hover b{color:var(--royal)}.agent .agent-open:focus-visible{outline:3px solid var(--cyan);outline-offset:3px;border-radius:12px}
+  .agent .agent-acts{margin-top:auto;display:flex;flex-direction:column;align-items:center;padding-top:10px;flex:none}
+  .agent .agent-acts .btn{align-self:center}
   /* programs */
   .prog{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center}.prog .n{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:800;color:var(--navy)}.prog .n.live{background:var(--gold);border-color:var(--gold)}
   .prog b{display:block;color:var(--navy);font-size:15px}.prog small{color:var(--muted);font-size:13px}.prog .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
@@ -106,6 +110,65 @@
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Search sessions, Agents, benefits…</div><span class="icb"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg><i></i></span><span class="av" style="width:36px;height:36px" data-agent-initials>··</span></header>
   <main class="content"><p data-guest-notice="Your profile appears in the directory after confirmation." style="margin:0 0 12px"></p>
 <div class="filters"><input type="text" placeholder="Search by name, skill or company"><select><option>All sectors</option><option>Startup / technology</option><option>Marketing / media</option><option>Education</option><option>Government / LGU</option></select><select><option>All locations</option><option>Metro Manila</option><option>Rizal</option><option>Cavite</option><option>Cebu</option><option>Davao</option></select><select><option>Any</option><option>Open to mentoring</option><option>Looking for a mentor</option></select><span class="pill info" style="margin-left:auto">6 Agents visible</span></div>
-<div class="grid3"><div class="card agent"><span class="av" data-agent-initials>··</span><b data-agent-name>You</b><small><span data-agent-number>····</span></small><small data-agent-email></small><div class="tags"><span>Marketing</span><span>Looking for a mentor</span></div><a class="btn btn-ghost btn-sm" href="portal-profile.html" style="margin-top:10px">That&rsquo;s you</a></div><a class="card agent" href="portal-agent-view.html?agent=001"><img src="assets/img/agents/agent-001-paul-espinas.png" alt="Paul Espinas"><b>Paul Espinas</b><small>Agent 001 · Manila</small><small>Founder & CEO, UpUp Technologies</small><div class="tags"><span>Startups</span><span>HR tech</span><span>LGU digitization</span></div><a class="btn btn-gold btn-sm" href="#" style="margin-top:10px" data-agents-only>Connect</a></a><a class="card agent" href="portal-agent-view.html?agent=002"><img src="assets/img/agents/agent-002-melody-belza.png" alt="Melody Belza"><b>Melody Belza</b><small>Agent 002 · Metro Manila</small><small>Founding Agent</small><div class="tags"><span>Community</span></div><a class="btn btn-gold btn-sm" href="#" style="margin-top:10px" data-agents-only>Connect</a></a><a class="card agent" href="portal-agent-view.html?agent=003"><img src="assets/img/agents/agent-003-diana-madayag.png" alt="Diana Madayag"><b>Diana Madayag</b><small>Agent 003 · Metro Manila</small><small>Founding Agent</small><div class="tags"><span>Community</span></div><a class="btn btn-gold btn-sm" href="#" style="margin-top:10px" data-agents-only>Connect</a></a><a class="card agent" href="portal-agent-view.html?agent=004"><img src="assets/img/agents/agent-004-mj-soriano.png" alt="MJ Soriano"><b>MJ Soriano</b><small>Agent 004 · Antipolo, Rizal</small><small>Co-founder, MVJ Training Consultancy</small><div class="tags"><span>Training</span><span>L&D</span><span>Digital products</span></div><a class="btn btn-gold btn-sm" href="#" style="margin-top:10px" data-agents-only>Connect</a></a><a class="card agent" href="portal-agent-view.html?agent=005"><img src="assets/img/agents/agent-005-dennis-paguio.png" alt="Dennis Paguio"><b>Dennis Paguio</b><small>Agent 005 · Bacoor, Cavite</small><small>Founder & CEO, DP Digital Solutions</small><div class="tags"><span>Digital marketing</span><span>Training</span><span>AI strategy</span></div><a class="btn btn-gold btn-sm" href="#" style="margin-top:10px" data-agents-only>Connect</a></a></div>
+<div class="grid3">
+  <article class="card agent">
+    <span class="av" data-agent-initials>··</span>
+    <b data-agent-name>You</b>
+    <small><span data-agent-number>····</span></small>
+    <small data-agent-email></small>
+    <div class="tags"><span>Marketing</span><span>Looking for a mentor</span></div>
+    <div class="agent-acts"><a class="btn btn-ghost btn-sm" href="portal-profile.html">That&rsquo;s you</a></div>
+  </article>
+  <article class="card agent">
+    <a class="agent-open" href="portal-agent-view.html?agent=001">
+      <img src="assets/img/agents/agent-001-paul-espinas.png" alt="Paul Espinas">
+      <b>Paul Espinas</b>
+      <small>Agent 001 · Manila</small>
+      <small>Founder &amp; CEO, UpUp Technologies</small>
+      <div class="tags"><span>Startups</span><span>HR tech</span><span>LGU digitization</span></div>
+    </a>
+    <div class="agent-acts"><button type="button" class="btn btn-gold btn-sm" data-agents-only>Connect</button></div>
+  </article>
+  <article class="card agent">
+    <a class="agent-open" href="portal-agent-view.html?agent=002">
+      <img src="assets/img/agents/agent-002-melody-belza.png" alt="Melody Belza">
+      <b>Melody Belza</b>
+      <small>Agent 002 · Metro Manila</small>
+      <small>Founding Agent</small>
+      <div class="tags"><span>Community</span></div>
+    </a>
+    <div class="agent-acts"><button type="button" class="btn btn-gold btn-sm" data-agents-only>Connect</button></div>
+  </article>
+  <article class="card agent">
+    <a class="agent-open" href="portal-agent-view.html?agent=003">
+      <img src="assets/img/agents/agent-003-diana-madayag.png" alt="Diana Madayag">
+      <b>Diana Madayag</b>
+      <small>Agent 003 · Metro Manila</small>
+      <small>Founding Agent</small>
+      <div class="tags"><span>Community</span></div>
+    </a>
+    <div class="agent-acts"><button type="button" class="btn btn-gold btn-sm" data-agents-only>Connect</button></div>
+  </article>
+  <article class="card agent">
+    <a class="agent-open" href="portal-agent-view.html?agent=004">
+      <img src="assets/img/agents/agent-004-mj-soriano.png" alt="MJ Soriano">
+      <b>MJ Soriano</b>
+      <small>Agent 004 · Antipolo, Rizal</small>
+      <small>Co-founder, MVJ Training Consultancy</small>
+      <div class="tags"><span>Training</span><span>L&amp;D</span><span>Digital products</span></div>
+    </a>
+    <div class="agent-acts"><button type="button" class="btn btn-gold btn-sm" data-agents-only>Connect</button></div>
+  </article>
+  <article class="card agent">
+    <a class="agent-open" href="portal-agent-view.html?agent=005">
+      <img src="assets/img/agents/agent-005-dennis-paguio.png" alt="Dennis Paguio">
+      <b>Dennis Paguio</b>
+      <small>Agent 005 · Bacoor, Cavite</small>
+      <small>Founder &amp; CEO, DP Digital Solutions</small>
+      <div class="tags"><span>Digital marketing</span><span>Training</span><span>AI strategy</span></div>
+    </a>
+    <div class="agent-acts"><button type="button" class="btn btn-gold btn-sm" data-agents-only>Connect</button></div>
+  </article>
+</div>
 <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap"><div><h2>Only Agents who opt in appear here</h2><p style="color:var(--muted);font-size:14px;margin-top:4px">You control what's visible from your profile. Connect sends an intro by email; no contact details are shown until both sides accept.</p></div><a class="btn btn-ghost" href="portal-profile.html">Manage my visibility</a></div></main>
 </div></div><script type="module" src="assets/js/paaipe-portal.js"></script></body></html>

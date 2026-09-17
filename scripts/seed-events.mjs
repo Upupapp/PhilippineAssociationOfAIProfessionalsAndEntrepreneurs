@@ -116,6 +116,43 @@ const EVENTS = [
     questionsEnabled: ["position","organization","profile","learn","speaker_question","source"],
     speakers: [], program: [], coverUrl: "assets/img/ai-exchange-session.jpg",
   },
+  {
+    id: "2026-11-ai-exchange", slug: "event-2026-11-ai-exchange",
+    title: "AI Exchange — November 2026",
+    series: "AI Exchange", topic: "To be announced",
+    description: "The monthly PAAIPE AI Exchange: a practical, members-first session on putting AI to work in Philippine businesses.",
+    whatToExpect: [
+      "A featured talk from a practitioner or partner",
+      "Open Q&A with the PAAIPE community",
+      "Updates on programs, benefits and partners",
+    ],
+    date: "2026-11-10", startTime: "20:00", endTime: "21:30", timezone: "Asia/Manila",
+    format: "zoom", capacity: 500, waitlistEnabled: false,
+    // PUBLISHED, not registration_open: the page says "Registration opens soon"
+    // and there is no registration page for November yet. The status is what the
+    // button reads, so a status the page cannot honour would be a lie.
+    status: "published",
+    whoCanRegister: "members_and_guests",
+    questionsEnabled: ["position","organization","profile","learn","speaker_question","source"],
+    speakers: [], program: [], coverUrl: "assets/img/ai-exchange-session.jpg",
+  },
+  {
+    id: "2026-12-ai-exchange", slug: "event-2026-12-ai-exchange",
+    title: "AI Exchange — December 2026",
+    series: "AI Exchange", topic: "To be announced",
+    description: "The monthly PAAIPE AI Exchange: a practical, members-first session on putting AI to work in Philippine businesses.",
+    whatToExpect: [
+      "A featured talk from a practitioner or partner",
+      "Open Q&A with the PAAIPE community",
+      "Updates on programs, benefits and partners",
+    ],
+    date: "2026-12-08", startTime: "20:00", endTime: "21:30", timezone: "Asia/Manila",
+    format: "zoom", capacity: 500, waitlistEnabled: false,
+    status: "published",
+    whoCanRegister: "members_and_guests",
+    questionsEnabled: ["position","organization","profile","learn","speaker_question","source"],
+    speakers: [], program: [], coverUrl: "assets/img/ai-exchange-session.jpg",
+  },
 ];
 
 /* As in the admin reference. MVJ and DP Digital are PROPOSED, which is why the
@@ -131,6 +168,21 @@ const SPONSORS = [
   { id: "2026-10-dpdigital", eventId: "2026-10-ai-exchange", organizationId: "dpdigital",
     tier: "community",  status: "proposed",  contributionType: "in_kind", displayOrder: 4, deliverables: [] },
 ];
+
+/* September, November and December credit all four partners as "In partnership
+ * with" - which is exactly what the community tier renders. These rows are not
+ * new claims: they are the credit those pages already carry, moved somewhere the
+ * admin can change it per event instead of it being pasted into the HTML.
+ *
+ * October deliberately differs (GetHired presenting, Servana supporting, the
+ * other two proposed) because the admin reference says so. */
+for (const ev of ["2026-09-ai-exchange", "2026-11-ai-exchange", "2026-12-ai-exchange"]) {
+  ORGANIZATIONS.forEach((o, i) => SPONSORS.push({
+    id: `${ev.slice(0, 7)}-${o.id}`, eventId: ev, organizationId: o.id,
+    tier: "community", status: "confirmed", contributionType: "in_kind",
+    displayOrder: i + 1, deliverables: [],
+  }));
+}
 
 const email = process.env.ADMIN_EMAIL, password = process.env.ADMIN_PASSWORD;
 if (!email || !password) {

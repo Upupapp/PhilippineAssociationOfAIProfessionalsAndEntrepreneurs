@@ -38,14 +38,19 @@
  * everyone who turns JavaScript off, which is the same as not having a gate.
  */
 import { currentAgent, isConfigured, membershipStatus, MEMBERSHIP } from "/assets/js/paaipe-firebase.js";
+import { samePage } from "/assets/js/paaipe-samepage.js";
 
 const SIGN_IN = "signin.html";
 
-/** Where to come back to. Same shape the sign-in page will accept - a bare page
- *  on this site - so a path it would refuse never gets built in the first place. */
+/** Where to come back to. Reduced to the shape the sign-in page will accept, so
+ *  a path it would refuse never gets built in the first place.
+ *
+ *  It goes through samePage() because Netlify serves this page at /resources,
+ *  not /resources.html - so the obvious `pathname.split("/").pop()` yields
+ *  "resources", which the guard refuses, and the member is sent to sign in with
+ *  no way back to what they were reading. */
 function returnTo() {
-  const here = location.pathname.split("/").pop() || "index.html";
-  return /^[a-z0-9][a-z0-9-]*\.html$/i.test(here) ? here : "";
+  return samePage(location.pathname);
 }
 
 function reveal() {

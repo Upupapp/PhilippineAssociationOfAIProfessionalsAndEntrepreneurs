@@ -21,6 +21,7 @@ import {
   groupSponsors, registrationState, TIER,
 } from "/assets/js/paaipe-events-data.js";
 import { currentAgent } from "/assets/js/paaipe-firebase.js";
+import { samePage } from "/assets/js/paaipe-samepage.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -170,8 +171,12 @@ async function gateMembersLinks() {
   }
   for (const a of links) {
     if (signedIn) { a.setAttribute("data-members-state", "member"); continue; }
-    const dest = a.getAttribute("href") || "";
-    a.setAttribute("href", `signup.html?next=${encodeURIComponent(dest)}`);
+    // NOT the raw attribute. Netlify rewrites href="resources.html" to
+    // "/resources" as it serves the page, and ?next=%2Fresources is refused by
+    // the guard on the sign-up page - so the visitor signed up and landed in
+    // the Portal. Measured on the live site; the local server never rewrites.
+    const dest = samePage(a.getAttribute("href"));
+    a.setAttribute("href", dest ? `signup.html?next=${encodeURIComponent(dest)}` : "signup.html");
     const label = a.dataset.membersLabel;
     if (label) a.textContent = label;
     a.setAttribute("data-members-state", "prompt");

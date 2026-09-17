@@ -108,7 +108,14 @@
         <a href="admin-agents.html">Review them</a>.</span>
       </div>
 
-      <div class="grid2" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+      <div class="banner" data-partner-banner hidden>
+        <span><b><span data-partner-count>0 companies are</span> waiting for a first reply.</b>
+        Somebody offered to support an event and has heard nothing back. PAAIPE cannot send them
+        an acknowledgement automatically — there is no mail sender wired — so a reply only happens
+        if a person sends one. <a href="admin-partners.html">Open them</a>.</span>
+      </div>
+
+      <div class="grid2" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px">
         <section class="card"><div class="hd"><h2>Sign-ups</h2></div>
           <p style="font-size:30px;font-weight:700;color:var(--navy);margin:0;line-height:1"
              data-stat-members>–</p>
@@ -121,6 +128,11 @@
           <p style="font-size:30px;font-weight:700;color:var(--navy);margin:0;line-height:1"
              data-stat-regs>–</p>
           <p class="note">Across every event, all time.</p></section>
+        <section class="card"><div class="hd"><h2>New partner applications</h2>
+          <a href="admin-partners.html">Open</a></div>
+          <p style="font-size:30px;font-weight:700;color:var(--navy);margin:0;line-height:1"
+             data-stat-partners>–</p>
+          <p class="note" data-stat-partners-note>Companies offering to support an event.</p></section>
       </div>
 
       <section class="card">

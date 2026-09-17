@@ -21,7 +21,8 @@ import {
 } from "/assets/js/paaipe-admin.js";
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
 import {
-  COL, EVENT_STATUS, listEvents, listEventSponsors, registrationState, eventDateLong,
+  COL, EVENT_STATUS, PARTNER_STATUS, listEvents, listEventSponsors,
+  registrationState, eventDateLong,
 } from "/assets/js/paaipe-events-data.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
@@ -322,6 +323,9 @@ function openEditor(id) {
         page: tiers, status, order and logos. Only confirmed sponsors appear publicly — the rules refuse
         to serve a proposed one, so a proposal cannot leak.</p>
 
+      <h3 class="ehead">Partner applications</h3>
+      <div data-partner-summary><p class="note" style="margin-top:0">Loading…</p></div>
+
       <h3 class="ehead">Cover, banner and recording</h3>
       <p class="note" style="margin-top:0"><b>Banners are not generated.</b> The design says the square
         and wide banners are made from templates on publish; that needs image tooling and a storage
@@ -369,7 +373,46 @@ function openEditor(id) {
   renderRail(e);
   loadHistory(id);
   loadSponsorSummary(id);
+  loadPartnerSummary(id);
   window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+/* Who has offered to support THIS event, and how many are still unanswered.
+ *
+ * A count and a link, not a second inbox. Two screens that both list and act on
+ * the same rows are two screens that can disagree about what was done, so the
+ * work happens on admin-partners.html and this says what is waiting there.
+ *
+ * Counted with count queries: the editor has no business holding applicants'
+ * contact details in memory to render a number.
+ */
+async function loadPartnerSummary(eventId) {
+  const host = $("[data-partner-summary]");
+  if (!host) return;
+  const link = `admin-partners.html?event=${encodeURIComponent(eventId)}`;
+  try {
+    const F = await import(`${SDK}/firebase-firestore.js`);
+    const col = F.collection(await db(), COL.partners);
+    const countOf = async (...clauses) =>
+      (await F.getCountFromServer(F.query(col, ...clauses))).data().count;
+    const [total, fresh] = await Promise.all([
+      countOf(F.where("eventId", "==", eventId)),
+      countOf(F.where("eventId", "==", eventId), F.where("status", "==", PARTNER_STATUS.NEW)),
+    ]);
+    host.innerHTML = total === 0
+      ? `<p class="note" style="margin-top:0">No company has applied to partner on this event.
+           The button is on the public event page, the events list, the page people see after
+           registering, and in the member portal.</p>`
+      : `<div class="chips"><span class="chip">${total} application${total === 1 ? "" : "s"}</span>
+           ${fresh ? `<span class="chip on">${fresh} waiting for a reply</span>` : ""}</div>
+         <p class="note" style="margin-top:0"><a href="${esc(link)}">Open them on Partner
+           applications</a> — that is where they are read, replied to and accepted.</p>`;
+  } catch (ex) {
+    // A count that could not be taken must not render as zero.
+    host.innerHTML = `<p class="note" style="margin-top:0">Partner applications could not be
+      counted: ${esc(ex?.message || ex)}. This is not a count of zero —
+      <a href="${esc(link)}">open them</a> to see.</p>`;
+  }
 }
 
 async function loadSponsorSummary(eventId) {

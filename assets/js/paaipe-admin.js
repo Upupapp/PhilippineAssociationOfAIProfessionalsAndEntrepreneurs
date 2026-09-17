@@ -19,6 +19,7 @@
 import {
   currentAgent, signIn, signOutNow, resetPassword, friendlyAuthError,
   isAdminNow, listMembers, listRegistrations, confirmMember, setMemberStatus,
+  countNewPartnerApplications,
   verifyResetCode, completePasswordReset, extractResetCode,
   STATUS,
 } from "/assets/js/paaipe-firebase.js";
@@ -84,6 +85,7 @@ export const ADMIN_NAV = [
   { sec: "EVENTS" },
   { href: "admin-events.html",        label: "Events",            icon: "cal",    built: true },
   { href: "admin-registrations.html", label: "Registrations",     icon: "check",  built: true, badge: "registrations" },
+  { href: "admin-partners.html",      label: "Partner applications", icon: "hand", built: true, badge: "partners" },
   { href: "admin-speaker-brief.html", label: "Speaker brief",     icon: "doc",    built: true },
   { sec: "PEOPLE" },
   { href: "admin-agents.html",        label: "Sign-ups (Agents)", icon: "people", built: true },
@@ -112,6 +114,7 @@ const ICONS = {
   book:   '<path d="M4 5.5C4 4.1 5.1 3 6.5 3H12v18H6.5C5.1 21 4 19.9 4 18.5z"/><path d="M20 5.5C20 4.1 18.9 3 17.5 3H12v18h5.5c1.4 0 2.5-1.1 2.5-2.5z"/>',
   mega:   '<path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1z"/><path d="M16 9a4 4 0 0 1 0 6"/>',
   mail:   '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
+  hand:   '<path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M10 10.5V5a1.5 1.5 0 0 1 3 0v5.5"/><path d="M13 10.5V7a1.5 1.5 0 0 1 3 0v6"/><path d="M16 11.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a7 7 0 0 1-7-7v-2.5a1.5 1.5 0 0 1 3 0"/>',
   cog:    '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
 };
 const svg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k] || ICONS.doc}</svg>`;
@@ -492,10 +495,11 @@ function flash(msg) {
 }
 
 async function refresh(adminEmail) {
-  const [members, regs] = await Promise.all([
+  const [members, regs, partners] = await Promise.all([
     listMembers().catch(e => { throw e; }),
     // registrations are secondary: a failure there must not blank the members
     listRegistrations().catch(() => null),
+    countNewPartnerApplications().catch(() => null),
   ]);
   renderMembers(members, adminEmail);
   if (regs === null) {
@@ -504,7 +508,28 @@ async function refresh(adminEmail) {
   } else {
     renderRegistrations(regs);
   }
+  renderPartnerStat(partners);
   document.documentElement.setAttribute("data-admin-ready", String(members.length));
+}
+
+/** null means the count could not be loaded. It must NOT read as zero - "no new
+ *  applications" and "we could not ask" are different, and only one of them
+ *  means nobody is waiting for a reply. */
+function renderPartnerStat(n) {
+  setNavBadge("partners", n === null ? 0 : n);
+  const el = $("[data-stat-partners]");
+  if (el) el.textContent = n === null ? "—" : String(n);
+  const note = $("[data-stat-partners-note]");
+  if (note) note.textContent = n === null
+    ? "Could not be loaded just now — this is not a count of zero."
+    : n === 0 ? "Nobody is waiting for a reply."
+              : `Waiting for a first reply. Open Partner applications.`;
+  const wrap = $("[data-partner-banner]");
+  if (wrap) {
+    wrap.hidden = !(n > 0);
+    const c = $("[data-partner-count]", wrap);
+    if (c) c.textContent = n === 1 ? "1 company is" : `${n} companies are`;
+  }
 }
 
 function showConsoleChrome(on) {

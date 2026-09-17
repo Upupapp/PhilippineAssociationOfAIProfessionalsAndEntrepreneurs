@@ -257,6 +257,104 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- PAAIPE: partner applications ------------------------------
+    //
+    // "Partner with us on this event" is a form ANYONE may submit - a visitor, a
+    // Guest, an Agent. So this is the second publicly-writable collection on the
+    // site, and like registrations the whole boundary is here.
+    //
+    // WHAT A SUBMITTER MAY NOT DO, and why each matters:
+    //
+    //  - They may not CREATE OR TOUCH AN ORGANIZATION. The brief asked that a
+    //    submission create or link a paaipe_organizations record. That would
+    //    hand every anonymous visitor a write into the collection the public
+    //    Partners page and every event credit render from - a name and a logo
+    //    on paaipe.org, for free. The match therefore happens in the admin
+    //    console, against the live org list, and the org is created when an
+    //    administrator ACCEPTS. `paaipe_organizations` stays admin-only above.
+    //
+    //  - They may not read anybody else's application. A competitor reading who
+    //    else is bidding to sponsor the October Exchange is a commercial leak,
+    //    and the contact details are personal data (RA 10173). A signed-in
+    //    member may read their OWN, which is what the portal's status line
+    //    needs; everyone else gets nothing.
+    //
+    //  - They may not set status, assignment, notes or anything else an
+    //    administrator decides. Those keys are simply not allowed on create.
+    //
+    // NOTE: a conditional read rule cannot filter a list. The portal MUST
+    // constrain its query by submittedByUserId or the whole query is refused -
+    // see the long note in paaipe-events-data.js.
+    match /paaipe_partner_applications/{id} {
+      allow create: if isWellFormedPartnerApplication(request.resource.data);
+
+      allow read: if isAdmin()
+                  || (request.auth != null
+                      && resource.data.get('submittedByUserId', '') == request.auth.uid);
+
+      // An administrator records what HAPPENED to an application and may not
+      // rewrite a word the applicant submitted - the same split as
+      // registrations. hasOnly() is what enforces it, so no console screen can
+      // quietly widen it later.
+      allow update: if isAdmin()
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status','assignedTo','adminNote','updated_by','updatedAt',
+                                   'organizationId','decidedAt'])
+                    && request.resource.data.status in
+                         ['new','contacted','in_discussion','accepted','declined','spam']
+                    && (!('adminNote' in request.resource.data.keys())
+                        || (request.resource.data.adminNote is string
+                            && request.resource.data.adminNote.size() <= 2000))
+                    && (!('assignedTo' in request.resource.data.keys())
+                        || (request.resource.data.assignedTo is string
+                            && request.resource.data.assignedTo.size() <= 254))
+                    && (request.resource.data.get('updated_by', null)
+                          == resource.data.get('updated_by', null)
+                        || request.resource.data.updated_by == request.auth.token.email);
+
+      // Somebody offered to help and put their name to it. That is not a record
+      // to make disappear - spam is a STATUS, and it keeps the audit trail.
+      allow delete: if false;
+    }
+
+    function isWellFormedPartnerApplication(d) {
+      return d.keys().hasAll(['eventId','reference','companyName','contactName',
+                              'email','phone','consentAt','status','createdAt'])
+          && d.keys().size() <= 18
+          // An application arrives NEW. A submitter cannot pre-accept themselves.
+          && d.status == 'new'
+          && d.reference is string && d.reference.matches('^PA-20[0-9][0-9]-[0-9A-Z]{4}$')
+          && d.eventId      is string && d.eventId.size()      > 0 && d.eventId.size()      <= 120
+          && d.companyName  is string && d.companyName.size()   > 0 && d.companyName.size()  <= 160
+          && d.contactName  is string && d.contactName.size()   > 0 && d.contactName.size()  <= 120
+          && d.email        is string && d.email.size()         > 4 && d.email.size()        <= 254
+          && d.email.matches('^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$')
+          // Philippine mobile, normalised to +639XXXXXXXXX before it is sent.
+          && d.phone        is string && d.phone.matches('^\\+639[0-9]{9}$')
+          && (!('website' in d.keys())      || (d.website is string && d.website.size() <= 300))
+          && (!('message' in d.keys())      || (d.message is string && d.message.size() <= 500))
+          // A closed list, checked here and not only in the form: these are a
+          // FILTER in the console, and a filter over values the client chose is
+          // a filter that means nothing.
+          && (!('supportTypes' in d.keys())
+              || (d.supportTypes is list && d.supportTypes.size() <= 5
+                  && d.supportTypes.hasOnly(['speaker','vouchers','venue','media','other'])))
+          && (!('source' in d.keys())       || (d.source in ['public_event','events_list','success_page',
+                                                             'portal_sessions','portal_session']))
+          && (!('eventTitle' in d.keys())   || (d.eventTitle is string && d.eventTitle.size() <= 200))
+          && (!('submittedByUserId' in d.keys())
+              // You may only claim to be YOURSELF, and only if signed in.
+              || (d.submittedByUserId is string
+                  && (d.submittedByUserId == '' 
+                      || (request.auth != null && d.submittedByUserId == request.auth.uid))))
+          && (!('isSample' in d.keys())     || d.isSample is bool)
+          && (!('privacyVersion' in d.keys()) || (d.privacyVersion is string && d.privacyVersion.size() <= 20))
+          && (!('userAgent' in d.keys())    || (d.userAgent is string && d.userAgent.size() <= 300))
+          // Consent is a REQUIRED act with a time on it, stamped by the server.
+          && d.consentAt == request.time
+          && d.createdAt == request.time;   // server timestamp only; no backdating
+    }
+
     match /paaipe_recordings/{eventId} {
       // Published recordings only, and only to signed-in members unless the
       // recording says otherwise. Absence means "not published", never "missing".

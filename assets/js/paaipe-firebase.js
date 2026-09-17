@@ -96,6 +96,7 @@ export function membershipStatus(agent) {
 export const COLLECTIONS = {
   registrations: "paaipe_event_registrations",
   agents:        "paaipe_agents",
+  partners:      "paaipe_partner_applications",
 };
 
 /** True only when the config has been filled in. Nothing may claim success
@@ -389,6 +390,25 @@ export async function listRegistrations() {
   const snap = await F.getDocs(F.collection(await db(), COLLECTIONS.registrations));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+}
+
+/* How many partner applications nobody has answered yet.
+ *
+ * A COUNT query, not a fetch. The number is all the dashboard needs, and these
+ * documents carry other people's names, emails and mobile numbers - there is no
+ * reason to pull them into the browser to render a "3".
+ *
+ * Constrained by status, because every query on this collection is: the read
+ * rule is conditional, and a conditional rule refuses an unconstrained query
+ * outright rather than filtering it. See the long note in
+ * paaipe-events-data.js. The admin branch would in fact allow the whole
+ * collection; asking narrowly costs nothing and keeps the shape consistent.
+ */
+export async function countNewPartnerApplications() {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const snap = await F.getCountFromServer(F.query(
+    F.collection(await db(), COLLECTIONS.partners), F.where("status", "==", "new")));
+  return snap.data().count;
 }
 
 /** The statuses a registration can hold. A registration written by the public

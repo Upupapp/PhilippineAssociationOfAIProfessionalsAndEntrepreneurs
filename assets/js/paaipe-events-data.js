@@ -11,7 +11,7 @@
  * sponsorship that is only proposed is unreadable, and the Zoom link is a
  * separate document no client may read.
  */
-import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
+import { firebaseConfig, DATABASE_ID, DOC_VERSIONS } from "/assets/js/paaipe-firebase.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 let _db = null;
@@ -31,6 +31,7 @@ export const COL = {
   sponsors:      "paaipe_event_sponsors",
   recordings:    "paaipe_recordings",
   log:           "paaipe_activity_log",
+  partners:      "paaipe_partner_applications",
 };
 
 /** Event lifecycle. The status is the single thing that decides what a visitor
@@ -52,6 +53,111 @@ export const SPONSOR_STATUS = { PROPOSED: "proposed", CONFIRMED: "confirmed", DE
  *  event. Enforced here AND checked before every write, because a limit that
  *  lives only in a form is a limit the next form forgets. */
 export const TIER_LIMITS = { [TIER.PRESENTING]: 1, [TIER.SUPPORTING]: 3, [TIER.COMMUNITY]: Infinity };
+
+/* ------------------------------------------------- partner applications */
+
+export const PARTNER_STATUS = {
+  NEW: "new", CONTACTED: "contacted", IN_DISCUSSION: "in_discussion",
+  ACCEPTED: "accepted", DECLINED: "declined", SPAM: "spam",
+};
+
+/** What the applicant offered. The list is closed because it is a filter in the
+ *  admin console, and a free-text "other" would make the filter meaningless -
+ *  the detail goes in the message instead. */
+export const SUPPORT_TYPES = [
+  ["speaker",  "A speaker or session"],
+  ["vouchers", "Vouchers or credits for attendees"],
+  ["venue",    "A venue"],
+  ["media",    "Media or promotion"],
+  ["other",    "Something else"],
+];
+
+export const PARTNER_SOURCES = [
+  "public_event", "events_list", "success_page", "portal_sessions", "portal_session",
+];
+
+/** An event that can still gain a partner. Held and cancelled cannot - offering
+ *  to sponsor last month's session is a form nobody should be shown. */
+export function acceptsPartners(ev) {
+  return Boolean(ev) && ev.status !== EVENT_STATUS.HELD
+                     && ev.status !== EVENT_STATUS.CANCELLED
+                     && ev.status !== EVENT_STATUS.DRAFT;
+}
+
+/* THE REFERENCE NUMBER IS DERIVED FROM THE DOCUMENT ID, NOT COUNTED.
+ *
+ * The brief asked for PA-YYYY-#### - a sequence. A sequence needs a counter
+ * document every client may increment, and `paaipe_counters` is read/write false
+ * for exactly that reason: a client-incremented counter is a client-controlled
+ * counter. It would also publish a fact PAAIPE may not want published, since
+ * PA-2026-0004 tells the fourth applicant they are the fourth.
+ *
+ * So the reference is four characters of the document's own id, which Firestore
+ * already guarantees unique. It reads like a reference, it is unique by
+ * construction, and it is not enumerable. The admin console re-derives it from
+ * the id rather than trusting the stored field, so a forged one is visible.
+ */
+export function referenceSuffix(docId) {
+  return String(docId || "").replace(/[^0-9A-Za-z]/g, "").toUpperCase().slice(0, 4).padEnd(4, "X");
+}
+export function partnerReference(docId, year = new Date().getFullYear()) {
+  return `PA-${year}-${referenceSuffix(docId)}`;
+}
+/** True when the stored reference really belongs to this document. */
+export function referenceMatchesId(row) {
+  return String(row.reference || "").endsWith(referenceSuffix(row.id));
+}
+
+/** A Philippine mobile number, normalised to +639XXXXXXXXX, or null.
+ *  Accepts 09XXXXXXXXX, +639XXXXXXXXX, 639XXXXXXXXX and spaced or dashed forms,
+ *  because people type their own number the way they say it. */
+export function normalisePhone(raw) {
+  const d = String(raw || "").replace(/[\s()\-.]/g, "");
+  let m;
+  if ((m = /^\+?63(9\d{9})$/.exec(d))) return `+63${m[1]}`;
+  if ((m = /^0(9\d{9})$/.exec(d)))      return `+63${m[1]}`;
+  if ((m = /^(9\d{9})$/.exec(d)))       return `+63${m[1]}`;
+  return null;
+}
+
+/** A company name reduced to something two spellings of the same company share.
+ *  "GetHired, Inc." and "gethired inc" both become "gethired". */
+export function normaliseCompany(name) {
+  return String(name || "").toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/\b(inc|incorporated|corp|corporation|co|company|ltd|limited|llc|plc|ph|philippines)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+/** The registrable part of a URL's host, for matching by domain. */
+export function domainOf(url) {
+  const raw = String(url || "").trim();
+  if (!raw) return "";
+  try {
+    const u = new URL(/^https?:\/\//i.test(raw) ? raw : `https://${raw}`);
+    return u.hostname.toLowerCase().replace(/^www\./, "");
+  } catch { return ""; }
+}
+
+/* THE ORGANIZATION MATCH RUNS IN THE ADMIN CONSOLE, NOT AT SUBMIT TIME.
+ *
+ * The brief asked that submitting create or link an Organization. It must not:
+ * paaipe_organizations is what the public Partners page and every event credit
+ * render from, so a public write there is a name and a logo on paaipe.org for
+ * anyone who asks. The rules keep that collection admin-only, an application
+ * carries only what the applicant typed, and the match is recomputed HERE from
+ * the live org list every time it is displayed. Nothing the applicant sends is
+ * trusted to name an organization.
+ */
+export function matchOrganization(app, orgs) {
+  const byName = normaliseCompany(app.companyName);
+  const byDomain = domainOf(app.website);
+  if (!byName && !byDomain) return null;
+  return orgs.find(o => byName && normaliseCompany(o.name) === byName)
+      || (byDomain ? orgs.find(o => domainOf(o.website) === byDomain) : null)
+      || null;
+}
 
 const toDate = v =>
   v?.toDate ? v.toDate() : v instanceof Date ? v : Number.isFinite(v?.seconds) ? new Date(v.seconds * 1000) : null;
@@ -211,3 +317,75 @@ export const eventDateLong = ev => {
 };
 
 export { toDate };
+
+/* ------------------------------------------------ partner applications: writes */
+
+/* What a signed-in member has already sent, for the portal's status line.
+ *
+ * CONSTRAINED BY submittedByUserId, and it has to be. The read rule on this
+ * collection is conditional - an administrator, or the person who submitted it -
+ * and a conditional rule does not filter a list, it refuses the whole query. An
+ * unconstrained getDocs() here returns permission-denied and the member sees
+ * nothing at all rather than their own application. Asking the question the rule
+ * can answer is what makes it allowed. It is the same trap as the events list
+ * above, and it bites here for the same reason.
+ *
+ * Returns a Map of eventId -> application. Never throws: a member who cannot be
+ * told the status of their application should still get the button.
+ */
+export async function myApplications(uid) {
+  if (!uid) return new Map();
+  try {
+    const F = await import(`${SDK}/firebase-firestore.js`);
+    const snap = await F.getDocs(F.query(
+      F.collection(await db(), COL.partners),
+      F.where("submittedByUserId", "==", uid)));
+    const m = new Map();
+    for (const d of snap.docs) {
+      const a = { id: d.id, ...d.data() };
+      const prev = m.get(a.eventId);
+      // Keep the most recent, so applying twice shows the live one.
+      if (!prev || (a.createdAt?.seconds || 0) > (prev.createdAt?.seconds || 0)) m.set(a.eventId, a);
+    }
+    return m;
+  } catch { return new Map(); }
+}
+
+
+/**
+ * Write one partner application.
+ *
+ * The document id is generated FIRST so the reference can be derived from it and
+ * stored in the same write - see partnerReference() above for why it is derived
+ * rather than counted.
+ * Throws on failure: the caller must not show the success panel unless this
+ * resolves, or the applicant walks away with a reference to nothing.
+ *
+ * @returns {{id:string, reference:string}}
+ */
+export async function submitPartnerApplication(fields) {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const ref = F.doc(F.collection(await db(), COL.partners));
+  const reference = partnerReference(ref.id);
+  const doc = {
+    eventId:           fields.eventId,
+    eventTitle:        String(fields.eventTitle || "").slice(0, 200),
+    reference,
+    companyName:       fields.companyName,
+    contactName:       fields.contactName,
+    email:             fields.email,
+    phone:             fields.phone,
+    website:           fields.website || "",
+    message:           fields.message || "",
+    supportTypes:      Array.isArray(fields.supportTypes) ? fields.supportTypes.slice(0, 5) : [],
+    source:            fields.source,
+    submittedByUserId: fields.submittedByUserId || "",
+    status:            PARTNER_STATUS.NEW,
+    privacyVersion:    DOC_VERSIONS.privacy,
+    userAgent:         String(navigator.userAgent || "").slice(0, 300),
+    consentAt:         F.serverTimestamp(),
+    createdAt:         F.serverTimestamp(),
+  };
+  await F.setDoc(ref, doc);
+  return { id: ref.id, reference };
+}

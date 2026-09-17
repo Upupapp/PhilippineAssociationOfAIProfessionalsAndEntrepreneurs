@@ -54,6 +54,16 @@ await T('the hub has a hero, a 7-step path, and seven program cards',async()=>{
   await ctx.close();
 });
 
+await T('the hub uses Inter like sibling portal pages on main, not Poppins',async()=>{
+  const {p,ctx}=await open();
+  const html=await p.content();
+  ok(/family=Inter:wght@400;500;600;700;800/.test(html),'same Google Fonts Inter link as portal.html');
+  ok(!/family=Poppins/.test(html),'must not load Poppins on this portal page');
+  const fam=await p.evaluate(()=>getComputedStyle(document.body).fontFamily);
+  ok(/^Inter\b/.test(fam),`body stack should start with Inter, got ${fam}`);
+  await ctx.close();
+});
+
 await T('Explore programs points at the card grid',async()=>{
   const {p,ctx}=await open();
   eq(await p.locator('.phero-copy a.btn').getAttribute('href'),'#programs','hash to the grid');

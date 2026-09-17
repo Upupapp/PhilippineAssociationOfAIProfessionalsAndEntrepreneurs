@@ -149,6 +149,13 @@ code{background:var(--pale);padding:2px 6px;border-radius:5px;font-size:12px}
   background:#fff;color:var(--muted);cursor:pointer}
 .chip.on{background:var(--navy);border-color:var(--navy);color:#fff}
 .chip:disabled{cursor:default}
+/* Compact static labels for tables and lists. .chip is the publish-rail toggle
+   (larger, cursor:pointer, no display) — dumping those spans into a <td> lets
+   inline padding wrap mid-label and paint overlapping pills. .tag is a box. */
+.tags{display:flex;flex-wrap:wrap;gap:5px;align-items:flex-start;min-width:0}
+.tag{display:inline-flex;align-items:center;font-size:11px;font-weight:600;line-height:1.3;
+  padding:3px 8px;border-radius:999px;border:1px solid var(--line);background:var(--pale);
+  color:var(--navy);white-space:nowrap;cursor:default}
 .plist{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:9px;font-size:13px}
 .plist li{display:flex;gap:9px;align-items:flex-start;color:var(--ink)}
 .plist svg{width:15px;height:15px;flex:none;margin-top:3px;stroke-width:2.6;fill:none}

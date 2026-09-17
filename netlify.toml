@@ -55,6 +55,11 @@
     Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
 
 [[headers]]
+  for = "/assets/email/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"
+
+[[headers]]
   for = "/assets/*.ics"
   [headers.values]
     Cache-Control = "public, max-age=3600, stale-while-revalidate=86400"

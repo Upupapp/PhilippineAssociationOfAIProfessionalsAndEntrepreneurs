@@ -295,13 +295,10 @@ export async function currentAgent() {
     confirmedBy: profile.confirmed_by || null,
     // so the one-time celebration can be shown exactly once
     confirmationSeen: profile.confirmation_seen === true,
-    // Empty string is an explicit "no photo" (the member removed it). A missing
-    // field may still fall back to Auth (Google) photoURL. Never invent one.
-    photoURL: profile.photoURL === ""
-      ? ""
-      : ((typeof profile.photoURL === "string" && profile.photoURL.trim())
-          ? profile.photoURL.trim()
-          : (user.photoURL || "")),
+    // Read-only until Storage is wired. Never invent a URL; never fall back to
+    // Auth photoURL (Clarence: persist photoUrl on paaipe_agents only).
+    photoUrl: (typeof profile.photoUrl === "string" && profile.photoUrl.trim())
+      ? profile.photoUrl.trim() : "",
   };
 }
 
@@ -344,14 +341,33 @@ export async function setDirectoryVisible(visible) {
 /* ---------------------------------------------------------------------------
  * Profile photo.
  *
- * Bytes live in Storage; the profile stores a URL string in `photoURL`.
- * Storage rules are Clarence's. This client must tolerate a missing bucket
- * or a bucket that exists but is not writable — partner logos hit the same
- * wall. Callers MUST NOT show success unless these resolve.
+ * Clarence, 2026-09-17: Storage is NOT ready. The portal ships the crop UI
+ * and initials fallback, and save/remove MUST fail honestly. Do not upload,
+ * do not invent a URL, do not write photoUrl (self hasOnly would reject it),
+ * do not touch Auth photoURL.
+ *
+ * When Storage is enabled, do not invent another contract:
+ *   path  agents/{uid}/profile.{ext}     jpeg | png | webp, max 2 MB
+ *   field photoUrl on paaipe_agents      (not Auth)
+ *   flow  uploadBytes → getDownloadURL() → persist photoUrl
+ * Flip AGENT_PHOTO_STORAGE_READY only after bucket + rules + hasOnly agree.
  * ------------------------------------------------------------------------- */
 
-const PHOTO_OBJECT = uid => `paaipe_agents/${uid}/photo.jpg`;
-let _storageOk = null;   // null = not yet checked
+/** False until Clarence wires a writable bucket and rules. */
+export const AGENT_PHOTO_STORAGE_READY = false;
+export const AGENT_PHOTO_FIELD = "photoUrl";
+export const AGENT_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+export const AGENT_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const agentPhotoObject = (uid, ext = "jpg") => `agents/${uid}/profile.${ext}`;
+
+const PHOTO_STUB =
+  "Photos cannot be saved yet — Storage is not wired (no writable bucket or rules). Nothing was uploaded, and your profile was not changed.";
+
+function photoNotWired() {
+  const err = new Error(PHOTO_STUB);
+  err.code = "storage/not-wired";
+  return err;
+}
 
 async function signedInUser() {
   const A = await import(`${SDK}/firebase-auth.js`);
@@ -361,86 +377,61 @@ async function signedInUser() {
   return { A, user };
 }
 
-/** True when the configured bucket exists. 401/403 still count as "exists"
- *  (a private bucket looks like that from here). A write may still be refused
- *  by rules — callers must treat a write failure as a failure. */
-export async function storageWritable() {
-  if (_storageOk !== null) return _storageOk;
-  const bucket = (firebaseConfig.storageBucket || "").trim();
-  if (!bucket) return (_storageOk = false);
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 4000);
-    const r = await fetch(
-      `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o?maxResults=1`,
-      { signal: ctrl.signal });
-    clearTimeout(t);
-    // 404 = no such bucket. Anything else (including 401/403) means a bucket
-    // answered, which is the most we can know without trying a write.
-    _storageOk = r.status !== 404;
-  } catch {
-    _storageOk = false;
-  }
-  return _storageOk;
-}
-
 export function explainPhotoError(err) {
   const code = err && err.code || "";
   const msg = String(err && err.message || err || "");
+  if (code === "storage/not-wired" || /not wired|not-wired/i.test(msg)) return PHOTO_STUB;
   if (code === "storage/bucket-missing" || /bucket-missing|does not exist/i.test(msg))
-    return "Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.";
+    return PHOTO_STUB;
   if (code === "profile-update-failed")
-    return "The file reached storage, but your profile could not be updated. The portal will not show a new photo yet.";
+    return "The file reached storage, but photoUrl could not be saved on your profile. The portal will not show a new photo yet.";
   if (code === "storage/unauthorized" || code === "permission-denied" ||
       /unauthorized|permission-denied|not writable/i.test(msg))
-    return "Photos cannot be saved yet — storage is not writable from the portal. Nothing was uploaded.";
+    return PHOTO_STUB;
   if (code === "not-signed-in")
     return "You need to be signed in to change your photo.";
-  if (code === "storage-leftover")
-    return msg || "Your photo was removed from your profile. The stored file could not be deleted yet.";
-  if (/nothing was/i.test(msg) || /cannot be saved/i.test(msg) || /removed from your profile/i.test(msg))
+  if (/nothing was/i.test(msg) || /cannot be saved/i.test(msg) || /not changed/i.test(msg))
     return msg;
   return "Could not save your photo. Nothing was changed.";
 }
 
-async function storageRefFor(uid) {
+async function storageRefFor(uid, ext) {
   const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
   const { getStorage, ref } = await import(`${SDK}/firebase-storage.js`);
   const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
-  return ref(getStorage(app), PHOTO_OBJECT(uid));
+  return ref(getStorage(app), agentPhotoObject(uid, ext));
 }
 
-/** Upload cropped JPEG bytes. Throws — never invents a URL. */
-export async function uploadAgentPhoto(blob) {
-  if (!(await storageWritable())) {
-    const err = new Error("Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.");
-    err.code = "storage/bucket-missing";
-    throw err;
-  }
+/** Upload bytes to agents/{uid}/profile.{ext}. Never invents a URL. */
+export async function uploadAgentPhoto(blob, ext = "jpg") {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
   const { user } = await signedInUser();
   const { uploadBytes, getDownloadURL } = await import(`${SDK}/firebase-storage.js`);
-  const r = await storageRefFor(user.uid);
-  await uploadBytes(r, blob, { contentType: "image/jpeg" });
+  const type = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+  const r = await storageRefFor(user.uid, ext);
+  await uploadBytes(r, blob, { contentType: type });
   return getDownloadURL(r);
 }
 
-/** Persist the portrait URL on the Agent profile (and Auth, best-effort). */
-export async function setAgentPhotoURL(url) {
-  const { A, user } = await signedInUser();
+/** Persist photoUrl on paaipe_agents. Does NOT write Auth. Do not call while
+ *  self hasOnly omits this field — the rules will reject it. */
+export async function persistAgentPhotoUrl(url) {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
+  const { user } = await signedInUser();
   const F = await import(`${SDK}/firebase-firestore.js`);
   const value = typeof url === "string" ? url : "";
-  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), { photoURL: value });
-  try { await A.updateProfile(user, { photoURL: value || null }); } catch {}
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), { photoUrl: value });
   return value;
 }
 
-/** Upload + persist. Chrome may refresh only after this resolves. */
-export async function saveAgentPhotoBlob(blob) {
-  const url = await uploadAgentPhoto(blob);
+/** Upload then persist. Throws — never fakes success, never writes a fake URL. */
+export async function saveAgentPhotoBlob(blob, ext = "jpg") {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
+  const url = await uploadAgentPhoto(blob, ext);
   try {
-    await setAgentPhotoURL(url);
+    await persistAgentPhotoUrl(url);
   } catch (e) {
-    const err = new Error("The file reached storage, but your profile could not be updated. The portal will not show a new photo yet.");
+    const err = new Error("The file reached storage, but photoUrl could not be saved on your profile. The portal will not show a new photo yet.");
     err.code = "profile-update-failed";
     err.cause = e;
     throw err;
@@ -448,35 +439,16 @@ export async function saveAgentPhotoBlob(blob) {
   return url;
 }
 
-/** Clear photoURL. Deletes the Storage object when that is possible; a leftover
- *  file after a successful profile clear is reported, not hidden. */
+/** Clear photoUrl and the Storage object. Same stub while Storage is unwired. */
 export async function clearAgentPhoto() {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
   const { user } = await signedInUser();
-  let leftover = false;
-  try {
-    if (await storageWritable()) {
-      const { deleteObject } = await import(`${SDK}/firebase-storage.js`);
-      try { await deleteObject(await storageRefFor(user.uid)); }
-      catch (e) {
-        if (e && e.code !== "storage/object-not-found") leftover = true;
-      }
-    }
-  } catch {
-    leftover = true;
+  const { deleteObject } = await import(`${SDK}/firebase-storage.js`);
+  try { await deleteObject(await storageRefFor(user.uid, "jpg")); }
+  catch (e) {
+    if (!(e && e.code === "storage/object-not-found")) throw e;
   }
-  try {
-    await setAgentPhotoURL("");
-  } catch (e) {
-    const err = new Error(explainPhotoError(e));
-    err.code = e && e.code || "permission-denied";
-    throw err;
-  }
-  if (leftover) {
-    const err = new Error("Your photo was removed from your profile. The stored file could not be deleted yet.");
-    err.code = "storage-leftover";
-    err.cleared = true;
-    throw err;
-  }
+  await persistAgentPhotoUrl("");
   return "";
 }
 

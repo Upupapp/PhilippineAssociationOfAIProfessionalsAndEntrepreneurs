@@ -59,7 +59,7 @@ function fromSelf(agent) {
     location: founding?.location || "",
     role: founding?.role || "",
     tags: founding?.tags || [],
-    photo: agent.photoURL || founding?.photo || "",
+    photo: agent.photoUrl || founding?.photo || "",
     about: founding?.about || "",
     founding: !!(founding && founding.founding),
     directoryVisible: agent.directoryVisible === true,

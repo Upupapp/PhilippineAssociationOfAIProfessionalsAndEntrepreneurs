@@ -1,18 +1,19 @@
 /* Agent profile photo — chrome camera badge, Profile section, crop modal.
  *
  * ONE pipeline, used by the sidebar/header avatars and by My Profile. Pick a
- * JPG/PNG, square-crop it in a modal, then try to upload and persist photoURL.
+ * JPG/PNG/WebP, square-crop it in a modal, then try to save.
  *
- * Storage may not be writable (Clarence owns storage/rules; partner logos were
- * blocked for the same reason). The UI is always offered. A save that cannot
- * write MUST say so. Never paint a photo as saved when it was not.
+ * Clarence, 2026-09-17: Storage is not wired. Cropping is offered; save MUST
+ * fail honestly. Never paint a photo as saved. Never write a fake URL.
+ * Future contract (do not invent another): agents/{uid}/profile.{ext} then
+ * persist photoUrl on paaipe_agents — see paaipe-firebase.js.
  */
 import {
-  storageWritable, saveAgentPhotoBlob, clearAgentPhoto, explainPhotoError,
+  saveAgentPhotoBlob, clearAgentPhoto, explainPhotoError,
 } from "/assets/js/paaipe-firebase.js";
 
 export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
-export const PHOTO_TYPES = ["image/jpeg", "image/png"];
+export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const STAGE = 280;
 const OUT = 512;
 const CAM =
@@ -81,7 +82,7 @@ function ensureInput() {
   if (input) return input;
   input = document.createElement("input");
   input.type = "file";
-  input.accept = "image/jpeg,image/png";
+  input.accept = "image/jpeg,image/png,image/webp";
   input.hidden = true;
   input.setAttribute("data-photo-file", "");
   input.setAttribute("aria-hidden", "true");
@@ -223,16 +224,16 @@ function showMsg(text, kind) {
   });
 }
 
-function applyHelper(agent, storageOk) {
+function applyHelper(agent) {
   const help = $("[data-photo-help]");
   if (!help) return;
-  const bits = ["JPG or PNG, up to 2 MB. A square crop works best."];
+  const bits = [
+    "JPG, PNG or WebP, up to 2 MB. A square crop works best.",
+    "Photos cannot be saved yet — Storage is not wired (no writable bucket or rules). Cropping still works; saving will not upload a file or change your profile.",
+  ];
   const isAgent = !!(agent && (agent.status === "agent" || (agent.isAgent === true && agent.status !== "guest" && agent.status !== "suspended")));
   if (agent && !isAgent) {
-    bits.push("You’re signed in as a Guest. You can still set a photo — it belongs to this account, including after confirmation.");
-  }
-  if (storageOk === false) {
-    bits.push("Photos cannot be stored yet (file storage is not writable). You can still crop a picture; saving will say so rather than pretend it worked.");
+    bits.push("You’re signed in as a Guest. A photo would belong to this account after Storage is enabled.");
   }
   help.textContent = bits.join(" ");
 }
@@ -254,11 +255,11 @@ function rejectFile(file) {
   const type = (file.type || "").toLowerCase();
   const name = file.name || "";
   if (type === "image/gif" || /\.gif$/i.test(name))
-    return "GIFs are not supported. Please choose a JPG or PNG.";
-  if (!PHOTO_TYPES.includes(type) && !/\.jpe?g$|\.png$/i.test(name))
-    return "Please choose a JPG or PNG.";
+    return "GIFs are not supported. Please choose a JPG, PNG or WebP.";
+  if (!PHOTO_TYPES.includes(type) && !/\.jpe?g$|\.png$|\.webp$/i.test(name))
+    return "Please choose a JPG, PNG or WebP.";
   if (file.size > PHOTO_MAX_BYTES)
-    return "That file is larger than 2 MB. Please choose a smaller JPG or PNG.";
+    return "That file is larger than 2 MB. Please choose a smaller JPG, PNG or WebP.";
   return "";
 }
 
@@ -294,7 +295,7 @@ function openCrop(file) {
   };
   img.onerror = () => {
     URL.revokeObjectURL(url);
-    showMsg("That picture could not be read. Please choose a different JPG or PNG.", "err");
+    showMsg("That picture could not be read. Please choose a different JPG, PNG or WebP.", "err");
   };
   img.src = url;
 }
@@ -366,8 +367,8 @@ async function saveCrop() {
   save.textContent = "Saving…";
   try {
     const blob = await blobFromCrop();
-    const url = await saveAgentPhotoBlob(blob);
-    if (agentRef) agentRef.photoURL = url;
+    const url = await saveAgentPhotoBlob(blob, "jpg");
+    if (agentRef) agentRef.photoUrl = url;
     refreshAgentPhotos(url);
     closeCrop();
     showMsg("Photo updated.", "ok");
@@ -389,18 +390,12 @@ async function onRemove() {
   if (btn) btn.disabled = true;
   try {
     await clearAgentPhoto();
-    if (agentRef) agentRef.photoURL = "";
+    if (agentRef) agentRef.photoUrl = "";
     refreshAgentPhotos("");
     showMsg("Photo removed. Your initials will show instead.", "ok");
   } catch (e) {
-    if (e && e.cleared) {
-      if (agentRef) agentRef.photoURL = "";
-      refreshAgentPhotos("");
-      showMsg(explainPhotoError(e), "err");
-      return;
-    }
     showMsg(explainPhotoError(e), "err");
-    if (btn) btn.disabled = !(agentRef && agentRef.photoURL);
+    if (btn) btn.disabled = !(agentRef && agentRef.photoUrl);
   }
 }
 
@@ -437,12 +432,9 @@ export function initProfilePhoto(agent) {
     if (s) return s.split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
     return ((agent && agent.email) || "?").slice(0, 2).toUpperCase();
   })();
-  refreshAgentPhotos(agent && agent.photoURL, initials);
-  applyHelper(agent, null);
-  storageWritable()
-    .then((ok) => applyHelper(agent, ok))
-    .catch(() => applyHelper(agent, false))
-    .finally(() => document.documentElement.setAttribute("data-photo-ready", "1"));
+  refreshAgentPhotos(agent && agent.photoUrl, initials);
+  applyHelper(agent);
+  document.documentElement.setAttribute("data-photo-ready", "1");
   if (!document.documentElement.hasAttribute("data-photo-wired")) {
     document.documentElement.setAttribute("data-photo-wired", "1");
     wire();

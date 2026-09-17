@@ -1,39 +1,24 @@
-/* Agent profile photo: chrome camera badge, Profile section, crop, honest save. */
+/* Agent profile photo: chrome camera badge, Profile section, crop, honest Storage stub. */
 import { chromium } from 'playwright';
 import { readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
 const REAL_FB=readFileSync(`${ROOT}/assets/js/paaipe-firebase.js`,'utf8');
+const RULES=readFileSync(`${ROOT}/firestore.rules`,'utf8');
 let pass=0,fail=0;
 const T=async(n,f)=>{try{await f();console.log(`  PASS  ${n}`);pass++}catch(e){console.log(`  FAIL  ${n}\n        ${e.message}`);fail++}};
 const ok=(c,m)=>{if(!c)throw new Error(m)};
 const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(`${m}: got ${JSON.stringify(a)}, want ${JSON.stringify(b)}`)};
 
-const fbStub=({signedIn=true,status='agent',emailVerified=true,photoURL='',full_name='Maria Santos'}={})=>`
+const fbStub=({signedIn=true,status='agent',emailVerified=true,photoUrl='',full_name='Maria Santos'}={})=>`
   export * from '/assets/js/paaipe-firebase-real.js';
   export function isConfigured(){return true}
   export async function currentAgent(){
     return ${signedIn}?{
       uid:'u1', email:'maria@example.com', full_name:${JSON.stringify(full_name)},
       status:'${status}', isAgent:${status==='agent'}, emailVerified:${emailVerified},
-      photoURL:${JSON.stringify(photoURL)}, directoryVisible:false,
+      photoUrl:${JSON.stringify(photoUrl)}, directoryVisible:false,
       agentNumber:${status==='agent'?'"0006"':'null'}, confirmationSeen:true
-    }:null}
-  export async function storageWritable(){return false}
-  export async function saveAgentPhotoBlob(){
-    const e=new Error('Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.');
-    e.code='storage/bucket-missing'; throw e}
-  export async function uploadAgentPhoto(){
-    const e=new Error('Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.');
-    e.code='storage/bucket-missing'; throw e}
-  export async function setAgentPhotoURL(){throw new Error('not-available')}
-  export async function clearAgentPhoto(){
-    const e=new Error('Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.');
-    e.code='storage/bucket-missing'; throw e}
-  export function explainPhotoError(err){
-    const m=String(err&&err.message||err||'');
-    return m||'Could not save your photo. Nothing was changed.';
-  }
-`;
+    }:null}`;
 
 const br=await chromium.launch();
 const errs=[];
@@ -46,6 +31,19 @@ async function open(path, opts={}){
   await p.waitForSelector('html[data-photo-ready]',{timeout:9000});
   return {p, ctx};
 }
+
+await T('the Storage contract is coded and the stub is on',()=>{
+  ok(/AGENT_PHOTO_STORAGE_READY\s*=\s*false/.test(REAL_FB),'READY stays false');
+  ok(/agents\/\$\{uid\}\/profile\.\$\{ext\}/.test(REAL_FB),'path agents/{uid}/profile.{ext}');
+  ok(/AGENT_PHOTO_FIELD\s*=\s*"photoUrl"/.test(REAL_FB),'field is photoUrl');
+  ok(!/updateProfile\(user,\s*\{\s*photoURL/.test(REAL_FB),'must not write Auth photoURL');
+});
+
+await T('self hasOnly does not allow photoUrl yet',()=>{
+  const m=RULES.match(/match \/paaipe_agents\/\{uid\}[\s\S]*?allow update: if request\.auth != null && request\.auth\.uid == uid[\s\S]*?hasOnly\(\[([^\]]+)\]\)/);
+  ok(m,'found member self-update hasOnly');
+  ok(!/photoUrl|photoURL/.test(m[1]),`must not patch photoUrl yet: ${m[1]}`);
+});
 
 await T('sidebar and header avatars become camera-badge buttons',async()=>{
   const {p,ctx}=await open('portal.html');
@@ -69,7 +67,7 @@ await T('community compose and directory You card are not change-photo buttons',
   await c2.close();
 });
 
-await T('My Profile has the photo section with Upload, Remove and helper',async()=>{
+await T('My Profile helper names the Storage stub clearly',async()=>{
   const {p,ctx}=await open('portal-profile.html');
   ok(await p.locator('[data-profile-photo]').isVisible(),'section');
   ok(await p.locator('[data-profile-photo] .pp-preview').isVisible(),'large preview');
@@ -78,19 +76,20 @@ await T('My Profile has the photo section with Upload, Remove and helper',async(
   ok(await p.locator('[data-photo-remove]').isDisabled(),'Remove idle without a photo');
   const help=(await p.locator('[data-photo-help]').innerText());
   ok(/JPG|PNG/i.test(help),'format');
+  ok(/WebP/i.test(help),'webp in the contract');
   ok(/2 MB/i.test(help),'max size');
   ok(/square/i.test(help),'square crop');
-  ok(/not writable|cannot be stored/i.test(help),`honest storage: ${help}`);
+  ok(/Storage is not wired/i.test(help),`stub named: ${help}`);
+  ok(/will not upload|Nothing was uploaded|not change your profile/i.test(help),'no fake save');
   ok(!/Guest/i.test(help),'agent helper does not call them a Guest');
   await ctx.close();
 });
 
-await T('a Guest is told clearly they are a Guest; storage still honest',async()=>{
+await T('a Guest is told they are a Guest; Storage stub still honest',async()=>{
   const {p,ctx}=await open('portal-profile.html',{status:'guest',emailVerified:true});
   const help=(await p.locator('[data-photo-help]').innerText());
   ok(/Guest/i.test(help),`guest named: ${help}`);
-  ok(/JPG|PNG/i.test(help),'format still there');
-  ok(/cannot be stored|not writable/i.test(help),'storage still honest for guests');
+  ok(/Storage is not wired/i.test(help),'storage still honest for guests');
   await ctx.close();
 });
 
@@ -105,9 +104,9 @@ await T('chrome click on Profile does not navigate or reload',async()=>{
   await ctx.close();
 });
 
-await T('a photoURL paints every data-agent-initials surface, including chrome',async()=>{
+await T('a photoUrl paints every data-agent-initials surface, including chrome',async()=>{
   const {p,ctx}=await open('portal-profile.html',{
-    photoURL:'assets/img/agents/agent-001-paul-espinas.png'});
+    photoUrl:'assets/img/agents/agent-001-paul-espinas.png'});
   const n=await p.locator('[data-agent-initials] img[data-agent-photo]').count();
   ok(n>=3,`preview + sidebar + header, got ${n}`);
   ok(await p.locator('.side .me img[data-agent-photo]').isVisible(),'sidebar photo');
@@ -119,7 +118,7 @@ await T('a photoURL paints every data-agent-initials surface, including chrome',
   await ctx.close();
 });
 
-await T('crop then Save is honest when storage cannot write — never fake success',async()=>{
+await T('crop then Save is the Storage stub — never fake success, never a URL',async()=>{
   const {p,ctx}=await open('portal-profile.html');
   await p.locator('[data-photo-file]').setInputFiles(`${ROOT}/assets/img/agents/agent-001-paul-espinas.png`);
   await p.waitForSelector('[data-photo-crop][open], dialog[data-photo-crop]',{timeout:9000});
@@ -133,9 +132,12 @@ await T('crop then Save is honest when storage cannot write — never fake succe
   const cropErr=(await p.locator('[data-photo-crop-err]').innerText());
   const pageMsg=(await p.locator('[data-photo-msg]').innerText());
   const text=cropErr+' '+pageMsg;
-  ok(/Nothing was uploaded|cannot be saved|not enabled/i.test(text),`honest: ${text}`);
+  ok(/Storage is not wired/i.test(text),`stub: ${text}`);
+  ok(/Nothing was uploaded|not change/i.test(text),`no write: ${text}`);
   ok(!/Photo updated|saved successfully|your photo is set/i.test(text),
      `must not claim success: ${text}`);
+  eq(await p.locator('.side .me img[data-agent-photo]').count(),0,
+     'chrome must not show a fake photo after a failed save');
   await ctx.close();
 });
 

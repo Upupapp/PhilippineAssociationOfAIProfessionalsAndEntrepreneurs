@@ -285,8 +285,8 @@ function composeView(ctx, st, items) {
             <label class="sub">Date and time · ${esc(EMAIL_TZ)}</label>
             <input type="datetime-local" data-email-when value="${esc(st.scheduleAt)}">
           </div>
-          <button type="button" class="btn btn-ghost btn-block" data-email-test
-            title="${esc(PIPELINE_COPY)}">Send test to me</button>
+          <button type="button" class="email-action" data-email-test
+            title="${esc(PIPELINE_COPY)}">${SEND} Send test to me</button>
           <p class="note">${esc(PIPELINE_COPY)}</p>
         </section>
 

@@ -299,8 +299,73 @@ function applyReelsChrome(root = document) {
 
 
 
+
   if (page === "sessions-hub") {
-    applyReelsChrome(document);
+    // Sub-tabs: Sessions (default) | Micros. Micros is the only reels surface.
+    const tabs = [...document.querySelectorAll("[data-ss-hub-tab]")];
+    const panels = {
+      sessions: document.querySelector('[data-ss-hub-panel="sessions"]'),
+      micros: document.querySelector('[data-ss-hub-panel="micros"]'),
+    };
+    function showHubTab(name, { focus = false } = {}) {
+      tabs.forEach(t => {
+        const on = t.getAttribute("data-ss-hub-tab") === name;
+        t.classList.toggle("on", on);
+        t.setAttribute("aria-selected", on ? "true" : "false");
+        t.tabIndex = on ? 0 : -1;
+        if (on && focus) t.focus();
+      });
+      Object.keys(panels).forEach(k => {
+        if (!panels[k]) return;
+        panels[k].hidden = k !== name;
+      });
+    }
+    tabs.forEach(t => {
+      t.addEventListener("click", () => showHubTab(t.getAttribute("data-ss-hub-tab")));
+      t.addEventListener("keydown", e => {
+        const i = tabs.indexOf(t);
+        if (i < 0) return;
+        let next = -1;
+        if (e.key === "ArrowRight" || e.key === "ArrowDown") next = (i + 1) % tabs.length;
+        else if (e.key === "ArrowLeft" || e.key === "ArrowUp") next = (i - 1 + tabs.length) % tabs.length;
+        else if (e.key === "Home") next = 0;
+        else if (e.key === "End") next = tabs.length - 1;
+        if (next < 0) return;
+        e.preventDefault();
+        showHubTab(tabs[next].getAttribute("data-ss-hub-tab"), { focus: true });
+      });
+    });
+    showHubTab("sessions");
+
+    // Micros: honest empty state today; 9:16 grid only when reels exist.
+    const allReels = [];
+    PAST_SESSIONS.forEach(s => {
+      sessionReels(s).forEach(r => allReels.push({ session: s, reel: r }));
+    });
+    const microEmpty = document.querySelector("[data-ss-micro-empty]");
+    const microGrid = document.querySelector("[data-ss-micro-grid]");
+    if (allReels.length && microGrid) {
+      if (microEmpty) hide(microEmpty);
+      microGrid.hidden = false;
+      microGrid.innerHTML = "";
+      allReels.forEach(({ session: s, reel: r }) => {
+        const a = document.createElement("a");
+        a.className = "micro-card";
+        a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(r.id || "reel")}`;
+        const img = document.createElement("img");
+        img.src = r.thumb || s.poster || "assets/img/ai-exchange-session.jpg";
+        img.alt = r.title || s.title || "Micro";
+        const cap = document.createElement("div");
+        cap.className = "cap";
+        cap.textContent = r.title || s.title || "Micro";
+        a.appendChild(img);
+        a.appendChild(cap);
+        microGrid.appendChild(a);
+      });
+    } else {
+      if (microEmpty) microEmpty.hidden = false;
+      if (microGrid) hide(microGrid);
+    }
 
     const withRec = PAST_SESSIONS.filter(sessionHasRecording);
     const latest = withRec[0] || PAST_SESSIONS[0] || null;
@@ -324,7 +389,6 @@ function applyReelsChrome(root = document) {
         if (label) label.textContent = "Latest recording";
         if (primary) primary.textContent = "Watch";
       }
-      // Hub secondary Q&A → Part 2 recording when present
       const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
       cont.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
         if (!qa) return;
@@ -335,7 +399,7 @@ function applyReelsChrome(root = document) {
       hide(cont);
     }
 
-    // Lesson library from the same catalog — not event/calendar rows.
+    // Lesson library + Type/Speaker filters (AND with search).
     const tpl = document.querySelector("[data-ss-lesson]");
     const list = document.querySelector("[data-ss-lesson-list]");
     if (tpl && list) {
@@ -345,6 +409,19 @@ function applyReelsChrome(root = document) {
         "[data-ss-count]",
         lessons.length === 1 ? "1 lesson" : `${lessons.length} lessons`
       );
+
+      // Speaker select from distinct catalog speakers (no invented names).
+      const speakerSel = document.querySelector("[data-ss-filter-speaker]");
+      if (speakerSel) {
+        const speakers = [...new Set(lessons.map(s => s.speaker).filter(Boolean))].sort();
+        speakers.forEach(name => {
+          const opt = document.createElement("option");
+          opt.value = name;
+          opt.textContent = name;
+          speakerSel.appendChild(opt);
+        });
+      }
+
       const frag = document.createDocumentFragment();
       lessons.forEach(s => {
         const el = tpl.cloneNode(true);
@@ -352,8 +429,15 @@ function applyReelsChrome(root = document) {
         el.hidden = false;
         el.style.display = "";
         el.setAttribute("data-ss-lesson-id", s.id);
-        applySession(el, s);
         const recs = sessionRecordings(s);
+        const hasRec = sessionHasRecording(s);
+        const hasSlides = !!s.slidesUrl;
+        const hasQa = recs.some(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || "")) || !!s.qaCount;
+        el.setAttribute("data-ss-has-recording", hasRec ? "1" : "0");
+        el.setAttribute("data-ss-has-slides", hasSlides ? "1" : "0");
+        el.setAttribute("data-ss-has-qa", hasQa ? "1" : "0");
+        el.setAttribute("data-ss-speaker", s.speaker || "");
+        applySession(el, s);
         const first = recs[0];
         const watchUrl = first
           ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(first.id)}`
@@ -369,16 +453,44 @@ function applyReelsChrome(root = document) {
       });
       tpl.replaceWith(frag);
 
+      let typeFilter = "all";
       const search = document.querySelector("[data-ss-lesson-search]");
-      if (search) {
-        search.addEventListener("input", () => {
-          const q = search.value.trim().toLowerCase();
-          list.querySelectorAll("[data-ss-lesson-id]").forEach(row => {
-            const text = row.textContent.toLowerCase();
-            row.style.display = !q || text.includes(q) ? "" : "none";
-          });
+      const emptyNote = document.querySelector("[data-ss-filter-empty]");
+
+      function applyLibraryFilters() {
+        const q = (search && search.value.trim().toLowerCase()) || "";
+        const speaker = (speakerSel && speakerSel.value) || "";
+        let visible = 0;
+        list.querySelectorAll("[data-ss-lesson-id]").forEach(row => {
+          const text = row.textContent.toLowerCase();
+          const okSearch = !q || text.includes(q);
+          const okSpeaker = !speaker || row.getAttribute("data-ss-speaker") === speaker;
+          let okType = true;
+          if (typeFilter === "recording") okType = row.getAttribute("data-ss-has-recording") === "1";
+          else if (typeFilter === "slides") okType = row.getAttribute("data-ss-has-slides") === "1";
+          else if (typeFilter === "qa") okType = row.getAttribute("data-ss-has-qa") === "1";
+          const show = okSearch && okSpeaker && okType;
+          row.style.display = show ? "" : "none";
+          if (show) visible += 1;
         });
+        if (emptyNote) emptyNote.hidden = visible !== 0;
+        setText(
+          document,
+          "[data-ss-count]",
+          visible === 1 ? "1 lesson" : `${visible} lessons`
+        );
       }
+
+      document.querySelectorAll("[data-ss-filter-type] .fchip").forEach(chip => {
+        chip.addEventListener("click", () => {
+          document.querySelectorAll("[data-ss-filter-type] .fchip").forEach(c => c.classList.remove("on"));
+          chip.classList.add("on");
+          typeFilter = chip.getAttribute("data-type") || "all";
+          applyLibraryFilters();
+        });
+      });
+      if (search) search.addEventListener("input", applyLibraryFilters);
+      if (speakerSel) speakerSel.addEventListener("change", applyLibraryFilters);
     }
 
     document.documentElement.setAttribute("data-sessions-ready", "hub");

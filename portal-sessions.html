@@ -100,11 +100,24 @@
   .player .ov{position:absolute;left:14px;top:14px;display:flex;gap:8px}.player .ov .pill{background:rgba(3,13,40,.75);color:#fff;border:1px solid rgba(255,255,255,.35)}
   .player .ctl{position:absolute;left:0;right:0;bottom:0;padding:14px 16px;background:linear-gradient(0deg,rgba(3,13,40,.85),transparent);color:#fff;font-size:12px;display:flex;align-items:center;gap:12px}.player .ctl .prog{flex:1;height:5px;background:rgba(255,255,255,.3);border-radius:5px;overflow:hidden}.player .ctl .prog i{display:block;height:100%;width:38%;background:var(--gold)}
   .chap{list-style:none;margin:0;padding:0}.chap li{display:grid;grid-template-columns:64px 1fr;gap:12px;padding:10px 0;border-top:1px solid var(--line);font-size:14px;cursor:pointer}.chap li:first-child{border-top:0;padding-top:0}.chap li b{color:var(--royal);font-size:13px;font-variant-numeric:tabular-nums}.chap li.on span{font-weight:600;color:var(--navy)}
-  .vtabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:16px}.vtabs span{padding:10px 14px;font-size:14px;font-weight:600;color:var(--muted);border-bottom:3px solid transparent;cursor:pointer}.vtabs span.on{color:var(--navy);border-color:var(--gold)}
+  .vtabs{display:flex;gap:6px;border-bottom:1px solid var(--line);margin-bottom:16px}.vtabs button{appearance:none;-webkit-appearance:none;background:transparent;border:0;border-bottom:3px solid transparent;padding:10px 14px;font:inherit;font-size:14px;font-weight:600;color:var(--muted);cursor:pointer;border-radius:0}.vtabs button.on,.vtabs button[aria-selected="true"]{color:var(--navy);border-bottom-color:var(--gold)}.vtabs button:focus-visible{outline:2px solid var(--royal);outline-offset:2px}
   .spk{display:flex;gap:12px;align-items:center}.spk img{width:52px;height:52px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--gold)}.spk b{display:block;color:var(--navy);font-size:14.5px}.spk small{color:var(--muted);font-size:12.5px}
   .qa{padding:12px 0;border-top:1px solid var(--line)}.qa:first-child{border-top:0;padding-top:0}.qa b{display:block;color:var(--navy);font-size:14px}.qa p{font-size:14px;margin-top:4px}
   .notice2{display:flex;gap:10px;align-items:flex-start;background:var(--amber-bg);border:1px solid #f0d9a8;border-radius:12px;padding:12px 14px;font-size:13px;color:#5c4108}.notice2 svg{width:16px;height:16px;stroke:var(--amber-ink);fill:none;stroke-width:2;flex:none;margin-top:2px}
   @media (max-width:1100px){.rec{grid-template-columns:1fr}}
+
+  .fchips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .fchip{border:2px solid var(--line);background:#fff;color:var(--royal);font-weight:600;font-size:12.5px;padding:6px 12px;border-radius:999px;cursor:pointer}
+  .fchip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .fsel{border:2px solid var(--line);border-radius:999px;padding:7px 12px;background:#fff;font:inherit;font-size:13px;color:var(--ink);min-width:140px}
+  .micro-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:14px}
+  .micro-card{aspect-ratio:9/16;border-radius:14px;overflow:hidden;background:#0a1c3e;position:relative;border:1px solid var(--line)}
+  .micro-card img{width:100%;height:100%;object-fit:cover}
+  .micro-card .cap{position:absolute;left:0;right:0;bottom:0;padding:10px;background:linear-gradient(0deg,rgba(3,13,40,.85),transparent);color:#fff;font-size:12px;font-weight:600}
+  .empty-micro{text-align:center;padding:48px 20px;color:var(--muted)}
+  .empty-micro .ic{width:52px;height:52px;border-radius:14px;background:var(--pale);display:grid;place-items:center;margin:0 auto 12px}
+  .empty-micro .ic svg{width:24px;height:24px;stroke:var(--royal);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .empty-micro b{display:block;color:var(--navy);font-size:16px;margin-bottom:6px}
 </style></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
   <a class="logo" href="portal.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>AI PORTAL</span></a>
@@ -115,6 +128,12 @@
   <header class="top"><div class="ttl"><h1>Learnings</h1><small>Your AI Exchange learning library — recordings, slides, and Q&amp;A.</small></div>
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Search sessions, Agents, benefits…</div><span class="icb"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg><i></i></span><span class="av" style="width:36px;height:36px" data-agent-initials>··</span></header>
   <main class="content">
+<div class="vtabs" data-ss-hub-tabs role="tablist" aria-label="Learnings sections">
+  <button type="button" class="on" role="tab" id="ss-tab-sessions" data-ss-hub-tab="sessions" aria-selected="true" aria-controls="ss-panel-sessions" tabindex="0">Sessions</button>
+  <button type="button" role="tab" id="ss-tab-micros" data-ss-hub-tab="micros" aria-selected="false" aria-controls="ss-panel-micros" tabindex="-1">Micros</button>
+</div>
+
+<div data-ss-hub-panel="sessions" role="tabpanel" id="ss-panel-sessions" aria-labelledby="ss-tab-sessions">
 <section class="card" data-ss-continue style="margin-bottom:16px">
   <div class="hd"><h2>Continue learning</h2><span class="pill gold">Members only</span></div>
   <div style="display:grid;grid-template-columns:160px 1fr;gap:16px;align-items:center">
@@ -137,7 +156,16 @@
 <section class="card" style="margin-bottom:16px">
   <div class="hd"><h2>Library</h2><small data-ss-count>Recordings</small></div>
   <div class="tbar" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
-    <input type="search" data-ss-lesson-search placeholder="Search lessons, speakers, topics" style="border:2px solid var(--line);border-radius:999px;padding:8px 14px;min-width:260px;background:#fff;font:inherit">
+    <input type="search" data-ss-lesson-search placeholder="Search lessons, speakers, topics" style="border:2px solid var(--line);border-radius:999px;padding:8px 14px;min-width:220px;background:#fff;font:inherit">
+    <div class="fchips" data-ss-filter-type role="group" aria-label="Filter by type">
+      <button type="button" class="fchip on" data-type="all">All</button>
+      <button type="button" class="fchip" data-type="recording">Recording</button>
+      <button type="button" class="fchip" data-type="slides">Has slides</button>
+      <button type="button" class="fchip" data-type="qa">Has Q&amp;A</button>
+    </div>
+    <select class="fsel" data-ss-filter-speaker aria-label="Filter by speaker">
+      <option value="">All speakers</option>
+    </select>
   </div>
   <div data-ss-lesson-list>
     <div class="row" data-ss-lesson hidden style="align-items:center;gap:14px;padding:12px 0;border-top:1px solid var(--line)">
@@ -162,13 +190,22 @@
       </div>
     </div>
   </div>
+  <p class="note" style="margin:12px 0 0" data-ss-filter-empty hidden>No lessons match these filters.</p>
   <p class="note" style="margin:12px 0 0">Calendar and registration live under <a href="portal-events.html"><b>Events</b></a>.</p>
 </section>
+</div>
 
-<section id="reels" class="card" style="margin-bottom:16px" data-ss-needs="reels" hidden>
-  <div class="hd"><h2>Reels</h2><small>Short vertical highlights when published</small></div>
-  <p class="note" style="margin:0">No reels yet.</p>
+<div data-ss-hub-panel="micros" role="tabpanel" id="ss-panel-micros" aria-labelledby="ss-tab-micros" hidden>
+<section class="card" style="margin-bottom:16px">
+  <div class="hd"><h2>Micros</h2><small>Short vertical lessons when published</small></div>
+  <div data-ss-micro-empty class="empty-micro">
+    <div class="ic"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
+    <b>No micros yet</b>
+    Short vertical clips will show up here when speakers publish them. No placeholder reels in the meantime.
+  </div>
+  <div class="micro-grid" data-ss-micro-grid hidden></div>
 </section>
+</div>
 
 <div class="notice2"><svg viewBox="0 0 24 24"><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="m9 12 2 2 4-4"/></svg><span>Session materials are shared with PAAIPE members under the speaker's permission. Please keep them inside the association &mdash; don't re-record, repost or pass them on.</span></div>
 </main>

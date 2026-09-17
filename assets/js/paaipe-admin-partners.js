@@ -335,9 +335,9 @@ function openDetail(id) {
       <button class="btn btn-ghost btn-sm danger" data-status="spam" ${a.status === "spam" ? "disabled" : ""}>Mark spam</button>
     </div>
     <p class="note"><b>Accepting does not publish anything.</b> It creates the organization if it is
-      new, links it if it is not, and adds the Partner on this event as <b>proposed</b> — which the rules
+      new, links it if it is not, and adds them as a <b>proposed</b> Partner on this event — which the rules
       refuse to serve to the public. A logo appears on the event page only when somebody confirms
-      the Partner on this event on the Organizations screen, where the tier limits are checked.</p>`;
+      them on Organizations, where the tier limits are checked.</p>`;
   d.hidden = false;
   d.dataset.app = id;
   d.scrollIntoView({ block: "nearest" });

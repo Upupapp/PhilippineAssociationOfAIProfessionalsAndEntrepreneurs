@@ -534,7 +534,19 @@ function fillEventFilter() {
 async function boot() {
   const me = await currentAgent().catch(() => null);
   if (!me) { location.replace("admin.html?next=admin-partners.html"); return; }
-  if (!(await isAdminNow().catch(() => false))) {
+  // "Could not ask" is NOT "not an administrator". Collapsing the two with
+  // .catch(() => false) signs a real administrator out over a network blip and
+  // then tells them their account was refused. The other console pages already
+  // draw this distinction; this one did not.
+  let allowed = false;
+  try { allowed = await isAdminNow(); }
+  catch {
+    flash("PAAIPE could not be reached, so nothing is shown — an empty list here would " +
+          "read as 'nobody has applied'. Your account is fine; reload to try again.");
+    document.documentElement.setAttribute("data-admin-partners", "offline");
+    return;
+  }
+  if (!allowed) {
     await signOutNow().catch(() => {});
     location.replace("admin.html?denied=1");
     return;

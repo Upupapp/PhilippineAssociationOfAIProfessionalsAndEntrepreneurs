@@ -17,5 +17,8 @@ paaipe-admin-edit*/
 paaipe-admin*/
 
 # Playwright, installed per-machine. Never published.
-tests/node_modules/
+# NO trailing slash: node_modules here is often a SYMLINK to a shared install,
+# and "tests/node_modules/" does not match a symlink - it was committed once
+# because of exactly that.
+tests/node_modules
 tests/package*.json

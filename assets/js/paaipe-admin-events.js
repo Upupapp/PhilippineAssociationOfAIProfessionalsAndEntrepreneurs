@@ -720,6 +720,10 @@ async function duplicateEvent(id) {
   let ok = false;
   try { ok = await isAdminNow(); }
   catch { flash("PAAIPE could not be reached. Nothing is shown rather than an empty list.");
+          // and the table must not sit on "Loading…" for ever, which reads as
+          // "still working on it" when nothing is working on it
+          { const b = $("[data-events]"); if (b) b.innerHTML =
+              `<tr><td colspan="5" class="empty">Events could not be loaded. This is not "no events".</td></tr>`; }
           document.documentElement.setAttribute("data-admin-events", "offline"); return; }
   if (!ok) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
 

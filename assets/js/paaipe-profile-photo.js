@@ -22,15 +22,15 @@ const CAM =
 const CSS = `
 .av>img[data-agent-photo]{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
 .av-edit{position:relative;display:grid;place-items:center;padding:0;border:0;background:transparent;
-  cursor:pointer;flex:none;width:36px;height:36px;border-radius:50%;font:inherit;color:inherit}
+  cursor:pointer;flex:none;width:36px;height:36px;border-radius:50%;font:inherit;color:inherit;overflow:visible}
 .av-edit .av{width:100%;height:100%}
 .av-edit:focus-visible{outline:3px solid var(--cyan,#15BBEA);outline-offset:2px}
-.av-cam{position:absolute;right:-2px;bottom:-2px;width:18px;height:18px;border-radius:50%;
-  background:var(--navy,#002166);color:#fff;display:grid;place-items:center;
+.av-cam{position:absolute;right:-3px;bottom:-3px;width:20px;height:20px;border-radius:50%;
+  background:linear-gradient(90deg,var(--gold,#F2A71B),#F7B733);color:var(--navy,#002166);display:grid;place-items:center;
   box-shadow:0 0 0 2px #fff;pointer-events:none}
 .side .me{overflow:visible}
-.side .me .av-cam{box-shadow:0 0 0 2px #0A3F96}
-.av-cam svg{width:10px;height:10px;stroke:#fff;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.side .me .av-cam{box-shadow:0 0 0 2px #fff}
+.av-cam svg{width:11px;height:11px;stroke:var(--navy,#002166);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 .pp-block{display:flex;gap:18px;align-items:flex-start;margin:0 0 18px;padding:0 0 18px;border-bottom:1px solid var(--line,#d5e3f5)}
 .pp-block>div label{display:block;margin-bottom:6px}
 .pp-preview.av{width:112px;height:112px;font-size:36px;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold,#F2A71B)}

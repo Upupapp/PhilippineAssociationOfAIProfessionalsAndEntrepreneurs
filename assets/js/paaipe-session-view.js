@@ -24,34 +24,75 @@ const setText = (root, sel, text) =>
   root.querySelectorAll(sel).forEach(e => { e.textContent = text; });
 
 /** In-portal nocookie embed. Video id still appears in iframe src / network —
- *  unlisted ≠ DRM. We block YouTube's "open on YouTube" / logo navigation as far
- *  as the embed API allows (no allow-popups sandbox + click shields). Completely
- *  removing YouTube chrome requires self-hosting, not embed params. */
+ *  unlisted ≠ DRM. controls=0 + a full grab shield block YouTube's link icon,
+ *  "Watch on YouTube", and right-click "Copy video URL". Self-host is the only
+ *  complete lock. */
 function embedSrc(youtubeId) {
   const id = encodeURIComponent(youtubeId);
   const origin = encodeURIComponent(location.origin);
-  return `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&playsinline=1&fs=1&origin=${origin}`;
+  return `https://www.youtube-nocookie.com/embed/${id}` +
+    `?rel=0&modestbranding=1&playsinline=1&controls=0&disablekb=1` +
+    `&enablejsapi=1&fs=0&iv_load_policy=3&origin=${origin}`;
 }
 
-function mountYtClickShields(player) {
-  // Cover the regions where YouTube paints its logo / "Watch on YouTube" control.
-  // Shields sit above the iframe and eat pointer events so members cannot follow
-  // those links out of the portal. Playback controls in the centre/bottom stay usable.
-  const specs = [
-    ["data-yt-shield", "tr", "top:0;right:0;width:min(28%,120px);height:58px"],
-    ["data-yt-shield", "title", "top:0;left:0;right:0;height:48px"],
-  ];
-  specs.forEach(([, kind, box]) => {
-    const el = document.createElement("div");
-    el.setAttribute("data-yt-shield", kind);
-    el.setAttribute("aria-hidden", "true");
-    el.style.cssText =
-      `position:absolute;z-index:4;${box};pointer-events:auto;background:transparent`;
-    // Swallow context-menu / middle-click attempts on the shield itself.
-    el.addEventListener("contextmenu", e => e.preventDefault());
-    el.addEventListener("auxclick", e => e.preventDefault());
-    player.appendChild(el);
+let ytApiPromise = null;
+function ensureYtApi() {
+  if (window.YT && window.YT.Player) return Promise.resolve(window.YT);
+  if (ytApiPromise) return ytApiPromise;
+  ytApiPromise = new Promise(resolve => {
+    const prev = window.onYouTubeIframeAPIReady;
+    window.onYouTubeIframeAPIReady = () => {
+      if (typeof prev === "function") prev();
+      resolve(window.YT);
+    };
+    if (!document.querySelector("script[data-paaipe-yt-api]")) {
+      const tag = document.createElement("script");
+      tag.src = "https://www.youtube.com/iframe_api";
+      tag.async = true;
+      tag.setAttribute("data-paaipe-yt-api", "1");
+      document.head.appendChild(tag);
+    }
   });
+  return ytApiPromise;
+}
+
+function mountYtGrabShield(player) {
+  // Full-surface shield: owns pointer events so YouTube chrome cannot be clicked
+  // or right-clicked. Play/pause goes through the IFrame API instead.
+  const grab = document.createElement("div");
+  grab.setAttribute("data-yt-shield", "grab");
+  grab.setAttribute("role", "button");
+  grab.setAttribute("tabindex", "0");
+  grab.setAttribute("aria-label", "Play or pause recording");
+  grab.style.cssText =
+    "position:absolute;inset:0;z-index:5;cursor:pointer;background:transparent;touch-action:manipulation";
+
+  const blockMenu = e => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+  grab.addEventListener("contextmenu", blockMenu);
+  player.addEventListener("contextmenu", blockMenu);
+
+  const toggle = () => {
+    const yt = player._ytPlayer;
+    if (!yt || typeof yt.getPlayerState !== "function") return;
+    const state = yt.getPlayerState();
+    // 1 = playing, 3 = buffering — pause those; otherwise play
+    if (state === 1 || state === 3) yt.pauseVideo();
+    else yt.playVideo();
+  };
+  grab.addEventListener("click", e => {
+    e.preventDefault();
+    toggle();
+  });
+  grab.addEventListener("keydown", e => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      toggle();
+    }
+  });
+  player.appendChild(grab);
 }
 
 function mountEmbed(player, rec) {
@@ -64,18 +105,16 @@ function mountEmbed(player, rec) {
   }
 
   const frame = document.createElement("iframe");
+  const frameId = "paaipe-yt-" + String(rec.id || rec.youtubeId).replace(/[^\w-]+/g, "");
+  frame.id = frameId;
   frame.src = embedSrc(rec.youtubeId);
   frame.title = rec.title || "Session recording";
-  frame.setAttribute("allowfullscreen", "");
-  // No web-share — reduces one path to hand the video out of the portal.
   frame.setAttribute(
     "allow",
     "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
   );
   frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-  // Block navigation/popups out to youtube.com when the logo / Watch link is hit.
-  // Scripts + same-origin + presentation keep the player working; omit allow-popups
-  // and allow-top-navigation so those controls cannot open YouTube.
+  // No popups / top-navigation — logo and Watch links cannot open youtube.com.
   frame.setAttribute(
     "sandbox",
     "allow-scripts allow-same-origin allow-presentation allow-forms"
@@ -86,9 +125,23 @@ function mountEmbed(player, rec) {
     width: "100%",
     height: "100%",
     border: "0",
+    pointerEvents: "none", // all interaction via grab shield + API
   });
   player.appendChild(frame);
-  mountYtClickShields(player);
+  mountYtGrabShield(player);
+
+  ensureYtApi().then(YT => {
+    if (!player.isConnected || !document.getElementById(frameId)) return;
+    player._ytPlayer = new YT.Player(frameId, {
+      events: {
+        onReady(ev) {
+          player._ytPlayer = ev.target;
+        },
+      },
+    });
+  }).catch(() => {
+    // API blocked: shield still stops right-click / chrome clicks
+  });
 }
 
 /** Compact switcher when a session has more than one landscape recording. */

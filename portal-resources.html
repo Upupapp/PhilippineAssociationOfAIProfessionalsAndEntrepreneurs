@@ -1,48 +1,293 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Resources — PAAIPE AI Portal</title><link rel="icon" href="favicon.ico" sizes="any"><meta name="robots" content="noindex,nofollow"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
-  :root{--navy:#002166;--royal:#065092;--gold:#F2A71B;--pale:#EAF3FC;--bg:#F4F8FD;--ink:#0f1e3d;--muted:#4a5a7a;--line:#d5e3f5;--radius:16px}
-  *{box-sizing:border-box}body{margin:0;font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:var(--bg)}
-  a{color:inherit;text-decoration:none}.shell{display:grid;grid-template-columns:248px 1fr;min-height:100vh}
-  .side{background:linear-gradient(180deg,#031B52,#0A3F96 70%,#065092);color:#fff;padding:22px 16px}
-  .side .logo{background:#fff;border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:10px;margin-bottom:18px}
-  .side .logo img{height:34px}.side .logo span{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--royal);border-left:1px solid #d5e3f5;padding-left:10px}
-  .menu{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px}
-  .menu a{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;color:rgba(255,255,255,.88);font-size:13.5px;font-weight:500}
-  .menu a.on,.menu a:hover{background:rgba(255,255,255,.12);color:#fff}
-  .menu svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
-  .menu .sec{font-size:10px;letter-spacing:.14em;color:rgba(255,255,255,.45);margin:14px 8px 6px;font-weight:700}
-  .content{padding:28px}.card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:14px}
-  .btn{display:inline-flex;align-items:center;justify-content:center;padding:10px 16px;border-radius:999px;font-weight:600;font-size:13.5px}
-  .btn-gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy)}
-  .btn-ghost{background:#fff;border:1.5px solid var(--line);color:var(--navy)}
-  h1{margin:0 0 6px;color:var(--navy);font-size:26px}p.lead{margin:0 0 18px;color:var(--muted);font-size:14px}
-  @media (max-width:860px){.shell{grid-template-columns:1fr}}
-</style></head><body>
-<div class="shell">
-<aside class="side">
-  <div class="logo"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>AI PORTAL</span></div>
-  <ul class="menu">
-    <li><a href="portal.html">Home</a></li>
-    <li><a href="portal-events.html">Events</a></li>
-    <li><a href="portal-sessions.html">Learnings</a></li>
-    <li><a class="on" href="portal-resources.html">Resources</a></li>
-    <li class="sec">YOU</li>
-    <li><a href="portal-profile.html">My Profile</a></li>
-  </ul>
+<!doctype html><html lang="en" data-page="resources-hub"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Resources — PAAIPE AI Portal</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="icon" type="image/png" sizes="192x192" href="assets/img/favicon-192.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>
+
+  :root{--navy:#002166;--royal:#065092;--blue:#1E6FE8;--cyan:#15BBEA;--gold:#F2A71B;--lgold:#F6DB74;--pale:#EAF3FC;--pale2:#DCEBFA;--bg:#F4F8FD;--ink:#0f1e3d;--muted:#4a5a7a;--line:#d5e3f5;--amber-ink:#7a4a06;--amber-bg:#fdf1dd;--green-ink:#0a5c3a;--green-bg:#e3f6ec;--green-line:#bfe6d2;--radius:16px}
+  *{box-sizing:border-box}body{margin:0;font-family:Poppins,system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:inherit;text-decoration:none}img{max-width:100%;display:block}button,input,select,textarea{font:inherit}h1,h2,h3,h4{color:var(--navy);margin:0;line-height:1.2;letter-spacing:-.01em}p{margin:0}
+  h1{font-size:26px;font-weight:700}h2{font-size:18px;font-weight:700}h3{font-size:15.5px;font-weight:600}
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:10px 18px;border-radius:999px;font-weight:600;font-size:13.5px;cursor:pointer;border:0;transition:transform .15s,box-shadow .15s;white-space:nowrap}
+  .btn-gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy);box-shadow:0 6px 18px rgba(242,167,27,.24)}.btn-gold:hover{transform:translateY(-1px)}
+  .btn-navy{background:var(--navy);color:#fff}.btn-ghost{background:#fff;color:var(--navy);border:2px solid var(--line)}.btn-ghost:hover{border-color:var(--royal)}.btn[disabled]{opacity:.5;cursor:not-allowed;box-shadow:none}
+  .btn-sm{padding:7px 13px;font-size:12.5px}.btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--gold);display:inline-block;flex:none}
+  .pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;padding:4px 10px 4px 8px;border-radius:999px;white-space:nowrap}.pill svg{width:11px;height:11px;stroke:currentColor;fill:none;stroke-width:3}
+  .pill.ok{background:var(--green-bg);color:var(--green-ink);border:1px solid var(--green-line)}.pill.soon{background:var(--amber-bg);color:var(--amber-ink);border:1px solid #f0d9a8}.pill.info{background:var(--pale2);color:var(--royal);border:1px solid var(--line)}.pill.gold{background:linear-gradient(90deg,var(--gold),#F7B733);color:var(--navy)}
+  /* shell */
+  .shell{display:grid;grid-template-columns:262px 1fr;min-height:100vh}
+  .side{position:sticky;top:0;height:100vh;background:linear-gradient(180deg,#031B52,#0A3F96 70%,#065092);color:#fff;display:flex;flex-direction:column;padding:22px 16px;overflow:hidden}
+  .side .dots{position:absolute;left:-40%;top:-10%;width:180%;opacity:.12;pointer-events:none}.side>*{position:relative}
+  .side .logo{background:#fff;border-radius:12px;padding:8px 12px;display:flex;align-items:center;gap:10px}.side .logo img{height:34px}.side .logo span{font-size:10px;font-weight:800;letter-spacing:.12em;color:var(--royal);border-left:1px solid var(--line);padding-left:10px}
+  .menu{list-style:none;margin:22px 0 0;padding:0;display:flex;flex-direction:column;gap:4px}.menu a{display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;font-size:14px;font-weight:500;color:#DCEBFA;transition:background .15s}
+  .menu a:hover{background:rgba(255,255,255,.08)}.menu a.on{background:rgba(255,255,255,.14);color:#fff;font-weight:600;box-shadow:inset 3px 0 0 var(--gold)}.menu svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+  .menu .badge{margin-left:auto;background:var(--gold);color:var(--navy);font-size:11px;font-weight:800;border-radius:999px;padding:1px 8px}
+  .menu .sec{font-size:10.5px;letter-spacing:.12em;color:#8fb3e6;font-weight:700;padding:14px 12px 4px}
+  .me{margin-top:auto;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);border-radius:14px;padding:12px;display:flex;gap:10px;align-items:center}
+  .av{width:36px;height:36px;border-radius:50%;background:linear-gradient(160deg,var(--gold),#F7B733);color:var(--navy);font-weight:800;display:grid;place-items:center;font-size:13px;flex:none;object-fit:cover}
+  .me b{display:block;font-size:13.5px;color:#fff}.me small{font-size:11.5px;color:#BFE3FA;letter-spacing:.06em}.me a{margin-left:auto;color:#BFE3FA}.me a svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8}
+  .main{min-width:0}
+  .top{display:flex;align-items:center;gap:14px;padding:10px 24px;min-height:64px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+  .top .ttl h1{font-size:19px;line-height:1.2}.top .ttl small{display:block;line-height:1.25;font-size:12.5px}.top .ttl{min-width:0}.top .ttl small{color:var(--muted);font-size:13px}
+  .search{margin-left:auto;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:0 14px;height:38px;width:280px;color:var(--muted);font-size:13.5px;background:var(--bg);white-space:nowrap;overflow:hidden}.search input,.search span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}.search svg{width:16px;height:16px;stroke:var(--royal);fill:none;stroke-width:2}
+  .icb{width:40px;height:40px;border-radius:12px;border:2px solid var(--line);background:#fff;display:grid;place-items:center;position:relative}.icb svg{width:18px;height:18px;stroke:var(--navy);fill:none;stroke-width:1.9}.icb i{position:absolute;top:8px;right:8px;width:8px;height:8px;border-radius:50%;background:var(--gold)}
+  .content{padding:28px 32px 48px;display:flex;flex-direction:column;gap:22px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:22px}
+  .grid2{display:grid;grid-template-columns:1.4fr .8fr;gap:22px;align-items:start}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
+  .hd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:14px}.hd a{font-size:13px;font-weight:600;color:var(--royal)}
+  /* agent card */
+  .acard{position:relative;border-radius:16px;background:linear-gradient(135deg,#0A3F96,#031B52);border:1px solid rgba(255,255,255,.28);color:#fff;padding:18px 20px;display:flex;flex-direction:column;justify-content:space-between;aspect-ratio:1.62;overflow:hidden;box-shadow:0 18px 44px rgba(3,27,82,.28)}
+  .acard::before{content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:radial-gradient(circle,rgba(242,167,27,.35),transparent 70%)}
+  .acard .r{display:flex;justify-content:space-between;align-items:center}.acard small{font-size:10px;letter-spacing:.14em;color:#BFE3FA;font-weight:700}.acard .chip{width:34px;height:24px;border-radius:5px;background:linear-gradient(135deg,var(--lgold),var(--gold))}
+  .acard .num{font-size:26px;font-weight:800;letter-spacing:.12em}.acard .num span{color:var(--gold)}.acard .nm{font-size:13.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+  .acard .ft{display:flex;justify-content:space-between;font-size:9.5px;letter-spacing:.08em;color:#BFE3FA}
+  /* next up */
+  .next{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center}
+  .datebox{width:64px;border:1px solid var(--line);border-radius:12px;overflow:hidden;text-align:center;background:#fff}.datebox b{display:block;background:var(--navy);color:#fff;font-size:10.5px;letter-spacing:.08em;padding:3px 0}.datebox span{display:block;font-size:26px;font-weight:700;color:var(--navy);padding:6px 0 2px;line-height:1}.datebox small{display:block;font-size:11px;color:var(--muted);padding-bottom:5px}
+  .meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12.5px;color:var(--muted);margin-top:6px}.meta span{display:inline-flex;align-items:center;gap:6px}.meta svg{width:13px;height:13px;stroke:var(--royal);fill:none;stroke-width:2}
+  .count{display:flex;gap:8px}.count div{background:var(--pale);border:1px solid var(--line);border-radius:10px;padding:8px 10px;min-width:58px;text-align:center}.count b{display:block;font-size:20px;color:var(--navy);line-height:1}.count small{font-size:10px;color:var(--muted);letter-spacing:.06em}
+  /* tiles */
+  .tile{display:flex;flex-direction:column;gap:8px}.tile .ic{width:36px;height:36px;border-radius:10px;background:linear-gradient(160deg,var(--pale2),#fff);border:1px solid var(--line);display:grid;place-items:center}.tile .ic svg{width:20px;height:20px;stroke:var(--royal);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+  .tile .big{font-size:24px;font-weight:800;color:var(--navy)}.tile .sub{font-size:13px;color:var(--muted)}
+  .bar{height:8px;background:var(--pale2);border-radius:8px;overflow:hidden}.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--gold),var(--cyan));border-radius:8px}
+  .list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}.list li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}.list li:first-child{border-top:0;padding-top:0}
+  .list .ic{width:34px;height:34px;border-radius:10px;background:var(--pale);display:grid;place-items:center;flex:none}.list .ic svg{width:17px;height:17px;stroke:var(--royal);fill:none;stroke-width:1.9}.list b{display:block;font-size:14px;color:var(--navy)}.list small{color:var(--muted);font-size:12.5px}.list time{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+  /* tabs + tables */
+  .tabs{display:flex;gap:8px;margin-bottom:16px}.tab{border:2px solid var(--line);background:#fff;color:var(--royal);font-weight:600;font-size:13.5px;padding:8px 16px;border-radius:999px;cursor:pointer}.tab.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .row{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;padding:16px 0;border-top:1px solid var(--line)}.row:first-of-type{border-top:0}.row b{display:block;color:var(--navy);font-size:15px}.row .acts{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+  /* benefits */
+  .bcard{display:flex;flex-direction:column;gap:10px}.bcard .ph{display:flex;align-items:center;gap:10px}.bcard .ph img{height:26px;width:auto}.bcard .ph small{color:var(--muted);font-size:12px}
+  .bcard b{color:var(--navy);font-size:15px}.bcard p{color:var(--muted);font-size:13px;flex:1}.bcard .ft{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:4px}
+  .voucher{border:2px dashed var(--gold);background:linear-gradient(180deg,#fffaf0,#fff);border-radius:14px;padding:16px;display:flex;justify-content:space-between;align-items:center;gap:12px}.voucher code{font-size:18px;font-weight:800;letter-spacing:.14em;color:var(--navy);background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 12px}
+  /* directory */
+  .filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}.filters select,.filters input{width:auto;min-width:180px;border:2px solid var(--line);border-radius:999px;padding:8px 14px;background:#fff;font-size:13.5px;color:var(--ink)}.filters input{flex:1}
+  .agent{display:flex;flex-direction:column;align-items:center;text-align:center;gap:6px;padding:22px 16px}.agent img,.agent .av{width:78px;height:78px;border-radius:50%;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold);object-fit:cover;font-size:22px}
+  .agent b{color:var(--navy);font-size:15px;margin-top:6px}.agent small{color:var(--muted);font-size:12.5px}.agent .tags{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:6px}.agent .tags span{font-size:11px;font-weight:600;color:var(--royal);background:var(--pale2);border-radius:7px;padding:3px 8px}
+  /* programs */
+  .prog{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center}.prog .n{width:44px;height:44px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-weight:800;color:var(--navy)}.prog .n.live{background:var(--gold);border-color:var(--gold)}
+  .prog b{display:block;color:var(--navy);font-size:15px}.prog small{color:var(--muted);font-size:13px}.prog .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+  .seats{font-size:12px;color:var(--muted)}.seats i{display:inline-block;width:90px;height:6px;background:var(--pale2);border-radius:6px;vertical-align:middle;margin-left:6px;overflow:hidden}.seats i::after{content:"";display:block;height:100%;width:var(--w);background:var(--royal)}
+  /* community */
+  .post{display:flex;gap:12px;padding:16px 0;border-top:1px solid var(--line)}.post:first-of-type{border-top:0;padding-top:0}.post .av{width:36px;height:36px;font-size:12px}.post b{color:var(--navy);font-size:14px}.post small{color:var(--muted);font-size:12px}.post p{font-size:14px;margin-top:4px}.post .rx{display:flex;gap:14px;font-size:12px;color:var(--muted);margin-top:8px}
+  .compose{display:flex;gap:10px;align-items:center;border:2px solid var(--line);border-radius:14px;padding:10px 12px;background:#fff;margin-bottom:16px}.compose input{flex:1;border:0;outline:none;font-size:14px}
+  .thread{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--line)}.thread:first-of-type{border-top:0}.thread b{display:block;color:var(--navy);font-size:14px}.thread small{color:var(--muted);font-size:12px}.thread .cnt{font-size:12px;color:var(--royal);font-weight:600;background:var(--pale2);border-radius:999px;padding:4px 10px}
+  /* profile */
+  .fields{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}.f{display:flex;flex-direction:column;gap:5px}.f.full{grid-column:1/-1}label{font-size:12.5px;font-weight:600;color:var(--navy)}
+  input[type=text],input[type=email],select,textarea{width:100%;border:2px solid var(--line);border-radius:10px;padding:10px 12px;font-size:14px;color:var(--ink);background:#fff}textarea{min-height:80px}
+  .vis{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--muted)}.tog{width:34px;height:20px;border-radius:999px;background:var(--royal);position:relative}.tog::after{content:"";position:absolute;top:3px;right:3px;width:14px;height:14px;border-radius:50%;background:#fff}.tog.off{background:var(--line)}.tog.off::after{right:auto;left:3px}
+  .badges{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.bd{text-align:center;padding:14px 8px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);font-size:12px}.bd .h{width:44px;height:44px;margin:0 auto 8px;background:var(--pale);border-radius:12px;display:grid;place-items:center}.bd .h svg{width:22px;height:22px;stroke:var(--muted);fill:none;stroke-width:1.8}.bd.earned{border-style:solid;border-color:var(--gold);color:var(--navy)}.bd.earned .h{background:linear-gradient(160deg,var(--gold),#F7B733)}.bd.earned .h svg{stroke:var(--navy)}
+  @media (max-width:1100px){.grid4{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:1fr}.grid2{grid-template-columns:1fr}}
+  @media (max-width:860px){.shell{grid-template-columns:1fr}.side{position:relative;height:auto}.top{padding:14px 18px}.content{padding:18px}.search{display:none}.badges{grid-template-columns:1fr 1fr}.fields{grid-template-columns:1fr}}
+
+  /* The portal stopped at an 860px breakpoint, so three pages overflowed
+     horizontally on a phone (measured 476-481px inside a 400px viewport).
+     Additive only: nothing above 560px changes. */
+  @media (max-width:560px){
+    .hd{flex-wrap:wrap}
+    .tabs{flex-wrap:wrap}
+    .acts{justify-content:flex-start}
+    [class*="grid"]{grid-template-columns:1fr}
+    /* A grid/flex child defaults to min-width:auto and refuses to shrink below
+       its content, so the TRACK stays wide even at 1fr. This is what actually
+       caused the overflow; the unclassed wrapper div was the one that would not
+       give. Target every child, not just the classed ones. */
+    [class*="grid"]>*,.hd>*,.acts>*,.next>*{min-width:0}
+    /* .next is a 3-column grid (auto 1fr auto) whose name does not contain
+       "grid", so the rule above never reached it. Collapse it on a phone. */
+    .next{grid-template-columns:1fr;gap:12px}
+    .count{flex-wrap:wrap}
+    .card,.hd,.main,.acts{min-width:0}
+    .card{overflow-wrap:anywhere}
+  }
+
+
+  /* Resources file library — public .res-card idea, portal chrome */
+  .page-lead{font-size:15px;color:var(--muted);max-width:62ch;line-height:1.6}
+  .rec-note{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:#fff;border:1px solid var(--line);border-left:4px solid var(--royal);border-radius:12px;padding:12px 16px;font-size:14px;color:var(--muted)}
+  .rec-note svg{width:18px;height:18px;stroke:var(--royal);fill:none;stroke-width:1.8;flex:none}
+  .rec-note a{color:var(--royal);font-weight:700}
+  .rec-note a:hover{text-decoration:underline}
+  .lib-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap}
+  .lib-count{color:var(--muted);font-size:13.5px;font-weight:500;white-space:nowrap}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .libchip{border:2px solid var(--line);background:#fff;color:var(--royal);font-weight:600;font-size:13.5px;padding:8px 16px;border-radius:999px;cursor:pointer;transition:background .15s,border-color .15s,color .15s}
+  .libchip:hover{border-color:var(--royal)}
+  .libchip.on{background:var(--navy);border-color:var(--navy);color:#fff}
+  .libchip:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
+
+  .res-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  .res-card{position:relative;background:#fff;border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:opacity .25s ease,box-shadow .18s ease,transform .18s ease}
+  .res-card:has(.foot a.btn-gold){cursor:pointer}
+  .res-card .foot a.btn-gold::after{content:"";position:absolute;inset:0;z-index:1}
+  .res-card .foot a.btn-gold:hover{transform:none}
+  .res-card .foot .iconbtn{position:relative;z-index:2}
+  .res-card:hover{box-shadow:0 20px 44px rgba(6,33,102,.1);transform:translateY(-2px)}
+  .res-card.hide{display:none}
+
+  .card-head{position:relative;height:176px;color:#fff;overflow:hidden}
+  .ov{position:absolute;font-size:11px;font-weight:700;padding:6px 11px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;letter-spacing:.02em;z-index:3}
+  .ov svg{width:11px;height:11px;flex:none}
+  .ov.status-live{top:14px;left:14px;background:rgba(14,54,36,.88);color:#d9fbe6}
+  .ov.kindpill{top:14px;right:14px;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.45);color:#fff;backdrop-filter:blur(2px)}
+
+  .head-presentation{background:linear-gradient(135deg,#031B52,#0A3F96 60%,#065092);display:flex;flex-direction:column;justify-content:center;padding:18px 20px}
+  .head-presentation .wm{position:absolute;inset:0;opacity:.16;object-fit:cover;z-index:0}
+  .head-presentation .kicker{position:relative;z-index:1;font-size:10.5px;font-weight:700;letter-spacing:.12em;color:#BFE3FA}
+  .head-presentation .ttl{position:relative;z-index:1;font-size:20px;font-weight:800;color:#fff;margin-top:6px;line-height:1.18}
+  .head-presentation .sub{position:relative;z-index:1;font-size:12px;color:#DCEBFA;margin-top:4px}
+  .head-presentation .rule{position:relative;z-index:1;width:34px;height:3px;background:var(--gold);border-radius:3px;margin-top:10px}
+  .speaker-tag{position:absolute;right:12px;bottom:12px;z-index:2;display:flex;align-items:center;gap:8px;background:rgba(3,13,40,.55);backdrop-filter:blur(3px);border:1px solid rgba(255,255,255,.25);border-radius:999px;padding:5px 12px 5px 5px}
+  .speaker-tag img{width:32px;height:32px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px rgba(255,255,255,.6)}
+  .speaker-tag b{font-size:12px;color:#fff;display:block;line-height:1.2}
+  .speaker-tag small{font-size:10px;color:#BFE3FA}
+
+  .head-file{display:grid;place-items:center}
+  .head-file.t-pdf{background:linear-gradient(135deg,#0A3F96,#002166)}
+  .head-file.t-template{background:linear-gradient(135deg,#F6B93B,#F2A71B)}
+  .head-file.t-checklist{background:linear-gradient(135deg,#0E7BD8,#065092)}
+  .head-file.t-doc{background:linear-gradient(135deg,#1E6FE8,#0A3F96)}
+  .head-file::before{content:"";position:absolute;inset:0;background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.08) 0 2px,transparent 2px 16px)}
+  .head-file svg{width:52px;height:52px;stroke:#fff;fill:none;stroke-width:1.5;opacity:.9;position:relative;z-index:1}
+
+  .card-body{padding:20px 22px 22px;display:flex;flex-direction:column;gap:10px;flex:1}
+  .filemeta{font-size:12px;color:var(--muted);font-weight:500}
+  .res-card h3{font-size:17px}
+  .res-card .desc{color:var(--ink);font-size:14.5px;flex:1}
+  .res-card .tag{display:inline-block;font-size:12px;font-weight:600;color:var(--royal);background:var(--pale2);padding:4px 10px;border-radius:8px;align-self:flex-start}
+  .res-card .foot{display:flex;align-items:center;gap:10px;margin-top:2px}
+  .res-card .foot .btn{flex:1}
+  .iconbtn{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;border:2px solid var(--line);background:#fff;color:var(--royal);flex:none;cursor:pointer}
+  .iconbtn:hover{border-color:var(--royal)}
+  .iconbtn svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2}
+  .iconbtn:focus-visible{outline:3px solid var(--cyan);outline-offset:2px}
+  .iconbtn[data-copied]{border-color:var(--green-line);color:var(--green-ink);background:var(--green-bg)}
+
+  .empty-msg{display:none;text-align:center;padding:56px 20px;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:var(--radius)}
+  .empty-msg.show{display:block}
+  .empty-msg b{display:block;color:var(--navy);font-size:18px;margin-bottom:8px}
+  .empty-msg p{font-size:14.5px;max-width:42ch;margin:0 auto}
+  .empty-msg a{color:var(--royal);font-weight:700}
+  .empty-msg .empty-learn{margin-top:12px}
+
+  @media (max-width:1100px){.res-grid{grid-template-columns:repeat(2,1fr)}}
+  @media (max-width:860px){.res-grid{grid-template-columns:1fr}}
+
+</style></head><body><div class="shell">
+<aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
+  <a class="logo" href="portal.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>AI PORTAL</span></a>
+  <ul class="menu"><li><a class="" href="portal.html"><svg viewBox="0 0 24 24"><path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>Home</a></li><li><a class="" href="portal-events.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Events</a></li><li><a class="" href="portal-sessions.html"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg>Learnings</a></li><li><a class="" href="portal-benefits.html"><svg viewBox="0 0 24 24"><path d="M3 9a2 2 0 0 0 0 6v3a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-3a2 2 0 0 0 0-6V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v14"/></svg>Benefits</a></li><li><a class="on" href="portal-resources.html"><svg viewBox="0 0 24 24"><path d="M4 5.5C4 4.1 5.1 3 6.5 3H12v18H6.5C5.1 21 4 19.9 4 18.5z"/><path d="M20 5.5C20 4.1 18.9 3 17.5 3H12v18h5.5c1.4 0 2.5-1.1 2.5-2.5z"/></svg>Resources</a></li><li class="sec">COMMUNITY</li><li><a class="" href="portal-directory.html"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 8 0"/></svg>Agent Directory</a></li><li><a class="" href="portal-programs.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2 5-5 2 2-5z"/></svg>Programs</a></li><li><a class="" href="portal-community.html"><svg viewBox="0 0 24 24"><path d="M4 5h11a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"/><path d="M19 9h1a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-1v3l-3-3h-4"/></svg>Announcements<span class="badge">3</span></a></li><li class="sec">YOU</li><li><a class="" href="portal-profile.html"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>My Profile</a></li></ul>
+  <div class="me"><span class="av" data-agent-initials>··</span><div><b data-agent-name>Agent</b><small><span data-member-status>GUEST · AWAITING CONFIRMATION</span></small></div><a href="signin.html" data-signout aria-label="Sign out"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></a></div>
 </aside>
-<main class="content">
-  <h1>Resources</h1>
-  <p class="lead">Member materials stay inside the portal. Open decks and recordings here — not on the public site.</p>
-  <div class="card">
-    <h2 style="margin:0 0 8px;font-size:17px;color:var(--navy)">September 2026 — Sven Bally slides</h2>
-    <p style="margin:0 0 12px;color:var(--muted);font-size:14px">From Signals to Strategy. Shared with the speaker's permission.</p>
-    <a class="btn btn-gold" href="portal-session-slides.html?session=2026-09">Open slides in portal</a>
-    <a class="btn btn-ghost" href="portal-session-watch.html?session=2026-09&rec=presentation" style="margin-left:8px">Watch recording</a>
+<div class="main">
+  <header class="top"><div class="ttl"><h1>Resources</h1><small>Member files live here; recordings live in Learnings</small></div>
+    <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>Search sessions, Agents, benefits…</div><span class="icb"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10 21h4"/></svg><i></i></span><span class="av" style="width:36px;height:36px" data-agent-initials>··</span></header>
+  <main class="content">
+
+<p class="page-lead">Member files live here — PDFs, slides, templates, checklists and other materials stay inside the portal, not on the public site. Recordings, Sessions and Micros live in Learnings.</p>
+
+<p class="rec-note">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg>
+  <span>Looking for recordings? → <a href="portal-sessions.html">Learnings</a></span>
+</p>
+
+<div class="lib-head">
+  <div class="chips" role="group" aria-label="Filter by format">
+    <button type="button" class="libchip on" data-filter="all">All formats</button>
+    <button type="button" class="libchip" data-filter="slides">Slides</button>
+    <button type="button" class="libchip" data-filter="pdf">PDF</button>
+    <button type="button" class="libchip" data-filter="template">Template</button>
+    <button type="button" class="libchip" data-filter="checklist">Checklist</button>
+    <button type="button" class="libchip" data-filter="doc">Docs</button>
   </div>
-  <div class="card">
-    <h2 style="margin:0 0 8px;font-size:17px;color:var(--navy)">Learnings library</h2>
-    <p style="margin:0 0 12px;color:var(--muted);font-size:14px">Full recordings and learning materials.</p>
-    <a class="btn btn-ghost" href="portal-sessions.html">Go to Learnings</a>
-  </div>
-</main>
+  <span class="lib-count" id="count"></span>
 </div>
-</body></html>
+
+<div class="res-grid" id="grid">
+
+  <article class="res-card" data-format="slides">
+    <div class="card-head head-presentation">
+      <img class="wm" src="assets/img/world-dots.png" alt="">
+      <span class="ov status-live"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>Published</span>
+      <span class="ov kindpill">SLIDES</span>
+      <span class="kicker">AI EXCHANGE · SEPT 15</span>
+      <span class="ttl">From Signals to Strategy</span>
+      <span class="sub">Using AI to Turn Data into Real Insight</span>
+      <span class="rule"></span>
+      <div class="speaker-tag">
+        <img src="assets/img/sven-bally.jpg" alt="">
+        <div><b>Sven Bally</b><small>Honorary Agent · Neap &amp; Spring</small></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <span class="filemeta">Gamma · Slide deck</span>
+      <h3>From Signals to Strategy</h3>
+      <p class="desc">The September 2026 AI Exchange deck by Sven Bally — using AI to turn data into real insight. Shared with the speaker’s permission. Opens inside the portal.</p>
+      <span class="tag">AI Exchange — Sept 15</span>
+      <div class="foot">
+        <a class="btn btn-gold btn-sm" href="portal-session-slides.html?session=2026-09">Open in portal</a>
+        <button type="button" class="iconbtn" data-copy="portal-session-slides.html?session=2026-09" aria-label="Copy link to this file">
+          <svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l1.42-1.42a5 5 0 0 0-7.07-7.07L10.7 6.64"/><path d="M14 11a5 5 0 0 0-7.54-.54L5.04 11.88a5 5 0 0 0 7.07 7.07L13.3 17.36"/></svg>
+        </button>
+      </div>
+    </div>
+  </article>
+
+</div>
+
+<div class="empty-msg" id="empty" role="status">
+  <b>No files yet</b>
+  <p id="empty-detail">Nothing in this format yet. Choose another filter, or check back when a file is added.</p>
+  <p class="empty-learn" id="empty-learnings" hidden>Looking for recordings? <a href="portal-sessions.html">Learnings</a></p>
+</div>
+
+  </main>
+</div></div>
+<script>
+  const chips = [...document.querySelectorAll('.libchip')];
+  const cards = [...document.querySelectorAll('.res-card')];
+  const countEl = document.getElementById('count');
+  const emptyEl = document.getElementById('empty');
+  const emptyLearn = document.getElementById('empty-learnings');
+  const emptyDetail = document.getElementById('empty-detail');
+  function apply(filter){
+    let shown = 0;
+    cards.forEach(c => {
+      const match = filter === 'all' || c.dataset.format === filter;
+      c.classList.toggle('hide', !match);
+      if (match) shown++;
+    });
+    const noun = cards.length === 1 ? 'file' : 'files';
+    countEl.textContent = cards.length ? `Showing ${shown} of ${cards.length} ${noun}` : '';
+    const noneAtAll = cards.length === 0;
+    emptyEl.classList.toggle('show', shown === 0);
+    if (emptyLearn) emptyLearn.hidden = !noneAtAll;
+    if (emptyDetail) {
+      emptyDetail.textContent = noneAtAll
+        ? 'Member files will appear here when they are ready.'
+        : 'Nothing in this format yet. Choose another filter, or check back when a file is added.';
+    }
+  }
+  chips.forEach(chip => chip.addEventListener('click', () => {
+    chips.forEach(c => c.classList.remove('on'));
+    chip.classList.add('on');
+    apply(chip.dataset.filter);
+  }));
+  apply('all');
+
+  document.querySelectorAll('[data-copy]').forEach(btn => {
+    btn.addEventListener('click', async e => {
+      e.preventDefault();
+      e.stopPropagation();
+      const url = new URL(btn.getAttribute('data-copy'), location.href).href;
+      try {
+        await navigator.clipboard.writeText(url);
+        btn.setAttribute('aria-label', 'Link copied');
+        btn.dataset.copied = '1';
+        setTimeout(() => {
+          btn.setAttribute('aria-label', 'Copy link to this file');
+          delete btn.dataset.copied;
+        }, 1600);
+      } catch {
+        window.prompt('Copy this portal link', url);
+      }
+    });
+  });
+</script>
+<script type="module" src="assets/js/paaipe-portal.js"></script></body></html>

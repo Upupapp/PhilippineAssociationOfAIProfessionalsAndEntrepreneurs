@@ -328,16 +328,16 @@ function openDetail(id) {
     <h3 class="ehead">Decision</h3>
     <div class="dacts">
       <button class="btn btn-gold btn-sm" data-accept ${a.status === "accepted" ? "disabled" : ""}>
-        Accept — create the sponsorship</button>
+        Accept — add as Partner (proposed)</button>
       <button class="btn btn-ghost btn-sm" data-status="contacted" ${a.status === "contacted" ? "disabled" : ""}>Mark contacted</button>
       <button class="btn btn-ghost btn-sm" data-status="in_discussion" ${a.status === "in_discussion" ? "disabled" : ""}>In discussion</button>
       <button class="btn btn-ghost btn-sm" data-status="declined" ${a.status === "declined" ? "disabled" : ""}>Decline</button>
       <button class="btn btn-ghost btn-sm danger" data-status="spam" ${a.status === "spam" ? "disabled" : ""}>Mark spam</button>
     </div>
     <p class="note"><b>Accepting does not publish anything.</b> It creates the organization if it is
-      new, links it if it is not, and adds the sponsorship as <b>proposed</b> — which the rules
+      new, links it if it is not, and adds them as a <b>proposed</b> Partner on this event — which the rules
       refuse to serve to the public. A logo appears on the event page only when somebody confirms
-      the sponsorship on the Organizations screen, where the tier limits are checked.</p>`;
+      them on Organizations, where the tier limits are checked.</p>`;
   d.hidden = false;
   d.dataset.app = id;
   d.scrollIntoView({ block: "nearest" });
@@ -448,8 +448,7 @@ async function acceptApplication(id) {
     await patchApp(id, { status: PARTNER_STATUS.ACCEPTED, organizationId: org.id },
       "partner_application.accept", `${a.reference} ${a.companyName} → ${org.name}`);
 
-    flash(`Accepted. ${org.name} now has a PROPOSED community sponsorship on ` +
-          `${eventTitle(a)} — set the tier and confirm it on Organizations to put the logo ` +
+    flash(`Accepted. ${org.name} now has a PROPOSED community Partner on this event (${eventTitle(a)}) — set the tier and confirm it on Organizations to put the logo ` +
           `on the public page.`, true);
     openDetail(id);
   } catch (ex) {

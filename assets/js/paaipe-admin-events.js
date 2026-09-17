@@ -151,7 +151,7 @@ const CROSS = '<svg viewBox="0 0 24 24" stroke-linecap="round"><path d="M18 6 6 
  *  this doing that?" in the place the question gets asked. */
 function publishList() {
   const yes = [
-    "Serves this record on the public event page — title, sponsors and the Register button follow it",
+    "Serves this record on the public event page — title, Partners and the Register button follow it",
     "Offers a calendar file generated from this record",
     "Opens registration at the date you set - checked when somebody loads the page, since nothing runs on a schedule",
   ];
@@ -231,8 +231,8 @@ function programRow(r = {}) {
   </div>`;
 }
 
-/** The sponsor summary. Read-only here: tiers, order and logos are edited on the
- *  Organizations & sponsors page, and two screens that both write the same rows
+/** The partner summary. Read-only here: tiers, order and logos are edited on the
+ *  Organizations & Partners page, and two screens that both write the same rows
  *  are two screens that can disagree. The proposed count is shown but the names
  *  are not - saying WHO is only proposed would leak the conversation. */
 
@@ -242,7 +242,7 @@ function sponsorSummary(rows) {
   const broken = rows.filter(r =>
     ["confirmed", "delivered"].includes(r.status) && !r.organization).length;
   if (!live.length && !proposed && !broken)
-    return `<p class="note" style="margin-top:0">No sponsor has been added to this event.</p>`;
+    return `<p class="note" style="margin-top:0">No Partner has been added to this event.</p>`;
   return `<div class="sponrow">
     ${live.map(r => `<span class="sponchip">
         ${r.organization.logoUrl
@@ -332,7 +332,7 @@ function openEditor(id) {
       <div class="rep" data-program>${program.map(programRow).join("")}</div>
       <button type="button" class="btn btn-ghost btn-sm addrow" data-add-pr>+ Add row</button>
 
-      <p class="note">Sponsors, partner applications, registrations and the event's pictures each
+      <p class="note">Partners, applications, registrations and the event's pictures each
         have their own tab above. They are this event's data and they are edited here, not on a
         cross-event page that happens to be filtered to it.</p>
     </section>`;
@@ -397,7 +397,7 @@ function openEditor(id) {
 const TABS = [
   ["details",       "Details",       null],
   ["media",         "Media",         null],
-  ["sponsors",      "Sponsors",      "sponsors"],
+  ["sponsors",      "Partners",      "sponsors"],
   ["applications",  "Applications",  "applications"],
   ["registrations", "Registrations", "registrations"],
   ["settings",      "Settings",      null],
@@ -518,7 +518,7 @@ async function loadSponsorSummary(eventId) {
   const host = $("[data-sponsor-summary]");
   if (!host) return;
   try { host.innerHTML = sponsorSummary(await listEventSponsors(eventId, { asAdmin: true })); }
-  catch (ex) { host.innerHTML = `<p class="note" style="margin-top:0">Sponsors could not be read: ${esc(ex?.message || ex)}</p>`; }
+  catch (ex) { host.innerHTML = `<p class="note" style="margin-top:0">Partners could not be read: ${esc(ex?.message || ex)}</p>`; }
 }
 
 function readForm() {
@@ -620,7 +620,14 @@ async function setStatus(id, status) {
 }
 
 /** The event's own history, from the append-only log. Read at open time rather
- *  than kept in memory, so it shows what actually landed. */
+ *  than kept in memory, so it shows what actually landed. Activity keys stay as
+ *  written (sponsor.create etc.); these labels are display-only. */
+const ACTION_LABEL = {
+  "sponsor.create": "Partner added",
+  "sponsor.update": "Partner updated",
+  "sponsor.remove": "Partner removed",
+};
+
 async function loadHistory(eventId) {
   const host = $("[data-history]");
   if (!host) return;
@@ -633,7 +640,7 @@ async function loadHistory(eventId) {
       ? `<ul class="hist">${rows.slice(0, 20).map(r => {
           const when = r.at?.toDate ? r.at.toDate().toLocaleString("en-PH",
             { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }) : "—";
-          return `<li><b>${esc(r.action || "")}</b> ${esc(r.details || "")}
+          return `<li><b>${esc(ACTION_LABEL[r.action] || r.action || "")}</b> ${esc(r.details || "")}
             <span class="muted">${esc(when)} · ${esc(r.actor || "")}</span></li>`;
         }).join("")}</ul>`
       : `<p class="muted small">Nothing has been changed through this console yet. The seed wrote
@@ -1064,7 +1071,7 @@ function placementPreview() {
     ${g.any ? "" : `<p class="muted small" style="margin:0">Nothing appears publicly yet.</p>`}
     ${live.length ? `<p class="muted small" style="margin:10px 0 0">${live.length} live on the public page.</p>` : ""}
     ${pending.length ? `<p class="muted small" style="margin:8px 0 0">${pending.length}
-      ${pending.length === 1 ? "sponsorship is" : "sponsorships are"} hidden until confirmed - the rules
+      ${pending.length === 1 ? "Partner on this event is" : "Partners on this event are"} hidden until confirmed - the rules
       refuse to serve a proposed one, so it cannot leak.</p>` : ""}
     ${broken.length ? `<p class="join-warn" style="margin:8px 0 0">${broken.length}
       confirmed/delivered ${broken.length === 1 ? "row has" : "rows have"} no matching organization
@@ -1079,13 +1086,13 @@ function renderSponsorsTab() {
   if (!host) return;
   host.innerHTML = `
     <section class="card">
-      <div class="hd"><h2>Sponsors &amp; partners</h2>
+      <div class="hd"><h2>Partners</h2>
         <span class="count">${SPONSORS.length} on this event</span></div>
       <div data-sp-rows>${SPONSORS.length
         ? SPONSORS.slice().sort((a, b) => (a.order ?? 100) - (b.order ?? 100)).map(sponsorRow).join("")
-        : `<p class="note" style="margin-top:0">No organization sponsors this event yet.</p>`}</div>
+        : `<p class="note" style="margin-top:0">No organization is a Partner on this event yet.</p>`}</div>
 
-      <h3 class="ehead">Add a sponsor</h3>
+      <h3 class="ehead">Add a Partner</h3>
       <div class="frow">
         <div class="f"><label>An organization PAAIPE already knows</label>
           <select data-add-org>
@@ -1112,7 +1119,7 @@ function renderSponsorsTab() {
         <div class="f"><label>Logo URL <small>(a path in the repository, or any URL)</small></label>
           <input data-no-logo maxlength="300"></div>
         <div class="dacts"><button type="button" class="btn btn-gold btn-sm" data-create-org>Create and add</button></div>
-        <p class="note">This writes the shared organization record as well as the sponsorship, because
+        <p class="note">This writes the shared organization record as well as the Partner on this event, because
           an organization is one thing PAAIPE knows about a company, not a per-event note. It is
           created <b>inactive</b> and <b>proposed</b>: nothing appears on the public Partners page
           until somebody makes it active.</p>
@@ -1136,8 +1143,8 @@ async function loadSponsorsTab(eventId) {
     renderSponsorsTab();
     setTabCount("sponsors", SPONSORS.length);
   } catch (ex) {
-    host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Sponsors could not be
-      read: ${esc(ex?.message || ex)}. This is not "no sponsors".</p></section>`;
+    host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Partners could not be
+      read: ${esc(ex?.message || ex)}. This is not "no Partners".</p></section>`;
   }
 }
 
@@ -1199,7 +1206,7 @@ function renderApplicationsTab(eventId) {
           Read, reply and accept →</a>
       </div>
       <p class="note">Replying and accepting happen on the applications screen. Accepting creates an
-        organization and a sponsorship and has to enforce the tier limits — two screens that both did
+        organization and a Partner on this event and has to enforce the tier limits — two screens that both did
         it would be two screens that can disagree about what happened, so this one hands over rather
         than repeating it.</p>
     </section>`;
@@ -1338,7 +1345,7 @@ async function addExistingSponsor() {
   const tier = $("[data-add-tier]")?.value || TIER.COMMUNITY;
   if (!orgId) return flash("Choose an organization first.");
   if (tier !== TIER.COMMUNITY && tierCount(tier) >= TIER_LIMITS[tier])
-    return flash(`This event already has the maximum of ${TIER_LIMITS[tier]} ${tier} sponsor(s).`);
+    return flash(`This event already has the maximum of ${TIER_LIMITS[tier]} ${tier} Partner(s).`);
   await writeSponsor({ organizationId: orgId, tier });
 }
 
@@ -1384,7 +1391,7 @@ async function writeSponsor({ organizationId, tier }) {
       `${ORGS.find(o => o.id === organizationId)?.name || organizationId}: ${tier}/proposed`, CURRENT.id);
     renderSponsorsTab();
     setTabCount("sponsors", SPONSORS.length);
-    flash("Added as PROPOSED — the rules refuse to serve a proposed sponsorship, so nothing is " +
+    flash("Added as PROPOSED — the rules refuse to serve a proposed Partner on this event, so nothing is " +
           "public until you set it to confirmed.", true);
   } catch (ex) {
     flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not add: ${ex?.message || ex}`);
@@ -1397,7 +1404,7 @@ async function saveSponsorRow(id) {
   if (!row || !s) return;
   const tier = $("[data-sp-tier]", row).value;
   if (tier !== TIER.COMMUNITY && tierCount(tier, id) >= TIER_LIMITS[tier])
-    return flash(`This event already has the maximum of ${TIER_LIMITS[tier]} ${tier} sponsor(s).`);
+    return flash(`This event already has the maximum of ${TIER_LIMITS[tier]} ${tier} Partner(s).`);
   const patch = {
     tier,
     status: $("[data-sp-status]", row).value,
@@ -1415,7 +1422,7 @@ async function saveSponsorRow(id) {
     renderSponsorsTab();
     flash(patch.status === SPONSOR_STATUS.PROPOSED
       ? "Saved. Still proposed, so it stays off the public page."
-      : "Saved. This sponsor now appears on the public event page.", true);
+      : "Saved. This Partner now appears on the public event page.", true);
   } catch (ex) {
     flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not save: ${ex?.message || ex}`);
   }
@@ -1436,7 +1443,7 @@ async function removeSponsorRow(id) {
     await logActivity("sponsor.remove", `${name} from ${CURRENT.id}`, CURRENT.id);
     renderSponsorsTab();
     setTabCount("sponsors", SPONSORS.length);
-    flash(`${name} no longer sponsors this event. The organization is untouched.`, true);
+    flash(`${name} is no longer a Partner on this event. The organization is untouched.`, true);
   } catch (ex) {
     flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not remove: ${ex?.message || ex}`);
   }

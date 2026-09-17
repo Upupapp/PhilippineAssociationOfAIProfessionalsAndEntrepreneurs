@@ -86,8 +86,23 @@ function assertNoOverlap(boxes,where){
   }
 }
 
+async function assertReadable(row,where){
+  const info=await row.locator('td').nth(3).evaluate(td=>{
+    const cell=td.getBoundingClientRect();
+    return [...td.querySelectorAll('.tag')].map(e=>{
+      const r=e.getBoundingClientRect();
+      return {t:e.textContent.trim(),scroll:e.scrollWidth,client:e.clientWidth,
+              right:r.right-cell.right,bottom:r.bottom-cell.bottom};
+    });
+  });
+  const clipped=info.filter(x=>x.scroll>x.client+1);
+  ok(!clipped.length,`${where}: text clipped inside pills: ${clipped.map(x=>x.t).join('; ')}`);
+  const overflow=info.filter(x=>x.right>2||x.bottom>2);
+  ok(!overflow.length,`${where}: pills overflow the cell: ${JSON.stringify(overflow)}`);
+}
+
 const br=await chromium.launch();
-const ctx=await br.newContext({viewport:{width:1280,height:900}});
+const ctx=await br.newContext({viewport:{width:1600,height:900}});
 const errs=[];
 
 async function stub(p){
@@ -137,7 +152,9 @@ await T('Applications tab: five offerings wrap without overlapping',async()=>{
   const boxes=await tagBoxes(row);
   eq(boxes.map(b=>b.t),LABELS,'every support type is still shown');
   assertNoOverlap(boxes,'event Applications');
-  ok(boxes.every(b=>b.display==='inline-flex'),'each offering is a box, not an inline span');
+  await assertReadable(row,'event Applications');
+  ok(boxes.every(b=>b.display==='inline-flex'||b.display==='flex'),
+     'each offering is a box, not an inline span');
   ok(boxes.every(b=>b.cursor==='default'),'offerings are not pointer');
   const wrap=await row.locator('.tags').evaluate(el=>{
     const r=el.getBoundingClientRect();
@@ -154,6 +171,7 @@ await T('Applications tab: five offerings wrap without overlapping',async()=>{
   ok(await p.locator('[data-publish-rail] button.chip.on').isVisible(),
      'publish-rail .chip toggle is unchanged');
   await p.screenshot({path:'/tmp/offering-chips-event-applications.png'});
+  await row.locator('td').nth(3).screenshot({path:'/tmp/offering-chips-event-cell.png'});
   await p.close();
 });
 
@@ -167,8 +185,11 @@ await T('Partner applications inbox: the same column does not overlap',async()=>
   const boxes=await tagBoxes(row);
   eq(boxes.map(b=>b.t),LABELS,'inbox shows the same labels');
   assertNoOverlap(boxes,'partner inbox');
+  await assertReadable(row,'partner inbox');
   const one=await tagBoxes(p.locator('[data-rows] tr',{hasText:'PA-2026-RULE'}));
   eq(one.map(b=>b.t),['Something else'],'a single offering still renders');
+  await p.screenshot({path:'/tmp/offering-chips-partner-inbox.png'});
+  await row.locator('td').nth(3).screenshot({path:'/tmp/offering-chips-partner-cell.png'});
   await p.locator('[data-open="AbCd1234efgh"]').click();
   const detail=p.locator('[data-detail]');
   await detail.waitFor({state:'visible'});
@@ -177,7 +198,7 @@ await T('Partner applications inbox: the same column does not overlap',async()=>
   assertNoOverlap(dBoxes,'inbox detail');
   ok(!(await detail.locator('.chips .chip').count()),
      'detail must not paint offerings as publish-rail chips');
-  await p.screenshot({path:'/tmp/offering-chips-partner-inbox.png'});
+  await p.screenshot({path:'/tmp/offering-chips-partner-detail.png'});
   await p.close();
 });
 

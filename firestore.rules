@@ -363,6 +363,65 @@ service cloud.firestore {
           && d.createdAt == request.time;   // server timestamp only; no backdating
     }
 
+
+    // --- PAAIPE: Learnings (Sessions + Micros) ---------------------
+    //
+    // Clarence's schema, locked. Two collections — do NOT fold these into
+    // paaipe_recordings. Sessions are 16:9 landscape; Micros are 9:16
+    // vertical. Portal members may read published rows only; administrators
+    // write everything. displayOrder is the portal order.
+    //
+    // Upload (source == "upload", storagePath, posterStoragePath) is schema-
+    // ready. Storage itself is not wired in v1 — the admin UI refuses upload
+    // client-side — but the rules still allow an admin to write those fields
+    // so flipping LEARNINGS_UPLOAD_STORAGE_READY later needs no rules change.
+
+    function isWellFormedLearning(d) {
+      return d.keys().hasAll(['title','source','published','displayOrder','updatedAt'])
+          && d.title is string && d.title.size() > 0 && d.title.size() <= 200
+          && d.source in ['youtube','upload']
+          && d.published is bool
+          && d.displayOrder is number
+          && (!('description' in d.keys())
+              || d.description == null
+              || (d.description is string && d.description.size() <= 4000))
+          && (!('youtubeUrl' in d.keys())
+              || d.youtubeUrl == null
+              || (d.youtubeUrl is string && d.youtubeUrl.size() <= 300))
+          && (!('youtubeId' in d.keys())
+              || d.youtubeId == null
+              || (d.youtubeId is string && d.youtubeId.size() <= 20))
+          && (!('storagePath' in d.keys())
+              || d.storagePath == null
+              || (d.storagePath is string && d.storagePath.size() <= 400))
+          && (!('posterUrl' in d.keys())
+              || d.posterUrl == null
+              || (d.posterUrl is string && d.posterUrl.size() <= 400))
+          && (!('posterStoragePath' in d.keys())
+              || d.posterStoragePath == null
+              || (d.posterStoragePath is string && d.posterStoragePath.size() <= 400))
+          && (!('updatedBy' in d.keys())
+              || d.updatedBy == null
+              || (d.updatedBy is string
+                  && d.updatedBy == request.auth.token.email));
+    }
+
+    match /paaipe_sessions/{id} {
+      allow read: if isAdmin()
+                  || (resource.data.published == true);
+      allow create: if isAdmin() && isWellFormedLearning(request.resource.data);
+      allow update: if isAdmin() && isWellFormedLearning(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /paaipe_micros/{id} {
+      allow read: if isAdmin()
+                  || (resource.data.published == true);
+      allow create: if isAdmin() && isWellFormedLearning(request.resource.data);
+      allow update: if isAdmin() && isWellFormedLearning(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
     match /paaipe_recordings/{eventId} {
       // Published recordings only, and only to signed-in members unless the
       // recording says otherwise. Absence means "not published", never "missing".

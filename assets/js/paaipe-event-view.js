@@ -20,6 +20,7 @@ import {
   getEventBySlug, listEventSponsors, listOrganizations,
   groupSponsors, registrationState, TIER,
 } from "/assets/js/paaipe-events-data.js";
+import { currentAgent } from "/assets/js/paaipe-firebase.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -137,5 +138,47 @@ async function renderPartnerLogos() {
   document.documentElement.setAttribute("data-partner-logos", String(live.length));
 }
 
+/* MEMBERS-ONLY LINKS ON A PUBLIC PAGE.
+ *
+ * "Recap resources" on a held event is a member benefit, so a visitor who is not
+ * signed in is sent to sign up instead of to the materials.
+ *
+ * THE LABEL CHANGES WITH THE DESTINATION. A button that still said "Recap
+ * resources" while landing on a sign-up form would be a bait-and-switch - the
+ * visitor clicked for one thing and got another. So when the destination becomes
+ * the sign-up page the button says so, and the click delivers exactly what it
+ * offered. It goes back to the plain label for anyone who is signed in.
+ *
+ * THIS IS A PROMPT, NOT A LOCK, and it must not be described as one. Resources
+ * is a public page reachable from the main navigation, so nothing here withholds
+ * anything; it puts the sign-up in front of the person most likely to want it.
+ * Making it a real gate means gating resources.html itself, which is a separate
+ * decision about whether those materials are members-only at all.
+ *
+ * The markup keeps the real href, so the link works with no JavaScript and for
+ * anybody who clicks before currentAgent() resolves - which lands them on the
+ * same public page they could have reached from the nav.
+ */
+async function gateMembersLinks() {
+  const links = $$("[data-members-only]");
+  if (!links.length) return;
+  let signedIn = false;
+  try { signedIn = Boolean(await currentAgent()); }
+  catch { /* cannot tell: leave the plain public link alone */ 
+    document.documentElement.setAttribute("data-members-links", "unknown");
+    return;
+  }
+  for (const a of links) {
+    if (signedIn) { a.setAttribute("data-members-state", "member"); continue; }
+    const dest = a.getAttribute("href") || "";
+    a.setAttribute("href", `signup.html?next=${encodeURIComponent(dest)}`);
+    const label = a.dataset.membersLabel;
+    if (label) a.textContent = label;
+    a.setAttribute("data-members-state", "prompt");
+  }
+  document.documentElement.setAttribute("data-members-links", signedIn ? "member" : "prompt");
+}
+
 renderEventPage();
 renderPartnerLogos();
+gateMembersLinks();

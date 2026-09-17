@@ -72,6 +72,25 @@
   </form></section>
 </div>
 <script>
+  /* WHERE TO GO AFTER SIGNING IN, when something sent them here for a reason.
+   *
+   * VALIDATED, because ?next= is an open redirect if it is not. An attacker who
+   * can hand somebody a paaipe.org link that bounces to their own site gets a
+   * PAAIPE-branded phishing page for free - the victim checks the domain, sees
+   * paaipe.org, and clicks. So this accepts ONE shape and nothing else: a bare
+   * page on this site.
+   *
+   * Refused by that rule, deliberately: "//evil.example" (protocol-relative, and
+   * the one people forget), "https://evil.example", "\\evil.example",
+   * "/\evil.example", anything with a host, and any path with a slash in it.
+   */
+  function nextPage(fallback){
+    try{
+      const raw=new URLSearchParams(location.search).get('next')||'';
+      return /^[a-z0-9][a-z0-9-]*\.html(?:[?#][^\s]*)?$/i.test(raw) ? raw : fallback;
+    }catch{ return fallback }
+  }
+
   const f=document.getElementById('si');document.querySelectorAll('[data-toggle]').forEach(b=>b.addEventListener('click',()=>{const i=document.getElementById(b.dataset.toggle);i.type=i.type==='password'?'text':'password'}));
   f.querySelectorAll('input').forEach(i=>i.addEventListener('input',()=>i.closest('.f')&&i.closest('.f').classList.remove('invalid')));
   f.addEventListener('submit',async e=>{e.preventDefault();let ok=true;f.querySelectorAll('.f').forEach(x=>{const r=x.querySelector('[required]');const bad=r.type==='email'?!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.value.trim()):!r.value.trim();x.classList.toggle('invalid',bad);if(bad)ok=false});if(!ok)return;
@@ -81,7 +100,7 @@
       const fb=await import('/assets/js/paaipe-firebase.js');
       if(!fb.isConfigured())throw new Error('not-configured');
       await fb.signIn(document.getElementById('em').value.trim(),document.getElementById('pw').value);
-      location.href='portal.html';
+      location.href=nextPage('portal.html');
     }catch(ex){
       btn.disabled=false;btn.textContent=lbl;
       const fb=await import('/assets/js/paaipe-firebase.js').catch(()=>null);
@@ -98,7 +117,7 @@
       const fb=await import('/assets/js/paaipe-firebase.js');
       if(!fb.isConfigured())throw new Error('not-configured');
       await fb.signInWithGoogle();
-      location.href='portal.html';
+      location.href=nextPage('portal.html');
     }catch(ex){
       gb.disabled=false;
       const fb=await import('/assets/js/paaipe-firebase.js').catch(()=>null);

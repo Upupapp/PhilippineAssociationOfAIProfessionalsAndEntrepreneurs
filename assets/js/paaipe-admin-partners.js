@@ -124,7 +124,8 @@ const pill = s =>
 function offeringChips(a) {
   const t = Array.isArray(a.supportTypes) ? a.supportTypes : [];
   if (!t.length) return `<span class="muted small">Not said</span>`;
-  return t.map(k => `<span class="chip">${esc(SUPPORT_LABEL[k] || k)}</span>`).join(" ");
+  return `<div class="tags">${t.map(k =>
+    `<span class="tag">${esc(SUPPORT_LABEL[k] || k)}</span>`).join("")}</div>`;
 }
 
 function renderTally() {
@@ -272,7 +273,7 @@ function openDetail(id) {
     </dl>
 
     <h3 class="ehead">What they offered</h3>
-    <div class="chips">${offeringChips(a)}</div>
+    ${offeringChips(a)}
     <dl class="answers">${a.message
       ? `<div class="ans"><dt>Their message</dt><dd>${esc(a.message)}</dd></div>`
       : `<p class="muted small">They did not add a message.</p>`}</dl>

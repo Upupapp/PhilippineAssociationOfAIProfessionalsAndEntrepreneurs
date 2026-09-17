@@ -1182,9 +1182,10 @@ function renderApplicationsTab(eventId) {
             <td><b>${esc(a.companyName || "—")}</b>
               <small class="muted">${org ? `Matches ${esc(org.name)}` : "New to PAAIPE"}</small></td>
             <td>${esc(a.contactName || "—")}<small class="muted">${esc(a.email || "")}</small></td>
-            <td>${(a.supportTypes || []).map(k =>
-              `<span class="chip">${esc(SUPPORT_LABEL[k] || k)}</span>`).join(" ") ||
-              `<span class="muted small">Not said</span>`}</td>
+            <td>${(a.supportTypes || []).length
+              ? `<div class="tags">${(a.supportTypes || []).map(k =>
+                  `<span class="tag">${esc(SUPPORT_LABEL[k] || k)}</span>`).join("")}</div>`
+              : `<span class="muted small">Not said</span>`}</td>
             <td><span class="pill ${APP_PILL[a.status] || ""}">${esc(APP_STATUS_LABEL[a.status] || a.status)}</span></td>
             <td><a class="btn btn-ghost btn-sm"
                  href="admin-partners.html?event=${encodeURIComponent(eventId)}">Open</a></td>

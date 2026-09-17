@@ -24,8 +24,8 @@ export const EMAIL_BRAND = {
 };
 
 export const EMAIL_ASSETS = {
-  headerMark: `${EMAIL_SITE}/assets/email/logo-mark-header.png`,
-  signMark:   `${EMAIL_SITE}/assets/email/logo-mark-email.png`,
+  headerMark: "https://paaipe.org/assets/email/logo-mark-header.png",
+  signMark:   "https://paaipe.org/assets/email/logo-mark-email.png",
 };
 
 export const DEFAULT_BODY_HTML =

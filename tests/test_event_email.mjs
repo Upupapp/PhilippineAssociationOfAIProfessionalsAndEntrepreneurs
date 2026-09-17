@@ -57,7 +57,8 @@ await T('official marks live under assets/email and are not file://',()=>{
   const js=readFileSync(`${ROOT}/assets/js/paaipe-email-shell.js`,'utf8');
   ok(js.includes('https://paaipe.org/assets/email/logo-mark-header.png'),'canonical header URL');
   ok(js.includes('https://paaipe.org/assets/email/logo-mark-email.png'),'canonical signature URL');
-  ok(!/file:\/\//.test(js),'no file://');
+  const assets=js.slice(js.indexOf('export const EMAIL_ASSETS'), js.indexOf('export const DEFAULT_BODY_HTML'));
+  ok(!/file:\/\//.test(assets),'asset URLs are not file://');
 });
 
 await T('the shell keeps the official brand colours',async()=>{

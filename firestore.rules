@@ -156,7 +156,12 @@ service cloud.firestore {
 
       allow update: if request.auth != null && request.auth.uid == uid
                     && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen'])
+                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen','photoURL'])
+                    // portrait URL only — the bytes live in Storage (Clarence).
+                    // empty string means initials; a URL must stay a short string.
+                    && (!('photoURL' in request.resource.data.keys())
+                        || (request.resource.data.photoURL is string
+                            && request.resource.data.photoURL.size() <= 2000))
                     // belt and braces: neither may move even if listed above
                     && request.resource.data.status == resource.data.status
                     && request.resource.data.get('agentNumber', null)

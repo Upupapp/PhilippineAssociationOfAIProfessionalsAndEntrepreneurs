@@ -295,6 +295,13 @@ export async function currentAgent() {
     confirmedBy: profile.confirmed_by || null,
     // so the one-time celebration can be shown exactly once
     confirmationSeen: profile.confirmation_seen === true,
+    // Empty string is an explicit "no photo" (the member removed it). A missing
+    // field may still fall back to Auth (Google) photoURL. Never invent one.
+    photoURL: profile.photoURL === ""
+      ? ""
+      : ((typeof profile.photoURL === "string" && profile.photoURL.trim())
+          ? profile.photoURL.trim()
+          : (user.photoURL || "")),
   };
 }
 
@@ -332,6 +339,145 @@ export async function setDirectoryVisible(visible) {
   await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid),
                     { directoryVisible: Boolean(visible) });
   return Boolean(visible);
+}
+
+/* ---------------------------------------------------------------------------
+ * Profile photo.
+ *
+ * Bytes live in Storage; the profile stores a URL string in `photoURL`.
+ * Storage rules are Clarence's. This client must tolerate a missing bucket
+ * or a bucket that exists but is not writable — partner logos hit the same
+ * wall. Callers MUST NOT show success unless these resolve.
+ * ------------------------------------------------------------------------- */
+
+const PHOTO_OBJECT = uid => `paaipe_agents/${uid}/photo.jpg`;
+let _storageOk = null;   // null = not yet checked
+
+async function signedInUser() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const a = await auth();
+  const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
+  if (!user) throw new Error("not-signed-in");
+  return { A, user };
+}
+
+/** True when the configured bucket exists. 401/403 still count as "exists"
+ *  (a private bucket looks like that from here). A write may still be refused
+ *  by rules — callers must treat a write failure as a failure. */
+export async function storageWritable() {
+  if (_storageOk !== null) return _storageOk;
+  const bucket = (firebaseConfig.storageBucket || "").trim();
+  if (!bucket) return (_storageOk = false);
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), 4000);
+    const r = await fetch(
+      `https://firebasestorage.googleapis.com/v0/b/${encodeURIComponent(bucket)}/o?maxResults=1`,
+      { signal: ctrl.signal });
+    clearTimeout(t);
+    // 404 = no such bucket. Anything else (including 401/403) means a bucket
+    // answered, which is the most we can know without trying a write.
+    _storageOk = r.status !== 404;
+  } catch {
+    _storageOk = false;
+  }
+  return _storageOk;
+}
+
+export function explainPhotoError(err) {
+  const code = err && err.code || "";
+  const msg = String(err && err.message || err || "");
+  if (code === "storage/bucket-missing" || /bucket-missing|does not exist/i.test(msg))
+    return "Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.";
+  if (code === "profile-update-failed")
+    return "The file reached storage, but your profile could not be updated. The portal will not show a new photo yet.";
+  if (code === "storage/unauthorized" || code === "permission-denied" ||
+      /unauthorized|permission-denied|not writable/i.test(msg))
+    return "Photos cannot be saved yet — storage is not writable from the portal. Nothing was uploaded.";
+  if (code === "not-signed-in")
+    return "You need to be signed in to change your photo.";
+  if (code === "storage-leftover")
+    return msg || "Your photo was removed from your profile. The stored file could not be deleted yet.";
+  if (/nothing was/i.test(msg) || /cannot be saved/i.test(msg) || /removed from your profile/i.test(msg))
+    return msg;
+  return "Could not save your photo. Nothing was changed.";
+}
+
+async function storageRefFor(uid) {
+  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
+  const { getStorage, ref } = await import(`${SDK}/firebase-storage.js`);
+  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
+  return ref(getStorage(app), PHOTO_OBJECT(uid));
+}
+
+/** Upload cropped JPEG bytes. Throws — never invents a URL. */
+export async function uploadAgentPhoto(blob) {
+  if (!(await storageWritable())) {
+    const err = new Error("Photos cannot be saved yet — file storage is not enabled for this project. Nothing was uploaded.");
+    err.code = "storage/bucket-missing";
+    throw err;
+  }
+  const { user } = await signedInUser();
+  const { uploadBytes, getDownloadURL } = await import(`${SDK}/firebase-storage.js`);
+  const r = await storageRefFor(user.uid);
+  await uploadBytes(r, blob, { contentType: "image/jpeg" });
+  return getDownloadURL(r);
+}
+
+/** Persist the portrait URL on the Agent profile (and Auth, best-effort). */
+export async function setAgentPhotoURL(url) {
+  const { A, user } = await signedInUser();
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const value = typeof url === "string" ? url : "";
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), { photoURL: value });
+  try { await A.updateProfile(user, { photoURL: value || null }); } catch {}
+  return value;
+}
+
+/** Upload + persist. Chrome may refresh only after this resolves. */
+export async function saveAgentPhotoBlob(blob) {
+  const url = await uploadAgentPhoto(blob);
+  try {
+    await setAgentPhotoURL(url);
+  } catch (e) {
+    const err = new Error("The file reached storage, but your profile could not be updated. The portal will not show a new photo yet.");
+    err.code = "profile-update-failed";
+    err.cause = e;
+    throw err;
+  }
+  return url;
+}
+
+/** Clear photoURL. Deletes the Storage object when that is possible; a leftover
+ *  file after a successful profile clear is reported, not hidden. */
+export async function clearAgentPhoto() {
+  const { user } = await signedInUser();
+  let leftover = false;
+  try {
+    if (await storageWritable()) {
+      const { deleteObject } = await import(`${SDK}/firebase-storage.js`);
+      try { await deleteObject(await storageRefFor(user.uid)); }
+      catch (e) {
+        if (e && e.code !== "storage/object-not-found") leftover = true;
+      }
+    }
+  } catch {
+    leftover = true;
+  }
+  try {
+    await setAgentPhotoURL("");
+  } catch (e) {
+    const err = new Error(explainPhotoError(e));
+    err.code = e && e.code || "permission-denied";
+    throw err;
+  }
+  if (leftover) {
+    const err = new Error("Your photo was removed from your profile. The stored file could not be deleted yet.");
+    err.code = "storage-leftover";
+    err.cleared = true;
+    throw err;
+  }
+  return "";
 }
 
 /** Confirmed Agents who have opted in. A guest is never listed, however they

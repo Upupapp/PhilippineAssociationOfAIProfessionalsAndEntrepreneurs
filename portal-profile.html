@@ -97,6 +97,15 @@
   }
 
   .togin{position:absolute;opacity:0;width:0;height:0}.togin:focus-visible+.tog{outline:3px solid var(--cyan);outline-offset:2px}.togin:checked+.tog{background:var(--royal)}.togin:checked+.tog::after{right:3px;left:auto}.togin:not(:checked)+.tog{background:var(--line)}.togin:not(:checked)+.tog::after{right:auto;left:3px}.togin:disabled+.tog{opacity:.5}
+  /* Profile photo — About you. Chrome camera-badge CSS is injected by paaipe-profile-photo.js. */
+  .pp-block{display:flex;gap:18px;align-items:flex-start;margin:0 0 18px;padding:0 0 18px;border-bottom:1px solid var(--line)}
+  .pp-block>div label{display:block;margin-bottom:6px}
+  .pp-preview.av{width:112px;height:112px;font-size:36px;box-shadow:0 0 0 3px #fff,0 0 0 6px var(--gold)}
+  .pp-acts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .pp-help{font-size:12.5px;color:var(--muted);max-width:46ch;margin:0}
+  .pp-msg{font-size:13px;margin:8px 0 0}.pp-msg.err{color:var(--amber-ink)}.pp-msg.ok{color:var(--green-ink)}
+  .av>img{width:100%;height:100%;object-fit:cover;border-radius:50%;display:block}
+  @media(max-width:560px){.pp-block{flex-direction:column;align-items:flex-start}}
 </style></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
   <a class="logo" href="portal.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>AI PORTAL</span></a>
@@ -110,6 +119,18 @@
 <div class="grid2">
   <div style="display:flex;flex-direction:column;gap:22px">
     <div class="card"><div class="hd"><h2>About you</h2><span class="pill ok"><svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>70% complete</span></div>
+      <div class="pp-block" data-profile-photo>
+        <span class="av pp-preview" data-agent-initials data-agent-photo-preview>··</span>
+        <div>
+          <label for="pp-upload">Profile photo</label>
+          <div class="pp-acts">
+            <button type="button" class="btn btn-gold btn-sm" data-photo-upload id="pp-upload">Upload photo</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-photo-remove disabled>Remove</button>
+          </div>
+          <p class="pp-help" data-photo-help>JPG or PNG, up to 2 MB. A square crop works best. Signed-in Agents can change their photo here.</p>
+          <p class="pp-msg" data-photo-msg hidden></p>
+        </div>
+      </div>
       <div class="fields">
         <div class="f"><label>Full name</label><input type="text" data-agent-field="full_name" value=""></div><div class="f"><label>Email</label><input type="email" data-agent-field="email" value="" readonly style="background:var(--pale);cursor:not-allowed" title="Your sign-in email. Contact PAAIPE to change it."></div>
         <div class="f"><label>Position or professional role</label><input type="text" placeholder="e.g., Marketing Manager"></div><div class="f"><label>Company or organization</label><input type="text" placeholder="Company, school or agency"></div>

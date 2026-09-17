@@ -331,7 +331,7 @@ function openDetail(id) {
     <p class="muted small">Accept creates a proposed Partner — confirm on Organizations to publish.</p>`;
   d.hidden = false;
   d.dataset.app = id;
-  d.scrollIntoView({ block: "nearest" });
+  d.scrollIntoView({ block: "start" });
 }
 
 /* ------------------------------------------------------------------ writes */

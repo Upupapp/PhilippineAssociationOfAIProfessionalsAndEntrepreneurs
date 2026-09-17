@@ -417,19 +417,21 @@ td.act{text-align:right;white-space:nowrap}
 body[data-admin-partners] .top .search{display:none}
 body[data-admin-partners] .wrap{gap:12px;padding-top:16px;padding-bottom:40px}
 body[data-admin-partners] .card{padding:16px 18px}
-body[data-admin-partners] .inbox-bar{margin-bottom:4px}
+body[data-admin-partners] .inbox-bar{display:flex;flex-direction:column;gap:8px;margin-bottom:4px}
 body[data-admin-partners] .filters{gap:8px}
 body[data-admin-partners] .filters select,
 body[data-admin-partners] .filters input{padding:8px 12px;font-size:13px}
 body[data-admin-partners] .filters input{min-width:200px}
-body[data-admin-partners] .filters .tally{
-  display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0}
+body[data-admin-partners] .tally-line{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+body[data-admin-partners] .tally-line .tally{
+  display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;margin:0;flex:1}
 body[data-admin-partners] .tally span{
   display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);
   background:var(--pale);border-radius:999px;padding:4px 9px;white-space:nowrap}
 body[data-admin-partners] .tally b{color:var(--navy)}
 body[data-admin-partners] td{padding:11px 12px}
-body[data-admin-partners] .detail{padding:14px 16px;margin-top:12px}
+body[data-admin-partners] .detail{padding:14px 16px;margin-top:12px;scroll-margin-top:88px}
 body[data-admin-partners] .detail .dmeta{margin:8px 0 12px}
 body[data-admin-partners] .detail .ehead{margin:14px 0 8px}
 body[data-admin-partners] .detail .dacts{margin-top:8px}

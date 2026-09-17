@@ -18,6 +18,12 @@ import {
   sessionHasReels,
   sessionHasChapters,
 } from "/assets/js/paaipe-sessions.js";
+import {
+  listPublishedSessions,
+  listPublishedMicros,
+  youtubeEmbedSrc,
+  LEARNING_SOURCE,
+} from "/assets/js/paaipe-learnings-data.js";
 
 const hide = el => { if (el) el.style.display = "none"; };
 const setText = (root, sel, text) =>
@@ -301,7 +307,7 @@ function applyReelsChrome(root = document) {
 
 
   if (page === "sessions-hub") {
-    // Sub-tabs: Sessions (default) | Micros. Micros is the only reels surface.
+    // Sub-tabs: Sessions (default) | Micros.
     const tabs = [...document.querySelectorAll("[data-ss-hub-tab]")];
     const panels = {
       sessions: document.querySelector('[data-ss-hub-panel="sessions"]'),
@@ -337,189 +343,139 @@ function applyReelsChrome(root = document) {
     });
     showHubTab("sessions");
 
-    // Micros: honest empty state today; 9:16 grid only when reels exist.
-    const allReels = [];
-    PAST_SESSIONS.forEach(s => {
-      sessionReels(s).forEach(r => allReels.push({ session: s, reel: r }));
-    });
-    const microEmpty = document.querySelector("[data-ss-micro-empty]");
-    const microGrid = document.querySelector("[data-ss-micro-grid]");
-    if (allReels.length && microGrid) {
-      if (microEmpty) hide(microEmpty);
-      microGrid.hidden = false;
-      microGrid.innerHTML = "";
-      allReels.forEach(({ session: s, reel: r }) => {
-        const a = document.createElement("a");
-        a.className = "micro-card";
-        a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(r.id || "reel")}`;
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+    function mountYt(stage, row) {
+      if (!stage) return;
+      if (row.source === LEARNING_SOURCE.YOUTUBE && row.youtubeId) {
+        const iframe = document.createElement("iframe");
+        iframe.src = youtubeEmbedSrc(row.youtubeId);
+        iframe.title = row.title || "Learning";
+        iframe.setAttribute(
+          "allow",
+          "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
+        );
+        iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
+        // No top-navigation / popups — keep playback in-portal; no Open on YouTube CTA.
+        iframe.setAttribute(
+          "sandbox",
+          "allow-scripts allow-same-origin allow-presentation allow-forms"
+        );
+        stage.appendChild(iframe);
+        return;
+      }
+      if (row.posterUrl) {
         const img = document.createElement("img");
-        img.src = r.thumb || s.poster || "assets/img/ai-exchange-session.jpg";
-        img.alt = r.title || s.title || "Micro";
+        img.src = row.posterUrl;
+        img.alt = row.title || "";
+        stage.appendChild(img);
+        return;
+      }
+      stage.innerHTML =
+        '<div style="padding:24px;color:#BFE3FA;font-size:13px;text-align:center">' +
+        "This item has no playable YouTube source yet.</div>";
+    }
+
+    function renderSessions(rows) {
+      const host = document.querySelector("[data-ss-live-sessions]");
+      const empty = document.querySelector("[data-ss-sessions-empty]");
+      const loading = document.querySelector("[data-ss-sessions-loading]");
+      if (loading) loading.remove();
+      const count = document.querySelector("[data-ss-session-count]");
+      if (count) {
+        count.textContent = rows.length === 1
+          ? "1 published · 16:9"
+          : `${rows.length} published · 16:9`;
+      }
+      if (!host) return;
+      if (!rows.length) {
+        host.innerHTML = "";
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      host.innerHTML = "";
+      rows.forEach(row => {
+        const el = document.createElement("article");
+        el.className = "live-session";
+        el.setAttribute("data-learn-id", row.id);
+        const stage = document.createElement("div");
+        stage.className = "stage";
+        mountYt(stage, row);
+        const meta = document.createElement("div");
+        meta.innerHTML =
+          `<b>${esc(row.title || "Untitled")}</b>` +
+          (row.description
+            ? `<p class="desc">${esc(row.description)}</p>`
+            : "") +
+          `<div class="src"><span class="pill info">${
+            row.source === "upload" ? "Upload" : "YouTube"
+          }</span></div>`;
+        // Deliberately no "Open on YouTube" link.
+        el.appendChild(stage);
+        el.appendChild(meta);
+        host.appendChild(el);
+      });
+    }
+
+    function renderMicros(rows) {
+      const empty = document.querySelector("[data-ss-micro-empty]");
+      const grid = document.querySelector("[data-ss-live-micros]");
+      const count = document.querySelector("[data-ss-micro-count]");
+      if (count) {
+        count.textContent = rows.length === 1
+          ? "1 published · 9:16"
+          : `${rows.length} published · 9:16`;
+      }
+      if (!grid) return;
+      if (!rows.length) {
+        if (empty) empty.hidden = false;
+        grid.hidden = true;
+        grid.innerHTML = "";
+        return;
+      }
+      if (empty) hide(empty);
+      grid.hidden = false;
+      grid.innerHTML = "";
+      rows.forEach(row => {
+        const card = document.createElement("div");
+        card.className = "micro-card";
+        card.setAttribute("data-learn-id", row.id);
+        const stage = document.createElement("div");
+        stage.className = "stage";
+        mountYt(stage, row);
         const cap = document.createElement("div");
         cap.className = "cap";
-        cap.textContent = r.title || s.title || "Micro";
-        a.appendChild(img);
-        a.appendChild(cap);
-        microGrid.appendChild(a);
+        cap.textContent = row.title || "Micro";
+        card.appendChild(stage);
+        card.appendChild(cap);
+        grid.appendChild(card);
       });
-    } else {
-      if (microEmpty) microEmpty.hidden = false;
-      if (microGrid) hide(microGrid);
     }
 
-    const withRec = PAST_SESSIONS.filter(sessionHasRecording);
-    const latest = withRec[0] || PAST_SESSIONS[0] || null;
-
-    // Continue learning: latest published recording. Never invent progress %.
-    const cont = document.querySelector("[data-ss-continue]");
-    if (cont && latest) {
-      applySession(cont, latest);
-      const recs = sessionRecordings(latest);
-      const first = recs[0];
-      const watchUrl = first
-        ? `portal-session-watch.html?session=${encodeURIComponent(latest.id)}&rec=${encodeURIComponent(first.id)}`
-        : `portal-session-watch.html?session=${encodeURIComponent(latest.id)}`;
-      cont.querySelectorAll("[data-ss-watch]").forEach(a => { a.href = watchUrl; });
-      if (first && first.title) setText(cont, "[data-ss-title]", first.title);
-      const label = cont.querySelector("[data-ss-continue-label]");
-      const primary = cont.querySelector("a.btn-gold[data-ss-watch]");
-      if (latest.resumeAt != null || latest.watchedPercent != null) {
-        if (label) label.textContent = "Continue learning";
-        if (primary) primary.textContent = "Continue watching";
-      } else {
-        if (label) label.textContent = "Latest recording";
-        if (primary) primary.textContent = "Watch";
-      }
-      const qa = recs.find(r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || ""));
-      cont.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
-        if (!qa) return;
-        a.href = `portal-session-watch.html?session=${encodeURIComponent(latest.id)}&rec=${encodeURIComponent(qa.id)}`;
-        a.textContent = "Q&A";
-      });
-    } else if (cont) {
-      hide(cont);
-    }
-
-    // Library lists each landscape recording as its own row (Part 1 + Part 2
-    // both visible). Session-level slides still link from every sibling row.
-    const tpl = document.querySelector("[data-ss-lesson]");
-    const list = document.querySelector("[data-ss-lesson-list]");
-    if (tpl && list) {
-      const sessions = withRec.length ? withRec : PAST_SESSIONS;
-      const items = [];
-      sessions.forEach(s => {
-        const recs = sessionRecordings(s);
-        if (recs.length) {
-          recs.forEach(r => items.push({ session: s, rec: r }));
-        } else if (sessionHasRecording(s)) {
-          items.push({ session: s, rec: null });
-        }
-      });
-
-      setText(
-        document,
-        "[data-ss-count]",
-        items.length === 1 ? "1 recording" : `${items.length} recordings`
-      );
-
-      // Speaker select from distinct catalog speakers (no invented names).
-      const speakerSel = document.querySelector("[data-ss-filter-speaker]");
-      if (speakerSel) {
-        const speakers = [...new Set(sessions.map(s => s.speaker).filter(Boolean))].sort();
-        speakers.forEach(name => {
-          const opt = document.createElement("option");
-          opt.value = name;
-          opt.textContent = name;
-          speakerSel.appendChild(opt);
-        });
-      }
-
-      const frag = document.createDocumentFragment();
-      items.forEach(({ session: s, rec }) => {
-        const el = tpl.cloneNode(true);
-        el.removeAttribute("data-ss-lesson");
-        el.hidden = false;
-        el.style.display = "";
-        const recId = rec ? rec.id : "";
-        const isQa = !!(rec && (rec.id === "qa" || /q\s*&?\s*a/i.test(rec.title || "")));
-        el.setAttribute("data-ss-lesson-id", recId ? `${s.id}::${recId}` : s.id);
-        el.setAttribute("data-ss-session-id", s.id);
-        el.setAttribute("data-ss-rec-id", recId);
-        el.setAttribute("data-ss-has-recording", "1");
-        el.setAttribute("data-ss-has-slides", s.slidesUrl ? "1" : "0");
-        el.setAttribute("data-ss-has-qa", isQa ? "1" : "0");
-        el.setAttribute("data-ss-speaker", s.speaker || "");
-        applySession(el, s);
-        // Title = recording part name; keep edition/speaker from session.
-        const partTitle = rec && rec.title
-          ? rec.title
-          : s.title;
-        setText(el, "[data-ss-title]", partTitle);
-        if (rec && rec.thumb) {
-          el.querySelectorAll("[data-ss-poster]").forEach(img => {
-            img.src = rec.thumb;
-          });
-        }
-        const pill = el.querySelector("[data-ss-needs='recording']");
-        if (pill) pill.textContent = isQa ? "Q&A" : "Recording";
-        const watchUrl = rec
-          ? `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(rec.id)}`
-          : `portal-session-watch.html?session=${encodeURIComponent(s.id)}`;
-        el.querySelectorAll("[data-ss-watch]").forEach(a => { a.href = watchUrl; });
-        // Row-level Q&A link: only useful on non-Q&A rows when a sibling Q&A exists.
-        const qaRec = sessionRecordings(s).find(
-          r => r.id === "qa" || /q\s*&?\s*a/i.test(r.title || "")
+    (async () => {
+      try {
+        const [sessions, micros] = await Promise.all([
+          listPublishedSessions(),
+          listPublishedMicros(),
+        ]);
+        renderSessions(sessions);
+        renderMicros(micros);
+        document.documentElement.setAttribute(
+          "data-sessions-ready",
+          `live:${sessions.length}:${micros.length}`
         );
-        el.querySelectorAll("[data-ss-needs='qa']").forEach(a => {
-          if (!qaRec || isQa) return hide(a);
-          a.href = `portal-session-watch.html?session=${encodeURIComponent(s.id)}&rec=${encodeURIComponent(qaRec.id)}`;
-          a.textContent = "Q&A";
-        });
-        frag.appendChild(el);
-      });
-      tpl.replaceWith(frag);
-
-      let typeFilter = "all";
-      const search = document.querySelector("[data-ss-lesson-search]");
-      const emptyNote = document.querySelector("[data-ss-filter-empty]");
-
-      function applyLibraryFilters() {
-        const q = (search && search.value.trim().toLowerCase()) || "";
-        const speaker = (speakerSel && speakerSel.value) || "";
-        let visible = 0;
-        list.querySelectorAll("[data-ss-lesson-id]").forEach(row => {
-          const text = row.textContent.toLowerCase();
-          const okSearch = !q || text.includes(q);
-          const okSpeaker = !speaker || row.getAttribute("data-ss-speaker") === speaker;
-          let okType = true;
-          if (typeFilter === "recording") okType = row.getAttribute("data-ss-has-recording") === "1";
-          else if (typeFilter === "slides") okType = row.getAttribute("data-ss-has-slides") === "1";
-          else if (typeFilter === "qa") okType = row.getAttribute("data-ss-has-qa") === "1";
-          const show = okSearch && okSpeaker && okType;
-          row.style.display = show ? "" : "none";
-          if (show) visible += 1;
-        });
-        if (emptyNote) emptyNote.hidden = visible !== 0;
-        setText(
-          document,
-          "[data-ss-count]",
-          visible === 1 ? "1 recording" : `${visible} recordings`
-        );
+      } catch (ex) {
+        const host = document.querySelector("[data-ss-live-sessions]");
+        if (host) {
+          host.innerHTML =
+            `<p class="note">Published sessions could not be loaded just now. ` +
+            `This is not an empty library — try again shortly.</p>`;
+        }
+        document.documentElement.setAttribute("data-sessions-ready", "error");
       }
-
-      document.querySelectorAll("[data-ss-filter-type] .fchip").forEach(chip => {
-        chip.addEventListener("click", () => {
-          document.querySelectorAll("[data-ss-filter-type] .fchip").forEach(c => c.classList.remove("on"));
-          chip.classList.add("on");
-          typeFilter = chip.getAttribute("data-type") || "all";
-          applyLibraryFilters();
-        });
-      });
-      if (search) search.addEventListener("input", applyLibraryFilters);
-      if (speakerSel) speakerSel.addEventListener("change", applyLibraryFilters);
-    }
-
-    document.documentElement.setAttribute("data-sessions-ready", "hub");
+    })();
     return;
   }
 

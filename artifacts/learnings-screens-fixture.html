@@ -1,0 +1,169 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Learnings screenshots fixture</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/css/paaipe-admin.css">
+<style>
+  body[data-admin-learnings]{margin:0}
+  .shot{min-height:100vh}
+  .shot[hidden]{display:none!important}
+</style>
+</head>
+<body data-admin-learnings>
+<div class="ashell shot" id="shot-sessions-list">
+  <aside class="aside">
+    <a class="logo" href="#"><img src="../assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu">
+      <li class="sec">CONTENT</li>
+      <li><a class="on" href="#"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg><span>Learnings</span></a></li>
+      <li><a href="#"><svg viewBox="0 0 24 24"><rect x="3" y="7" width="8" height="14" rx="1"/><rect x="13" y="3" width="8" height="18" rx="1"/></svg><span>Organizations</span></a></li>
+    </ul>
+  </aside>
+  <div class="amain">
+    <header class="top"><div class="ttl"><h1>Learnings</h1><p>Sessions (16:9) and Micros (9:16) for the member portal</p></div>
+      <div class="tools"><span class="who">Signed in as <b>admin@upupapp.asia</b></span></div></header>
+    <div class="wrap">
+      <nav class="crumbs"><a href="#">Dashboard</a><span class="sep">›</span><span>Learnings</span></nav>
+      <div class="etabs learn-tabs" role="tablist">
+        <button type="button" aria-selected="true"><span class="aspect-cue landscape"></span>Sessions <span class="tb">2</span></button>
+        <button type="button" aria-selected="false"><span class="aspect-cue portrait"></span>Micros <span class="tb">0</span></button>
+      </div>
+      <section class="card">
+        <div class="hd"><h2>Sessions <span class="hint">· 16:9 landscape</span></h2>
+          <button type="button" class="btn btn-gold btn-sm">+ Add session</button></div>
+        <p class="note" style="margin-top:-8px">Portal Learnings lists published Sessions in this order. Drag a row to rearrange.</p>
+        <div class="tbl"><table>
+          <thead><tr><th></th><th>Title</th><th>Source</th><th>Published</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="drag"><span class="drag-handle">⋮⋮</span><span class="ord">1</span></td>
+              <td><b>Part 1 — Presentation</b><small>From Signals to Strategy</small></td>
+              <td><span class="pill info">YouTube</span></td>
+              <td><span class="pill ok">Published · 16 Sep 2026</span></td>
+              <td class="act"><button class="btn btn-ghost btn-sm">Edit</button>
+                <button class="btn btn-ghost btn-sm danger">Remove</button></td></tr>
+            <tr><td class="drag"><span class="drag-handle">⋮⋮</span><span class="ord">2</span></td>
+              <td><b>Part 2 — Q&amp;A</b></td>
+              <td><span class="pill info">YouTube</span></td>
+              <td><span class="pill warn">Draft</span></td>
+              <td class="act"><button class="btn btn-ghost btn-sm">Edit</button>
+                <button class="btn btn-ghost btn-sm danger">Remove</button></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="ashell shot" id="shot-micros-list" hidden>
+  <aside class="aside">
+    <a class="logo" href="#"><img src="../assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu">
+      <li class="sec">CONTENT</li>
+      <li><a class="on" href="#"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg><span>Learnings</span></a></li>
+    </ul>
+  </aside>
+  <div class="amain">
+    <header class="top"><div class="ttl"><h1>Learnings</h1><p>Sessions (16:9) and Micros (9:16) for the member portal</p></div>
+      <div class="tools"><span class="who">Signed in as <b>admin@upupapp.asia</b></span></div></header>
+    <div class="wrap">
+      <nav class="crumbs"><a href="#">Dashboard</a><span class="sep">›</span><span>Learnings</span></nav>
+      <div class="etabs learn-tabs" role="tablist">
+        <button type="button" aria-selected="false"><span class="aspect-cue landscape"></span>Sessions <span class="tb">2</span></button>
+        <button type="button" aria-selected="true"><span class="aspect-cue portrait"></span>Micros <span class="tb">1</span></button>
+      </div>
+      <section class="card">
+        <div class="hd"><h2>Micros <span class="hint">· 9:16 vertical</span></h2>
+          <button type="button" class="btn btn-gold btn-sm">+ Add micro</button></div>
+        <p class="note" style="margin-top:-8px">Short vertical clips. Same publish and reorder rules as Sessions.</p>
+        <div class="tbl"><table>
+          <thead><tr><th></th><th>Title</th><th>Source</th><th>Published</th><th></th></tr></thead>
+          <tbody>
+            <tr><td class="drag"><span class="drag-handle">⋮⋮</span><span class="ord">1</span></td>
+              <td><b>30-second takeaway</b><small>Key signal vs noise</small></td>
+              <td><span class="pill info">YouTube</span></td>
+              <td><span class="pill ok">Published</span></td>
+              <td class="act"><button class="btn btn-ghost btn-sm">Edit</button>
+                <button class="btn btn-ghost btn-sm danger">Remove</button></td></tr>
+          </tbody>
+        </table></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<div class="ashell shot" id="shot-edit-youtube" hidden>
+  <aside class="aside">
+    <a class="logo" href="#"><img src="../assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu"><li class="sec">CONTENT</li>
+      <li><a class="on" href="#"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg><span>Learnings</span></a></li>
+    </ul>
+  </aside>
+  <div class="amain">
+    <header class="top"><div class="ttl"><h1>Learnings</h1><p>Sessions (16:9) and Micros (9:16) for the member portal</p></div>
+      <div class="tools"><span class="who">Signed in as <b>admin@upupapp.asia</b></span></div></header>
+    <div class="wrap">
+      <div class="etabs learn-tabs"><button type="button" aria-selected="true"><span class="aspect-cue landscape"></span>Sessions</button>
+        <button type="button" aria-selected="false"><span class="aspect-cue portrait"></span>Micros</button></div>
+      <section class="card"><div class="hd"><h2>Sessions</h2></div>
+        <p class="note">List behind the editor…</p></section>
+      <div class="detail">
+        <div class="dhead"><div><b>Add session</b><small>16:9 landscape · portal order is the list order</small></div>
+          <button class="btn btn-ghost btn-sm">Close</button></div>
+        <div class="learn-aspect-preview landscape"><div class="ph">
+          <img src="https://i.ytimg.com/vi/ePw_wlPqYUk/hqdefault.jpg" alt="" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0">
+        </div></div>
+        <div class="f"><label>Title <span class="sub">required</span></label>
+          <input value="Part 1 — Presentation"></div>
+        <div class="f"><label>Description</label>
+          <textarea rows="2">From Signals to Strategy: Using AI to Turn Data into Real Insight</textarea></div>
+        <h3 class="ehead">Source</h3>
+        <div class="chips"><button type="button" class="chip on">YouTube URL</button>
+          <button type="button" class="chip">File upload</button></div>
+        <div class="f"><label>YouTube URL</label>
+          <input value="https://www.youtube.com/watch?v=ePw_wlPqYUk">
+          <p class="note">Video id: <code>ePw_wlPqYUk</code> (derived on save)</p></div>
+        <div class="f"><label>Poster URL <span class="sub">optional</span></label>
+          <input placeholder="assets/img/… or https://…"></div>
+        <div class="f" style="display:flex;align-items:center;gap:10px">
+          <input type="checkbox" checked id="p1"><label for="p1" style="margin:0">Published — show on portal Learnings</label></div>
+        <div class="dacts"><button class="btn btn-gold btn-sm">Save</button>
+          <button class="btn btn-ghost btn-sm">Cancel</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="ashell shot" id="shot-edit-upload-stub" hidden>
+  <aside class="aside">
+    <a class="logo" href="#"><img src="../assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu"><li class="sec">CONTENT</li>
+      <li><a class="on" href="#"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m10 9 6 3-6 3z"/></svg><span>Learnings</span></a></li>
+    </ul>
+  </aside>
+  <div class="amain">
+    <header class="top"><div class="ttl"><h1>Learnings</h1><p>Sessions (16:9) and Micros (9:16) for the member portal</p></div>
+      <div class="tools"><span class="who">Signed in as <b>admin@upupapp.asia</b></span></div></header>
+    <div class="wrap">
+      <div class="flash" style="position:static">File upload is not available yet — Storage is not wired. Paste a YouTube URL instead. Nothing was uploaded.</div>
+      <div class="etabs learn-tabs"><button type="button" aria-selected="true"><span class="aspect-cue landscape"></span>Sessions</button>
+        <button type="button" aria-selected="false"><span class="aspect-cue portrait"></span>Micros</button></div>
+      <div class="detail">
+        <div class="dhead"><div><b>Add session</b><small>16:9 landscape</small></div>
+          <button class="btn btn-ghost btn-sm">Close</button></div>
+        <div class="f"><label>Title <span class="sub">required</span></label><input value=""></div>
+        <h3 class="ehead">Source</h3>
+        <div class="chips"><button type="button" class="chip">YouTube URL</button>
+          <button type="button" class="chip on">File upload</button></div>
+        <div class="flash" style="position:static;margin:0 0 12px" data-upload-stub>
+          <b>File upload is disabled.</b> File upload is not available yet — Storage is not wired. Paste a YouTube URL instead. Nothing was uploaded.
+          Switch to YouTube URL — that path works in v1.
+        </div>
+        <div class="f"><label>Upload file</label>
+          <input type="file" disabled>
+          <p class="note">storagePath is reserved in the schema for when Storage is wired.</p></div>
+        <div class="dacts"><button class="btn btn-gold btn-sm">Save</button>
+          <button class="btn btn-ghost btn-sm">Cancel</button></div>
+      </div>
+    </div>
+  </div>
+</div>
+</body></html>

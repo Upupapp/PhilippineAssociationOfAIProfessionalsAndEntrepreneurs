@@ -507,3 +507,27 @@ body[data-admin-partners] .note-tools .f{flex:1;margin:0;min-width:0}
 .email-sub + .card .empty{padding:28px 12px}
 button.linkish{font:inherit;font-weight:700;color:var(--warn-ink);background:none;border:0;
   padding:0;cursor:pointer;text-decoration:underline}
+
+
+/* ===================================================== Learnings admin === */
+body[data-admin-learnings] .learn-tabs{margin-bottom:4px}
+body[data-admin-learnings] .learn-tabs .aspect-cue{
+  display:inline-block;vertical-align:middle;margin-right:6px;border:1.5px solid currentColor;
+  border-radius:2px;opacity:.7}
+body[data-admin-learnings] .learn-tabs .aspect-cue.landscape{width:18px;height:10px}
+body[data-admin-learnings] .learn-tabs .aspect-cue.portrait{width:9px;height:14px}
+body[data-admin-learnings] .drag{width:48px;color:var(--faint);cursor:grab;user-select:none}
+body[data-admin-learnings] .drag-handle{letter-spacing:-2px;font-size:14px;margin-right:4px}
+body[data-admin-learnings] .ord{font-variant-numeric:tabular-nums;font-size:12px;color:var(--muted)}
+body[data-admin-learnings] tr.dragging{opacity:.45}
+body[data-admin-learnings] tr.drag-over td{border-top:2px solid var(--gold)}
+body[data-admin-learnings] .learn-aspect-preview{
+  position:relative;background:#0a1c3e;border-radius:12px;overflow:hidden;margin:0 0 16px;
+  border:1px solid var(--line)}
+body[data-admin-learnings] .learn-aspect-preview.landscape{aspect-ratio:16/9;max-width:480px}
+body[data-admin-learnings] .learn-aspect-preview.portrait{aspect-ratio:9/16;max-width:220px}
+body[data-admin-learnings] .learn-aspect-preview .ph{
+  position:absolute;inset:0;display:grid;place-items:center;color:#BFE3FA;font-size:13px;
+  padding:16px;text-align:center}
+body[data-admin-learnings] .detail .grow{margin-left:auto}
+body[data-admin-learnings] .btn.danger{color:var(--err-ink);border-color:#F0C8C0}

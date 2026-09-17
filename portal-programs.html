@@ -118,9 +118,9 @@
   .nxcard .go{margin-left:auto;width:18px;height:18px;stroke:var(--navy);fill:none;stroke-width:2;flex:none}
   .journey{list-style:none;margin:2px 0 0;padding:10px 4px 6px;display:flex;align-items:flex-start;justify-content:space-between;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;position:relative;scrollbar-width:thin}
   .journey::before{content:"";position:absolute;left:40px;right:40px;top:40px;border-top:2px dashed var(--gold);opacity:.7;pointer-events:none}
-  .journey li{flex:1 0 88px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;position:relative;z-index:1;min-width:88px}
+  .journey li{flex:0 0 108px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center;position:relative;z-index:1;width:108px}
   .journey .hx{width:56px;height:64px;display:block}
-  .journey small{font-size:11px;font-weight:700;color:var(--navy);letter-spacing:.01em}
+  .journey small{font-size:11px;font-weight:700;color:var(--navy);letter-spacing:.01em;white-space:nowrap}
   .journey .n{display:block;font-size:10px;color:var(--muted);font-weight:600}
   .pgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;scroll-margin-top:84px}
   .pcard{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;padding:18px 18px 16px;transition:box-shadow .15s,transform .15s}
@@ -166,8 +166,8 @@
       <defs><linearGradient id="hxg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F6DB74"/><stop offset="1" stop-color="#F2A71B"/></linearGradient></defs>
       <polygon points="32,3 61,19.5 61,52.5 32,69 3,52.5 3,19.5" fill="url(#hxg)" stroke="#C9840E" stroke-width="1.4"/>
       <g fill="none" stroke="#002166" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M22 30c0-6 4.5-10 10-10s10 4 10 10c3 1 5 4 5 7.5 0 4-3 7.5-7 8h-16c-4-.5-7-4-7-8 0-3.5 2-6.5 5-7.5z"/>
-        <path d="M27 32h10M32 28v12M26 38h12"/>
+        <path d="M24 36c-3-1-5-3.5-5-6.5 0-4 3-7.5 8-7.5 1-3.5 4.5-6 8.5-5.2 3.5.7 6 3.5 6.5 7.2 3 .2 5.5 2.8 5.5 6.3 0 3.2-2.2 5.8-5.2 6.6v3.2c0 2.2-2.3 4-6.3 4h-6.5c-4 0-6.5-1.8-6.5-4V36z"/>
+        <path d="M32 23.5c0 4-1.2 6.5-1.2 10M27 30c2.2 1.2 4.4 1.4 6.2.2 1.8 1.2 4.2 1.2 6.4 0M27 36.5c2 .8 3.8.8 5 .2 1.4.8 3.4.8 5.2.1"/>
       </g>
     </svg>
     <a class="nxcard" href="portal-events.html" data-next-exchange aria-label="Next AI Exchange — open Events">

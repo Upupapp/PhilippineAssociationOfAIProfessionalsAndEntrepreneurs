@@ -66,7 +66,7 @@ function renderOrgs() {
       <td><img src="${esc(o.logoUrl || "")}" alt="" style="height:26px;width:auto;vertical-align:middle;margin-right:10px">
           <b style="display:inline">${esc(o.name)}</b></td>
       <td>${o.website ? `<a href="${esc(o.website)}" target="_blank" rel="noopener">${esc(o.website.replace(/^https?:\/\//, "").slice(0, 34))}</a>` : '<span class="dash">—</span>'}</td>
-      <td>${esc(o.type || "—")}</td>
+      <td>${esc(o.type === "sponsor" ? "Partner" : (o.type || "—"))}</td>
       <td><span class="pill ${o.status === "active" ? "ok" : "warn"}">${esc(o.status || "—")}</span></td>
       <td class="act"><button class="btn btn-ghost btn-sm" data-edit-org>Edit</button></td>
     </tr>`).join("")
@@ -89,7 +89,7 @@ function openOrgEditor(id) {
     <div class="dacts"><button class="btn btn-gold btn-sm" data-save-org>Save</button></div>
     <p class="note">Saving updates every event that credits this organization and the public
       Partners page, because the logo is stored once. Deleting is refused by the rules — an
-      organization with sponsorships would leave them orphaned, so deactivate instead.</p>
+      organization that is a Partner on an event would leave those rows orphaned, so deactivate instead.</p>
     <p class="note"><b>Logo upload is not built.</b> There is no storage bucket wired up yet, so
       this takes a path to a file already in the repository rather than pretending to accept one.</p>`;
   d.hidden = false;
@@ -137,7 +137,7 @@ function renderSponsorAdmin() {
     const live = [SPONSOR_STATUS.CONFIRMED, SPONSOR_STATUS.DELIVERED].includes(s.status);
     return `<tr data-sponsor="${esc(s.id)}">
       <td><b>${esc(o ? o.name : "(missing organization)")}</b>
-        <small>${live ? "shown publicly" : "not shown publicly — only confirmed sponsors are"}</small></td>
+        <small>${live ? "shown publicly" : "not shown publicly — only confirmed Partners are"}</small></td>
       <td><select data-s-tier>
         ${Object.values(TIER).map(t => `<option value="${t}"${s.tier === t ? " selected" : ""}>${t}</option>`).join("")}
       </select></td>
@@ -148,7 +148,7 @@ function renderSponsorAdmin() {
       <td class="act"><button class="btn btn-gold btn-sm" data-save-sponsor>Save</button></td>
     </tr>`;
   }).join("")
-  : `<tr><td colspan="5" class="empty">No sponsor has been added to this event.</td></tr>`;
+  : `<tr><td colspan="5" class="empty">No Partner has been added to this event.</td></tr>`;
 
   const warn = $("[data-tier-warning]");
   if (warn) {
@@ -175,7 +175,7 @@ async function saveSponsor(id) {
   const count = after.filter(s => s.tier === patch.tier).length;
   const max = TIER_LIMITS[patch.tier];
   if (Number.isFinite(max) && count > max)
-    return flash(`An event may have at most ${max} ${patch.tier} sponsor${max === 1 ? "" : "s"}. That change would make ${count}.`);
+    return flash(`An event may have at most ${max} ${patch.tier} Partner${max === 1 ? "" : "s"}. That change would make ${count}.`);
 
   $$("button", tr).forEach(b => b.disabled = true);
   try {
@@ -220,7 +220,7 @@ async function loadSponsors() {
   if (!ok) { await signOutNow().catch(() => {}); location.replace("admin.html?denied=1"); return; }
 
   ME = me.email;
-  renderAdminTop({ title: 'Organizations & sponsors', subtitle: 'Stored once, credited everywhere', email: me.email });
+  renderAdminTop({ title: 'Organizations & Partners', subtitle: 'Stored once, credited everywhere', email: me.email });
   renderCrumbs([["Dashboard","admin.html"],"Organizations"]);
   document.addEventListener("click", e => {
     if (e.target.closest("[data-admin-signout]")) {

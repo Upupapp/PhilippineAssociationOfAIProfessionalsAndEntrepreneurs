@@ -50,6 +50,9 @@ await T('the workspace has the six tabs the brief names, in order',async()=>{
   const p=await open();
   const keys=await p.$$eval('[data-event-tabs] button',b=>b.map(x=>x.dataset.tab));
   eq(keys,['details','media','sponsors','applications','registrations','settings'],'tab order');
+  const sponsorTab=(await p.locator('[data-tab="sponsors"]').innerText()).trim();
+  ok(/Partners/.test(sponsorTab),`tab label should be Partners: ${sponsorTab}`);
+  ok(!/Sponsors/.test(sponsorTab),`tab label must not still say Sponsors: ${sponsorTab}`);
   await p.close();
 });
 
@@ -173,7 +176,7 @@ await T('the placement preview shows CONFIRMED only, and counts what is hidden',
   await p.waitForSelector('.ppreview',{timeout:9000});
   const t=await p.locator('.ppreview').innerText();
   ok(/PRESENTED WITH/.test(t),'the confirmed one is drawn');
-  ok(/1 proposed/.test(t),`and the proposed one is counted, not drawn: ${t}`);
+  ok(/1 Partner on this event is hidden/.test(t),`and the proposed one is counted, not drawn: ${t}`);
   eq(await p.locator('.ppreview img[alt="Servana"]').count(),0,'a proposed sponsor must not be rendered');
   await p.close();
 });
@@ -287,9 +290,20 @@ await T('Registrations and Applications load inside the event',async()=>{
   await p.close();
 });
 
+await T('History humanizes sponsor.* keys to Partner language without renaming them',()=>{
+  const js=readFileSync(`${ROOT}/assets/js/paaipe-admin-events.js`,'utf8');
+  ok(/logActivity\("sponsor\.create"/.test(js),'create key unchanged');
+  ok(/logActivity\("sponsor\.update"/.test(js),'update key unchanged');
+  ok(/logActivity\("sponsor\.remove"/.test(js),'remove key unchanged');
+  ok(/"sponsor\.create":\s*"Partner added"/.test(js),'display: Partner added');
+  ok(/"sponsor\.update":\s*"Partner updated"/.test(js),'display: Partner updated');
+  ok(/"sponsor\.remove":\s*"Partner removed"/.test(js),'display: Partner removed');
+  ok(/ACTION_LABEL\[r\.action\]/.test(js),'History uses the display map, not the raw key');
+});
+
 await T('a failed read says so and never renders as "none"',()=>{
   const js=readFileSync(`${ROOT}/assets/js/paaipe-admin-events.js`,'utf8');
-  for(const [fn,phrase] of [['loadSponsorsTab','not "no sponsors"'],
+  for(const [fn,phrase] of [['loadSponsorsTab','not "no Partners"'],
                             ['loadApplicationsTab','not "no applications"'],
                             ['loadRegistrationsTab','not "nobody registered"']]){
     const body=js.slice(js.indexOf(`async function ${fn}`),js.indexOf(`async function ${fn}`)+1400);

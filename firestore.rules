@@ -72,7 +72,11 @@ service cloud.firestore {
       // what enforces it, so no console screen can quietly widen it.
       allow update: if isAdmin()
                     && request.resource.data.diff(resource.data).affectedKeys()
-                         .hasOnly(['status','attended_at','cancelled_at','admin_note','updated_by'])
+                         // eventId is an ADMINISTRATIVE fact - which event this
+                         // registration belongs to - not a word the registrant
+                         // wrote, so an administrator may set it to link up the
+                         // rows written before registrations carried one.
+                         .hasOnly(['status','attended_at','cancelled_at','admin_note','updated_by','eventId'])
                     && request.resource.data.status in
                          ['registered','attended','no_show','cancelled']
                     && (!('admin_note' in request.resource.data.keys())
@@ -105,6 +109,10 @@ service cloud.firestore {
           && (!('learn' in d.keys())            || (d.learn is string            && d.learn.size()            <= 2000))
           && (!('speaker_question' in d.keys()) || (d.speaker_question is string && d.speaker_question.size() <= 2000))
           && (!('source' in d.keys())           || (d.source is string           && d.source.size()           <= 120))
+          // Which EVENT this is for. The original design carried only a typed
+          // title, which does not reliably match any event record - so a
+          // per-event list built on it shows nothing. This is the link.
+          && (!('eventId' in d.keys())          || (d.eventId is string          && d.eventId.size()          <= 120))
           && (!('updates' in d.keys())          || d.updates is bool)
           && (!('userAgent' in d.keys())        || (d.userAgent is string        && d.userAgent.size()        <= 300))
           && (!('source_site' in d.keys())      || (d.source_site is string      && d.source_site.size()      <= 60))

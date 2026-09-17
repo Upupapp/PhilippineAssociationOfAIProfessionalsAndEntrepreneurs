@@ -73,7 +73,7 @@
     </div>
 
     <form class="form" id="reg" name="ai-exchange-registration" novalidate>
-      <input type="hidden" name="event" value="PAAIPE AI Exchange — October 2026"><p style="display:none"><label>Website <input name="website"></label></p>
+      <input type="hidden" name="event" value="PAAIPE AI Exchange — October 2026"><input type="hidden" name="event_id" value="2026-10-ai-exchange"><p style="display:none"><label>Website <input name="website"></label></p>
       <div class="progress"><div class="bar"><i id="bar"></i></div>
         <div class="stepsrow"><span class="on" data-s="1"><b>1</b>About you</span><span data-s="2"><b>2</b>Your work &amp; AI</span><span data-s="3"><b>3</b>Confirm</span></div></div>
 
@@ -145,7 +145,7 @@
       if(!fb.isConfigured())throw new Error('not-configured');
       const d=new FormData(form),g=k=>(d.get(k)||'').toString().trim();
       await fb.submitRegistration({
-        event:g('event'),full_name:g('full_name'),email:g('email'),
+        event:g('event'),eventId:g('event_id'),full_name:g('full_name'),email:g('email'),
         position:g('position'),organization:g('organization'),
         profile:g('profile'),profile_other:g('profile_other'),
         learn:g('learn'),speaker_question:g('speaker_question'),source:g('source'),

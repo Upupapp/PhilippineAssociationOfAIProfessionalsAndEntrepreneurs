@@ -25,7 +25,20 @@
       </section>
 
       <div class="cols" data-editor-cols hidden>
-        <div class="colmain" data-event-editor></div>
+        <div class="colmain">
+          <!-- One event, one workspace. Sponsors, applications and registrations
+               for THIS event are edited here, not on a cross-event page that
+               happens to be filtered. The cross-event pages still exist for the
+               questions that span events. -->
+          <nav class="etabs" data-event-tabs role="tablist"></nav>
+
+          <div data-tabpanel="details" data-event-editor></div>
+          <div data-tabpanel="media" hidden></div>
+          <div data-tabpanel="sponsors" hidden></div>
+          <div data-tabpanel="applications" hidden></div>
+          <div data-tabpanel="registrations" hidden></div>
+          <div data-tabpanel="settings" hidden></div>
+        </div>
         <div class="colside" data-publish-rail></div>
       </div>
     </div>

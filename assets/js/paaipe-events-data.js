@@ -32,7 +32,37 @@ export const COL = {
   recordings:    "paaipe_recordings",
   log:           "paaipe_activity_log",
   partners:      "paaipe_partner_applications",
+  registrations: "paaipe_event_registrations",
 };
+
+/* LINKING A REGISTRATION TO ITS EVENT.
+ *
+ * Registrations were built before events were records: each one carries a
+ * free-text `event` title typed into the registration page's hidden input, and
+ * no id. Measured on the live database: the rows say "PAAIPE AI Exchange —
+ * October 2026" while the event record's title is "AI Exchange — October 2026".
+ * They are not the same string, so joining on the title returns NOTHING, and a
+ * per-event list built that way would quietly show zero registrations for an
+ * event that has three.
+ *
+ * So new registrations carry `eventId`, and this is the fallback for the rows
+ * written before that existed. It is deliberately loose - it strips the PAAIPE
+ * prefix and compares what is left - because its only job is to catch legacy
+ * rows, and a row it cannot place is SHOWN AS UNLINKED rather than dropped. A
+ * filtered list that silently loses people is worse than no list at all.
+ */
+export function registrationMatchesEvent(reg, ev) {
+  if (!reg || !ev) return false;
+  if (reg.eventId) return reg.eventId === ev.id;          // the reliable way
+  const norm = t => String(t || "").toLowerCase()
+    .replace(/^paaipe\s+/, "").replace(/[^a-z0-9]+/g, "");
+  const a = norm(reg.event), b = norm(ev.title);
+  return Boolean(a && b && a === b);
+}
+
+/** Registrations this event cannot claim and no other event can either. They are
+ *  listed under the event they name, flagged, rather than disappearing. */
+export const isUnlinked = reg => !reg?.eventId;
 
 /** Event lifecycle. The status is the single thing that decides what a visitor
  *  can do - there is no second flag saying whether registration is open, because
@@ -53,6 +83,35 @@ export const SPONSOR_STATUS = { PROPOSED: "proposed", CONFIRMED: "confirmed", DE
  *  event. Enforced here AND checked before every write, because a limit that
  *  lives only in a form is a limit the next form forgets. */
 export const TIER_LIMITS = { [TIER.PRESENTING]: 1, [TIER.SUPPORTING]: 3, [TIER.COMMUNITY]: Infinity };
+
+/* --------------------------------------------------------------- media */
+
+/* THE EVENT'S PICTURES. Four fields and a gallery, all plain URLs, so anything
+ * that can host an image can fill them - the repo, a bucket, a CDN. The admin
+ * uploader writes them; the public page only ever reads them.
+ *
+ * coverUrl falls back to the wide banner, which falls back to whatever the page
+ * was built with. A missing picture must never blank a page that already had one.
+ */
+export const MEDIA_FIELDS = ["bannerSourceUrl", "bannerSquareUrl", "bannerWideUrl", "coverUrl"];
+export const GALLERY_MAX = 5;
+
+/** The image at the top of the public event and registration pages. */
+export const coverFor = ev => ev?.coverUrl || ev?.bannerWideUrl || "";
+/** What a share card should use. Square is the one built for it. */
+export const shareImageFor = ev => ev?.bannerSquareUrl || ev?.bannerWideUrl || ev?.coverUrl || "";
+
+/** The gallery, cleaned: at most GALLERY_MAX, in order, and never a photo with
+ *  no alt text - a photo nobody using a screen reader can identify is not
+ *  published, it is just present. */
+export function galleryOf(ev) {
+  const rows = Array.isArray(ev?.gallery) ? ev.gallery : [];
+  return rows
+    .filter(g => g && g.url && String(g.alt || "").trim())
+    .slice(0, GALLERY_MAX)
+    .map((g, i) => ({ ...g, order: Number.isFinite(g.order) ? g.order : i }))
+    .sort((a, b) => a.order - b.order);
+}
 
 /* ------------------------------------------------- partner applications */
 
@@ -388,4 +447,24 @@ export async function submitPartnerApplication(fields) {
   };
   await F.setDoc(ref, doc);
   return { id: ref.id, reference };
+}
+
+/** Partner applications for ONE event. Constrained by eventId, which is both
+ *  what the caller wants and what keeps every query on this collection the same
+ *  shape - see the note on conditional rules above. */
+export async function listPartnerApplicationsFor(eventId) {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const snap = await F.getDocs(F.query(
+    F.collection(await db(), COL.partners), F.where("eventId", "==", eventId)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+}
+
+/** Every registration, for an administrator. NOT constrained by event, because
+ *  the rows written before eventId existed cannot be found that way - they are
+ *  matched with registrationMatchesEvent() and flagged rather than lost. */
+export async function listAllRegistrations() {
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const snap = await F.getDocs(F.collection(await db(), COL.registrations));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }));
 }

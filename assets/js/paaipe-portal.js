@@ -15,6 +15,7 @@
 import { currentAgent, signOutNow, isConfigured, setDirectoryVisible,
          membershipStatus, resendVerification, markConfirmationSeen,
          GATE_GUESTS } from "/assets/js/paaipe-firebase.js";
+import { initProfilePhoto } from "/assets/js/paaipe-profile-photo.js";
 
 /* Guest / pending-confirmation signifiers.
  * Only an admin-confirmed user is an Agent; sign-up makes a GUEST. While
@@ -132,6 +133,7 @@ const greet = () => {
   else if (qa === 'agent') { agent = Object.assign({}, agent, {status:'agent', emailVerified:true, agentNumber: agent.agentNumber || '0006', confirmationSeen:true}); }
   var ms = membershipStatus(agent);
   applyMembership(agent, ms);
+  initProfilePhoto(agent);
 
   document.querySelectorAll("[data-signout]").forEach(el =>
     el.addEventListener("click", async e => {

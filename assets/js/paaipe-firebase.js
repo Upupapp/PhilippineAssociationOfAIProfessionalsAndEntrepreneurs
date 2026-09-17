@@ -295,6 +295,10 @@ export async function currentAgent() {
     confirmedBy: profile.confirmed_by || null,
     // so the one-time celebration can be shown exactly once
     confirmationSeen: profile.confirmation_seen === true,
+    // Read-only until Storage is wired. Never invent a URL; never fall back to
+    // Auth photoURL (Clarence: persist photoUrl on paaipe_agents only).
+    photoUrl: (typeof profile.photoUrl === "string" && profile.photoUrl.trim())
+      ? profile.photoUrl.trim() : "",
   };
 }
 
@@ -332,6 +336,120 @@ export async function setDirectoryVisible(visible) {
   await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid),
                     { directoryVisible: Boolean(visible) });
   return Boolean(visible);
+}
+
+/* ---------------------------------------------------------------------------
+ * Profile photo.
+ *
+ * Clarence, 2026-09-17: Storage is NOT ready. The portal ships the crop UI
+ * and initials fallback, and save/remove MUST fail honestly. Do not upload,
+ * do not invent a URL, do not write photoUrl (self hasOnly would reject it),
+ * do not touch Auth photoURL.
+ *
+ * When Storage is enabled, do not invent another contract:
+ *   path  agents/{uid}/profile.{ext}     jpeg | png | webp, max 2 MB
+ *   field photoUrl on paaipe_agents      (not Auth)
+ *   flow  uploadBytes → getDownloadURL() → persist photoUrl
+ * Flip AGENT_PHOTO_STORAGE_READY only after bucket + rules + hasOnly agree.
+ * ------------------------------------------------------------------------- */
+
+/** False until Clarence wires a writable bucket and rules. */
+export const AGENT_PHOTO_STORAGE_READY = false;
+export const AGENT_PHOTO_FIELD = "photoUrl";
+export const AGENT_PHOTO_MAX_BYTES = 2 * 1024 * 1024;
+export const AGENT_PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
+export const agentPhotoObject = (uid, ext = "jpg") => `agents/${uid}/profile.${ext}`;
+
+const PHOTO_STUB =
+  "Photos cannot be saved yet — Storage is not wired (no writable bucket or rules). Nothing was uploaded, and your profile was not changed.";
+
+function photoNotWired() {
+  const err = new Error(PHOTO_STUB);
+  err.code = "storage/not-wired";
+  return err;
+}
+
+async function signedInUser() {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const a = await auth();
+  const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
+  if (!user) throw new Error("not-signed-in");
+  return { A, user };
+}
+
+export function explainPhotoError(err) {
+  const code = err && err.code || "";
+  const msg = String(err && err.message || err || "");
+  if (code === "storage/not-wired" || /not wired|not-wired/i.test(msg)) return PHOTO_STUB;
+  if (code === "storage/bucket-missing" || /bucket-missing|does not exist/i.test(msg))
+    return PHOTO_STUB;
+  if (code === "profile-update-failed")
+    return "The file reached storage, but photoUrl could not be saved on your profile. The portal will not show a new photo yet.";
+  if (code === "storage/unauthorized" || code === "permission-denied" ||
+      /unauthorized|permission-denied|not writable/i.test(msg))
+    return PHOTO_STUB;
+  if (code === "not-signed-in")
+    return "You need to be signed in to change your photo.";
+  if (/nothing was/i.test(msg) || /cannot be saved/i.test(msg) || /not changed/i.test(msg))
+    return msg;
+  return "Could not save your photo. Nothing was changed.";
+}
+
+async function storageRefFor(uid, ext) {
+  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
+  const { getStorage, ref } = await import(`${SDK}/firebase-storage.js`);
+  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
+  return ref(getStorage(app), agentPhotoObject(uid, ext));
+}
+
+/** Upload bytes to agents/{uid}/profile.{ext}. Never invents a URL. */
+export async function uploadAgentPhoto(blob, ext = "jpg") {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
+  const { user } = await signedInUser();
+  const { uploadBytes, getDownloadURL } = await import(`${SDK}/firebase-storage.js`);
+  const type = ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
+  const r = await storageRefFor(user.uid, ext);
+  await uploadBytes(r, blob, { contentType: type });
+  return getDownloadURL(r);
+}
+
+/** Persist photoUrl on paaipe_agents. Does NOT write Auth. Do not call while
+ *  self hasOnly omits this field — the rules will reject it. */
+export async function persistAgentPhotoUrl(url) {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
+  const { user } = await signedInUser();
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const value = typeof url === "string" ? url : "";
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), { photoUrl: value });
+  return value;
+}
+
+/** Upload then persist. Throws — never fakes success, never writes a fake URL. */
+export async function saveAgentPhotoBlob(blob, ext = "jpg") {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
+  const url = await uploadAgentPhoto(blob, ext);
+  try {
+    await persistAgentPhotoUrl(url);
+  } catch (e) {
+    const err = new Error("The file reached storage, but photoUrl could not be saved on your profile. The portal will not show a new photo yet.");
+    err.code = "profile-update-failed";
+    err.cause = e;
+    throw err;
+  }
+  return url;
+}
+
+/** Clear photoUrl and the Storage object. Same stub while Storage is unwired. */
+export async function clearAgentPhoto() {
+  if (!AGENT_PHOTO_STORAGE_READY) throw photoNotWired();
+  const { user } = await signedInUser();
+  const { deleteObject } = await import(`${SDK}/firebase-storage.js`);
+  try { await deleteObject(await storageRefFor(user.uid, "jpg")); }
+  catch (e) {
+    if (!(e && e.code === "storage/object-not-found")) throw e;
+  }
+  await persistAgentPhotoUrl("");
+  return "";
 }
 
 /** Confirmed Agents who have opted in. A guest is never listed, however they

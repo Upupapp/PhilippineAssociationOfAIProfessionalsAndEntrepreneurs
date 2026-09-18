@@ -86,6 +86,7 @@ const CSS = `
 .pdlg .rule{width:44px;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--gold,#F2A71B),var(--lgold,#FFD37A));margin-top:12px}
 .pdlg .body{padding:22px 28px 24px;max-height:min(70vh,620px);overflow:auto}
 .pdlg .f{margin-bottom:14px}
+.pdlg [hidden]{display:none!important}
 .pdlg .f label{display:block;font-size:13px;font-weight:600;color:var(--navy,#061A4A);margin-bottom:6px}
 .pdlg .f label small{font-weight:400;color:var(--muted,#5A6B8C)}
 .pdlg input[type=text],.pdlg input[type=email],.pdlg input[type=tel],.pdlg input[type=url],.pdlg textarea,.pdlg select{
@@ -386,6 +387,9 @@ async function openDialog(ev, source, extras = {}) {
   try { publicOrgs = await listOrganizations(); } catch { publicOrgs = []; }
   if (prefill.uid) {
     try { myOrgs = await listMyOrganizations(prefill.uid); } catch { myOrgs = []; }
+  }
+  if (extras.organization?.id && !myOrgs.some(o => o.id === extras.organization.id)) {
+    myOrgs = [extras.organization, ...myOrgs];
   }
   if (wanted && myOrgs.some(o => o.id === wanted)) prefill.organizationId = wanted;
 

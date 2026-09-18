@@ -167,6 +167,8 @@ await T('Apply as Partner opens the existing apply dialog, picker already on tha
   ok(await d.locator('[name="message"]').count(),'message kept');
   ok(await d.locator('[name="consent"]').count(),'consent kept');
   eq(await d.locator('[name="companyPick"]').inputValue(),'a','that org is selected');
+  eq(await d.locator('[data-company-typed]').isVisible(),false,
+     'typed company field is hidden while an own org is picked');
   await ctx.close();
 });
 

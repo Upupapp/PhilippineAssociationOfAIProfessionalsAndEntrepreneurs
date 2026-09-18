@@ -168,7 +168,7 @@ async function onApply(org) {
     return;
   }
   if (events.length === 1) {
-    openPartnerApply(events[0], "portal_organization", { organizationId: org.id });
+    openPartnerApply(events[0], "portal_organization", { organizationId: org.id, organization: org });
     return;
   }
   const d = document.createElement("dialog");
@@ -191,7 +191,7 @@ async function onApply(org) {
     if (!pick) return;
     const ev = events.find(x => x.id === pick.dataset.pickEvent);
     d.close(); d.remove();
-    if (ev) openPartnerApply(ev, "portal_organization", { organizationId: org.id });
+    if (ev) openPartnerApply(ev, "portal_organization", { organizationId: org.id, organization: org });
   });
 }
 

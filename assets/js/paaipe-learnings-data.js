@@ -7,9 +7,8 @@
  * Do NOT extend paaipe_recordings. Portal reads published==true ordered by
  * displayOrder asc. Admin writes go through isAdmin() in firestore.rules.
  *
- * Upload is schema-ready (storagePath / posterStoragePath) but not wired:
- * LEARNINGS_UPLOAD_STORAGE_READY stays false until Storage exists. YouTube is
- * the v1 path and must work end-to-end.
+ * Upload POSTs to media.paaipe.org and stores the returned path as
+ * storagePath / posterStoragePath. YouTube remains the other path.
  */
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
 
@@ -31,8 +30,8 @@ export const LEARNINGS_COL = {
   log:      "paaipe_activity_log",
 };
 
-/** Flip only after a writable bucket + Storage rules exist. */
-export const LEARNINGS_UPLOAD_STORAGE_READY = false;
+/** True once media.paaipe.org accepts kind=session|micro|poster. */
+export const LEARNINGS_UPLOAD_STORAGE_READY = true;
 
 export const LEARNING_SOURCE = { YOUTUBE: "youtube", UPLOAD: "upload" };
 
@@ -132,8 +131,8 @@ export async function getLearning(kind, id) {
 }
 
 /**
- * Build a write payload. Derives youtubeId on save. Upload source is refused
- * while LEARNINGS_UPLOAD_STORAGE_READY is false — schema fields stay empty.
+ * Build a write payload. Derives youtubeId on save. Upload source stores
+ * storagePath / posterStoragePath from media.paaipe.org (never invented).
  */
 export function buildLearningPayload(input, { actor, existing = null } = {}) {
   const title = String(input.title || "").trim();
@@ -146,6 +145,12 @@ export function buildLearningPayload(input, { actor, existing = null } = {}) {
     ? youtubeIdFromUrl(youtubeUrl || input.youtubeId)
     : "";
   const posterUrl = String(input.posterUrl || "").trim();
+  const storagePath = input.storagePath != null && String(input.storagePath).trim()
+    ? String(input.storagePath).trim()
+    : (existing?.storagePath ?? null);
+  const posterStoragePath = input.posterStoragePath != null && String(input.posterStoragePath).trim()
+    ? String(input.posterStoragePath).trim()
+    : (existing?.posterStoragePath ?? null);
   const published = !!input.published;
   const displayOrder = Number.isFinite(Number(input.displayOrder))
     ? Number(input.displayOrder)
@@ -158,6 +163,9 @@ export function buildLearningPayload(input, { actor, existing = null } = {}) {
 
   if (source === LEARNING_SOURCE.UPLOAD && !LEARNINGS_UPLOAD_STORAGE_READY) {
     throw Object.assign(new Error(UPLOAD_STUB), { code: "storage/not-wired" });
+  }
+  if (source === LEARNING_SOURCE.UPLOAD && !storagePath) {
+    throw Object.assign(new Error("Upload an mp4 or webm file. Nothing was saved."), { code: "validation" });
   }
   if (source === LEARNING_SOURCE.YOUTUBE && !youtubeId) {
     throw Object.assign(new Error("Paste a valid YouTube URL (or 11-character video id)."), { code: "validation" });
@@ -177,9 +185,9 @@ export function buildLearningPayload(input, { actor, existing = null } = {}) {
       ? (youtubeUrl || youtubeWatchUrl(youtubeId))
       : null,
     youtubeId: source === LEARNING_SOURCE.YOUTUBE ? youtubeId : null,
-    storagePath: existing?.storagePath ?? null,
+    storagePath: source === LEARNING_SOURCE.UPLOAD ? storagePath : (existing?.storagePath ?? null),
     posterUrl: posterUrl || null,
-    posterStoragePath: existing?.posterStoragePath ?? null,
+    posterStoragePath: posterStoragePath,
     published: nowPublished,
     publishedAt,
     displayOrder,
@@ -213,6 +221,7 @@ export async function saveLearning(kind, id, input, { actor } = {}) {
     const ref = await F.addDoc(F.collection(firestore, colName), data);
     return ref.id;
   }
+  if (!existing) data.createdAt = F.serverTimestamp();
   await F.setDoc(F.doc(firestore, colName, id), data, { merge: true });
   return id;
 }

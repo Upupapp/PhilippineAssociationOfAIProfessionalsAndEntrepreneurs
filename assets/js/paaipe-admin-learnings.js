@@ -3,10 +3,10 @@
  * Top-nav CONTENT · Learnings. Not event Media banners. Two tabs with aspect
  * cues: Sessions = 16:9 landscape, Micros = 9:16 vertical.
  *
- * YouTube-first. LEARNINGS_UPLOAD_STORAGE_READY=false disables the file input
- * and shows an honest stub; paste a YouTube URL and Save still works.
+ * YouTube-first. File upload POSTs to media.paaipe.org (kind=session|micro)
+ * and stores the returned path as storagePath. Poster is kind=poster.
  */
-import { currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
+import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import { renderAdminNav, renderAdminTop, renderCrumbs } from "/assets/js/paaipe-admin.js";
 import {
   LEARNING_SOURCE,
@@ -20,6 +20,7 @@ import {
   reorderLearnings,
   logLearningActivity,
 } from "/assets/js/paaipe-learnings-data.js";
+import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -105,7 +106,7 @@ function renderList(kind) {
 
   if (!rows.length) {
     body.innerHTML = `<tr><td colspan="5" class="empty">No ${kind} yet.
-      Add one with a YouTube URL — file upload is not wired.</td></tr>`;
+      Add one with a YouTube URL or an mp4/webm upload.</td></tr>`;
     return;
   }
 
@@ -204,7 +205,7 @@ function openEditor(kind, id) {
     <div data-source-panel="upload" ${source === LEARNING_SOURCE.UPLOAD ? "" : "hidden"}>
       ${uploadReady ? `
         <div class="f"><label>Upload file</label>
-          <input type="file" data-f-file accept="video/mp4,video/webm,video/quicktime,image/*">
+          <input type="file" data-f-file accept="video/mp4,video/webm">
         </div>` : `
         <div class="flash" style="position:static;margin:0 0 12px" data-upload-stub>
           <b>File upload is disabled.</b> ${esc(learningsUploadStubMessage())}
@@ -220,7 +221,10 @@ function openEditor(kind, id) {
       <input id="ln-poster" data-f-poster maxlength="300"
         placeholder="assets/img/… or https://…"
         value="${esc(existing?.posterUrl || "")}">
-      <p class="note">Poster upload is not wired either — paste a path or URL. Leave blank to use the YouTube thumbnail when available.</p>
+      ${uploadReady ? `<input type="file" data-f-poster-file accept="image/jpeg,image/png,image/webp">` : ""}
+      <p class="note">${uploadReady
+        ? "Optional poster. Leave blank to use the YouTube thumbnail when available."
+        : "Poster upload is not wired either — paste a path or URL. Leave blank to use the YouTube thumbnail when available."}</p>
     </div>
 
     <div class="f" style="display:flex;align-items:center;gap:10px;margin-top:8px">
@@ -266,7 +270,10 @@ function paintPreview() {
   if (!ph || !box) return;
   const src = currentSource();
   if (src !== LEARNING_SOURCE.YOUTUBE) {
-    ph.innerHTML = `<span class="muted">Upload preview unavailable until Storage is wired</span>`;
+    const f = $("[data-f-file]")?.files?.[0];
+    ph.innerHTML = f
+      ? `<span class="muted">${esc(f.name)}</span>`
+      : `<span class="muted">Choose an mp4 or webm file</span>`;
     return;
   }
   const id = youtubeIdFromUrl($("[data-f-youtube]")?.value || "");
@@ -284,11 +291,20 @@ function paintPreview() {
   ph.innerHTML = `<iframe src="${esc(embed)}" title="Preview" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe>`;
 }
 
+function newLearningId() {
+  return (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `learn-${Date.now().toString(36)}`;
+}
+
 async function saveFromEditor() {
   const d = $("[data-editor]");
   if (!d || EDIT_ID === null) return;
   const kind = d.dataset.kind || KIND;
   const source = currentSource();
+  const existing = EDIT_ID ? (STORE[kind] || []).find(r => r.id === EDIT_ID) : null;
+  const file = $("[data-f-file]", d)?.files?.[0];
+  const posterFile = $("[data-f-poster-file]", d)?.files?.[0];
   const input = {
     title: $("[data-f-title]", d)?.value,
     description: $("[data-f-desc]", d)?.value,
@@ -308,11 +324,39 @@ async function saveFromEditor() {
   if (source === LEARNING_SOURCE.UPLOAD && !LEARNINGS_UPLOAD_STORAGE_READY) {
     return flash(learningsUploadStubMessage());
   }
+  if (source === LEARNING_SOURCE.UPLOAD && !file && !existing?.storagePath) {
+    return flash("Choose an mp4 or webm file to upload.");
+  }
 
   const btns = $$("button", d);
   btns.forEach(b => b.disabled = true);
   try {
-    const id = await saveLearning(kind, EDIT_ID || null, input, { actor: ME });
+    let id = EDIT_ID || null;
+    if ((file || posterFile) && !id) id = newLearningId();
+
+    if (file) {
+      const token = await idTokenForRequest();
+      const up = await postMediaUpload({
+        file,
+        kind: kind === "micros" ? MEDIA_KIND.MICRO : MEDIA_KIND.SESSION,
+        id,
+        token,
+      });
+      input.storagePath = up.path;
+    }
+    if (posterFile) {
+      const token = await idTokenForRequest();
+      const up = await postMediaUpload({
+        file: posterFile,
+        kind: MEDIA_KIND.POSTER,
+        id,
+        token,
+      });
+      input.posterStoragePath = up.path;
+      input.posterUrl = up.url;
+    }
+
+    const savedId = await saveLearning(kind, id, input, { actor: ME });
     await logLearningActivity(
       EDIT_ID ? "learning.update" : "learning.create",
       `${kind}: ${input.title}`,
@@ -321,8 +365,7 @@ async function saveFromEditor() {
     await reload(kind);
     flash(`${kindLabel(kind)} saved${input.published ? " and published to the portal" : " as draft"}.`, true);
     closeEditor();
-    // reopen? no — list is enough
-    void id;
+    void savedId;
   } catch (ex) {
     btns.forEach(b => b.disabled = false);
     flash(ex?.code === "permission-denied"
@@ -489,7 +532,7 @@ function wireDrag(body) {
   });
 
   document.addEventListener("input", e => {
-    if (e.target.matches("[data-f-youtube]")) paintPreview();
+    if (e.target.matches("[data-f-youtube], [data-f-file]")) paintPreview();
   });
 
   showTab("sessions");

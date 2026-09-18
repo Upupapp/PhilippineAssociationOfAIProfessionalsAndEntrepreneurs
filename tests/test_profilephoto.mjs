@@ -1,4 +1,4 @@
-/* Agent profile photo: chrome camera badge, Profile section, crop, honest Storage stub. */
+/* Agent profile photo: chrome camera badge, Profile section, crop, media.paaipe.org upload. */
 import { chromium } from 'playwright';
 import { readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
@@ -12,6 +12,11 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(`${m
 const fbStub=({signedIn=true,status='agent',emailVerified=true,photoUrl='',full_name='Maria Santos'}={})=>`
   export * from '/assets/js/paaipe-firebase-real.js';
   export function isConfigured(){return true}
+  export async function idTokenForRequest(){ return 'test-id-token' }
+  export async function persistAgentPhotoUrl(url){
+    window.__photoUrlWritten = typeof url === 'string' ? url : '';
+    return window.__photoUrlWritten;
+  }
   export async function currentAgent(){
     return ${signedIn}?{
       uid:'u1', email:'maria@example.com', full_name:${JSON.stringify(full_name)},
@@ -25,24 +30,56 @@ const errs=[];
 async function open(path, opts={}){
   const ctx=await br.newContext({viewport:{width:1280,height:900}});
   const p=await ctx.newPage(); p.on('pageerror',e=>errs.push(String(e)));
+  const captured=[];
   await p.route('**/assets/js/paaipe-firebase-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_FB}));
   await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbStub(opts)}));
+  await p.route('https://media.paaipe.org/upload', async route=>{
+    const req=route.request();
+    captured.push({
+      method:req.method(),
+      url:req.url(),
+      authorization:req.headers()['authorization']||'',
+      contentType:req.headers()['content-type']||'',
+      body:(req.postDataBuffer()||Buffer.alloc(0)).toString('latin1'),
+    });
+    if (opts.mediaStatus && opts.mediaStatus!==201){
+      return route.fulfill({status:opts.mediaStatus, body:opts.mediaBody||'nope'});
+    }
+    if (opts.mediaJson===null){
+      return route.fulfill({status:201, contentType:'application/json', body:'{}'});
+    }
+    const body=opts.mediaJson || {
+      url:'https://media.paaipe.org/agents/u1/profile.jpg',
+      path:'agents/u1/profile.jpg',
+      kind:'photo',
+    };
+    return route.fulfill({status:201, contentType:'application/json', body:JSON.stringify(body)});
+  });
   await p.goto(`${BASE}/${path}`,{waitUntil:'load'});
   await p.waitForSelector('html[data-photo-ready]',{timeout:9000});
-  return {p, ctx};
+  return {p, ctx, captured};
 }
 
-await T('the Storage contract is coded and the stub is on',()=>{
-  ok(/AGENT_PHOTO_STORAGE_READY\s*=\s*false/.test(REAL_FB),'READY stays false');
+await T('the media contract is coded and Firebase Storage is not called',()=>{
+  ok(/AGENT_PHOTO_STORAGE_READY\s*=\s*true/.test(REAL_FB),'READY is on');
   ok(/agents\/\$\{uid\}\/profile\.\$\{ext\}/.test(REAL_FB),'path agents/{uid}/profile.{ext}');
   ok(/AGENT_PHOTO_FIELD\s*=\s*"photoUrl"/.test(REAL_FB),'field is photoUrl');
   ok(!/updateProfile\(user,\s*\{\s*photoURL/.test(REAL_FB),'must not write Auth photoURL');
+  ok(!/firebase-storage/.test(REAL_FB),'must not import Firebase Storage');
+  ok(/media\.paaipe\.org\/upload/.test(REAL_FB) || /postMediaUpload/.test(REAL_FB),
+     'save posts through the media client');
 });
 
-await T('self hasOnly does not allow photoUrl yet',()=>{
+await T('self hasOnly allows photoUrl only as empty or this member\'s media profile URL',()=>{
   const m=RULES.match(/match \/paaipe_agents\/\{uid\}[\s\S]*?allow update: if request\.auth != null && request\.auth\.uid == uid[\s\S]*?hasOnly\(\[([^\]]+)\]\)/);
   ok(m,'found member self-update hasOnly');
-  ok(!/photoUrl|photoURL/.test(m[1]),`must not patch photoUrl yet: ${m[1]}`);
+  ok(/photoUrl/.test(m[1]),`photoUrl must be in hasOnly: ${m[1]}`);
+  const keys=m[1].split(',').map(s=>s.replace(/['"\s]/g,''));
+  eq(keys.sort(),['confirmation_seen','directoryVisible','full_name','photoUrl','updates'].sort(),
+     'hasOnly must not widen beyond photoUrl');
+  ok(RULES.includes("media\\\\.paaipe\\\\.org/agents/") || RULES.includes("media\\.paaipe\\.org/agents/"),
+     'photoUrl regex is scoped to media.paaipe.org/agents/{uid}');
+  ok(/profile.{0,4}\(jpg\|png\|webp\)/.test(RULES),'extensions jpg|png|webp');
 });
 
 await T('sidebar and header avatars become camera-badge buttons',async()=>{
@@ -67,7 +104,7 @@ await T('community compose and directory You card are not change-photo buttons',
   await c2.close();
 });
 
-await T('My Profile helper names the Storage stub clearly',async()=>{
+await T('My Profile helper names the crop contract, not an unwired stub',async()=>{
   const {p,ctx}=await open('portal-profile.html');
   ok(await p.locator('[data-profile-photo]').isVisible(),'section');
   ok(await p.locator('[data-profile-photo] .pp-preview').isVisible(),'large preview');
@@ -79,17 +116,17 @@ await T('My Profile helper names the Storage stub clearly',async()=>{
   ok(/WebP/i.test(help),'webp in the contract');
   ok(/2 MB/i.test(help),'max size');
   ok(/square/i.test(help),'square crop');
-  ok(/Storage is not wired/i.test(help),`stub named: ${help}`);
-  ok(/will not upload|Nothing was uploaded|not change your profile/i.test(help),'no fake save');
+  ok(!/Storage is not wired/i.test(help),`must not still claim unwired: ${help}`);
+  ok(!/cannot be saved yet/i.test(help),`must not refuse save: ${help}`);
   ok(!/Guest/i.test(help),'agent helper does not call them a Guest');
   await ctx.close();
 });
 
-await T('a Guest is told they are a Guest; Storage stub still honest',async()=>{
+await T('a Guest is told they are a Guest; save is still offered',async()=>{
   const {p,ctx}=await open('portal-profile.html',{status:'guest',emailVerified:true});
   const help=(await p.locator('[data-photo-help]').innerText());
   ok(/Guest/i.test(help),`guest named: ${help}`);
-  ok(/Storage is not wired/i.test(help),'storage still honest for guests');
+  ok(!/Storage is not wired/i.test(help),'must not still claim unwired for guests');
   await ctx.close();
 });
 
@@ -118,8 +155,8 @@ await T('a photoUrl paints every data-agent-initials surface, including chrome',
   await ctx.close();
 });
 
-await T('crop then Save is the Storage stub — never fake success, never a URL',async()=>{
-  const {p,ctx}=await open('portal-profile.html');
+await T('crop then Save POSTs photo (no id) and a failed POST does not write a fake url',async()=>{
+  const {p,ctx,captured}=await open('portal-profile.html',{mediaStatus:500, mediaBody:'boom'});
   await p.locator('[data-photo-file]').setInputFiles(`${ROOT}/assets/img/agents/agent-001-paul-espinas.png`);
   await p.waitForSelector('[data-photo-crop][open], dialog[data-photo-crop]',{timeout:9000});
   ok(await p.locator('[data-photo-crop]').isVisible(),'crop modal');
@@ -132,12 +169,77 @@ await T('crop then Save is the Storage stub — never fake success, never a URL'
   const cropErr=(await p.locator('[data-photo-crop-err]').innerText());
   const pageMsg=(await p.locator('[data-photo-msg]').innerText());
   const text=cropErr+' '+pageMsg;
-  ok(/Storage is not wired/i.test(text),`stub: ${text}`);
-  ok(/Nothing was uploaded|not change/i.test(text),`no write: ${text}`);
+  ok(/Nothing was uploaded|Nothing was changed|could not save/i.test(text),`honest fail: ${text}`);
   ok(!/Photo updated|saved successfully|your photo is set/i.test(text),
      `must not claim success: ${text}`);
   eq(await p.locator('.side .me img[data-agent-photo]').count(),0,
      'chrome must not show a fake photo after a failed save');
+  const written=await p.evaluate(()=>window.__photoUrlWritten);
+  ok(written===undefined || written==='','persist must not run after a failed POST');
+  ok(captured.length>=1,'POST was attempted');
+  const req=captured[0];
+  eq(req.method,'POST','method');
+  ok(req.url==='https://media.paaipe.org/upload',`url: ${req.url}`);
+  eq(req.authorization,'Bearer test-id-token','Authorization Bearer token');
+  ok(/multipart\/form-data/i.test(req.contentType),`multipart: ${req.contentType}`);
+  ok(/name="file"/.test(req.body),'multipart file');
+  ok(/name="kind"/.test(req.body),'multipart kind');
+  ok(/photo/.test(req.body),'kind=photo');
+  ok(!/name="id"/.test(req.body),'id omitted for kind=photo');
+  await ctx.close();
+});
+
+await T('a 201 without url does not invent one or persist photoUrl',async()=>{
+  const {p,ctx}=await open('portal-profile.html',{mediaJson:null});
+  await p.locator('[data-photo-file]').setInputFiles(`${ROOT}/assets/img/agents/agent-001-paul-espinas.png`);
+  await p.waitForSelector('[data-photo-crop][open], dialog[data-photo-crop]',{timeout:9000});
+  await p.locator('[data-photo-crop-save]').click();
+  await p.waitForFunction(()=>{
+    const a=document.querySelector('[data-photo-crop-err]');
+    const b=document.querySelector('[data-photo-msg]');
+    return (a&&a.textContent.trim())||(b&&b.textContent.trim());
+  },null,{timeout:9000});
+  const text=(await p.locator('[data-photo-crop-err]').innerText())+' '+(await p.locator('[data-photo-msg]').innerText());
+  ok(!/Photo updated/i.test(text),`must not claim success: ${text}`);
+  eq(await p.locator('.side .me img[data-agent-photo]').count(),0,'no invented photo');
+  const written=await p.evaluate(()=>window.__photoUrlWritten);
+  ok(written===undefined || written==='','must not persist a fake url');
+  await ctx.close();
+});
+
+await T('a 201 url is persisted as photoUrl and painted',async()=>{
+  const url='https://media.paaipe.org/agents/u1/profile.jpg';
+  const {p,ctx,captured}=await open('portal-profile.html',{
+    mediaJson:{url, path:'agents/u1/profile.jpg', kind:'photo'}});
+  await p.route('https://media.paaipe.org/agents/**', r=>r.fulfill({
+    contentType:'image/jpeg',
+    body:readFileSync(`${ROOT}/assets/img/agents/agent-001-paul-espinas.png`),
+  }));
+  await p.locator('[data-photo-file]').setInputFiles(`${ROOT}/assets/img/agents/agent-001-paul-espinas.png`);
+  await p.waitForSelector('[data-photo-crop][open], dialog[data-photo-crop]',{timeout:9000});
+  await p.locator('[data-photo-crop-save]').click();
+  await p.waitForFunction(()=>window.__photoUrlWritten,null,{timeout:9000});
+  eq(await p.evaluate(()=>window.__photoUrlWritten),url,'persisted returned url');
+  const msg=await p.locator('[data-photo-msg]').innerText();
+  ok(/Photo updated/i.test(msg),`success named: ${msg}`);
+  await p.waitForSelector('.side .me img[data-agent-photo]',{timeout:9000});
+  eq(await p.locator('.side .me img[data-agent-photo]').getAttribute('src'),url,'chrome uses returned url');
+  ok(captured.length>=1,'posted');
+  ok(!/name="id"/.test(captured[0].body),'id still omitted on success');
+  await ctx.close();
+});
+
+await T('Remove clears photoUrl and does not invent a replacement',async()=>{
+  const {p,ctx,captured}=await open('portal-profile.html',{
+    photoUrl:'assets/img/agents/agent-001-paul-espinas.png'});
+  ok(!(await p.locator('[data-photo-remove]').isDisabled()),'Remove enabled');
+  await p.locator('[data-photo-remove]').click();
+  await p.waitForFunction(()=>window.__photoUrlWritten==='',null,{timeout:9000});
+  eq(await p.evaluate(()=>window.__photoUrlWritten),'','photoUrl cleared');
+  eq(captured.length,0,'remove does not POST a fake file');
+  eq(await p.locator('.side .me img[data-agent-photo]').count(),0,'initials again');
+  const msg=await p.locator('[data-photo-msg]').innerText();
+  ok(/removed|initials/i.test(msg),`honest remove: ${msg}`);
   await ctx.close();
 });
 

@@ -62,13 +62,16 @@ await T("youtubeIdFromUrl derives common shapes (source contract)", async () => 
   eq(fn(""), "", "empty");
 });
 
-await T("LEARNINGS_UPLOAD_STORAGE_READY is false with honest stub", async () => {
+await T("LEARNINGS_UPLOAD_STORAGE_READY is true and admin posts to media.paaipe.org", async () => {
   const src = read("assets/js/paaipe-learnings-data.js");
-  ok(/LEARNINGS_UPLOAD_STORAGE_READY\s*=\s*false/.test(src), "flag false");
-  ok(/Storage is not wired/.test(src), "stub copy");
+  ok(/LEARNINGS_UPLOAD_STORAGE_READY\s*=\s*true/.test(src), "flag true");
   const admin = read("assets/js/paaipe-admin-learnings.js");
-  ok(admin.includes("learningsUploadStubMessage"), "admin uses stub");
-  ok(admin.includes("data-upload-stub") || admin.includes("File upload is disabled"), "disabled UI");
+  ok(admin.includes("postMediaUpload"), "admin uses media client");
+  ok(admin.includes("data-f-file"), "file input");
+  ok(admin.includes("data-f-poster-file"), "poster file");
+  ok(admin.includes("MEDIA_KIND.SESSION") || /kind:\s*kind === "micros"/.test(admin), "session/micro kind");
+  ok(!/firebase-storage/.test(admin), "no Firebase Storage");
+  ok(admin.includes("data-f-youtube"), "YouTube path remains");
 });
 
 await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", async () => {

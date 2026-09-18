@@ -3,14 +3,13 @@
  * ONE pipeline, used by the sidebar/header avatars and by My Profile. Pick a
  * JPG/PNG/WebP, square-crop it in a modal, then try to save.
  *
- * Clarence, 2026-09-17: Storage is not wired. Cropping is offered; save MUST
- * fail honestly. Never paint a photo as saved. Never write a fake URL.
- * Future contract (do not invent another): agents/{uid}/profile.{ext} then
- * persist photoUrl on paaipe_agents — see paaipe-firebase.js.
+ * Save POSTs to media.paaipe.org (kind=photo) and persists the returned url as
+ * photoUrl. A failed POST must not invent a URL or paint a photo as saved.
  */
 import {
-  saveAgentPhotoBlob, clearAgentPhoto, explainPhotoError,
+  idTokenForRequest, persistAgentPhotoUrl, explainPhotoError,
 } from "/assets/js/paaipe-firebase.js";
+import { postMediaUpload, fileFromBlob, MEDIA_KIND } from "/assets/js/paaipe-media.js";
 
 export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 export const PHOTO_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -229,11 +228,10 @@ function applyHelper(agent) {
   if (!help) return;
   const bits = [
     "JPG, PNG or WebP, up to 2 MB. A square crop works best.",
-    "Photos cannot be saved yet — Storage is not wired (no writable bucket or rules). Cropping still works; saving will not upload a file or change your profile.",
   ];
   const isAgent = !!(agent && (agent.status === "agent" || (agent.isAgent === true && agent.status !== "guest" && agent.status !== "suspended")));
   if (agent && !isAgent) {
-    bits.push("You’re signed in as a Guest. A photo would belong to this account after Storage is enabled.");
+    bits.push("You’re signed in as a Guest. A photo belongs to this account.");
   }
   help.textContent = bits.join(" ");
 }
@@ -367,7 +365,11 @@ async function saveCrop() {
   save.textContent = "Saving…";
   try {
     const blob = await blobFromCrop();
-    const url = await saveAgentPhotoBlob(blob, "jpg");
+    const token = await idTokenForRequest();
+    const file = fileFromBlob(blob, "profile.jpg", "image/jpeg");
+    const { url } = await postMediaUpload({ file, kind: MEDIA_KIND.PHOTO, token });
+    if (!url) throw Object.assign(new Error("Upload did not return a media URL. Nothing was saved."), { code: "media/invalid-response" });
+    await persistAgentPhotoUrl(url);
     if (agentRef) agentRef.photoUrl = url;
     refreshAgentPhotos(url);
     closeCrop();
@@ -389,7 +391,7 @@ async function onRemove() {
   const btn = $("[data-photo-remove]");
   if (btn) btn.disabled = true;
   try {
-    await clearAgentPhoto();
+    await persistAgentPhotoUrl("");
     if (agentRef) agentRef.photoUrl = "";
     refreshAgentPhotos("");
     showMsg("Photo removed. Your initials will show instead.", "ok");

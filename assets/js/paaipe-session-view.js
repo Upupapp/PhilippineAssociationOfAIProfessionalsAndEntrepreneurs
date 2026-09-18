@@ -361,7 +361,8 @@ function applySession(root, s) {
   // slides: real, and it is a Gamma deck rather than a PDF
   root.querySelectorAll("[data-ss-slides]").forEach(a => {
     if (!s.slidesUrl) return hide(a);
-    // Stay inside the member portal — open the in-portal slides viewer, never gamma.app.
+    // Stay on the in-portal slides page (Gamma cannot be framed; that page
+    // hosts the deck or an on-brand Open control, plus the do-not-repost notice).
     a.href = `portal-session-slides.html?session=${encodeURIComponent(s.id)}`;
     a.removeAttribute("target");
     a.removeAttribute("rel");

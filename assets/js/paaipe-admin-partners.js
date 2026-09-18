@@ -253,9 +253,68 @@ function mailtoFor(a, key) {
     `&body=${encodeURIComponent(t.body(a))}`;
 }
 
-function openDetail(id) {
+/* The open row is the `id` query param, next to the existing `event` filter.
+ * pushState on open so Back returns to the list; replaceState on close so a
+ * shared ?id= link does not send Close off the page. Never a full reload. */
+function appIdFromUrl() {
+  return new URLSearchParams(location.search).get("id") || "";
+}
+
+function hrefForApp(id) {
+  const q = new URLSearchParams(location.search);
+  if (id) q.set("id", id);
+  else q.delete("id");
+  const search = q.toString();
+  return search ? `${location.pathname}?${search}` : location.pathname;
+}
+
+function syncUrl(id, mode = "replace") {
+  const next = hrefForApp(id);
+  const now = `${location.pathname}${location.search}`;
+  if (next === now) return;
+  if (mode === "push") history.pushState(null, "", next);
+  else history.replaceState(null, "", next);
+}
+
+function hideDetail() {
+  const d = $("[data-detail]");
+  if (!d) return;
+  d.hidden = true;
+  delete d.dataset.app;
+}
+
+function closeDetail() {
+  hideDetail();
+  syncUrl("", "replace");
+}
+
+function showMissing(id) {
+  const d = $("[data-detail]");
+  if (!d) return;
+  d.innerHTML = `
+    <div class="dhead">
+      <div><b>Application not found</b>
+        <small>${esc(id)}</small></div>
+      <button class="btn btn-ghost btn-sm" data-close>Close</button>
+    </div>
+    <p class="muted">That application is not in the loaded list.</p>`;
+  d.hidden = false;
+  delete d.dataset.app;
+}
+
+function applyUrl() {
+  const id = appIdFromUrl();
+  if (!id) { hideDetail(); return; }
+  openDetail(id, { fromUrl: true });
+}
+
+function openDetail(id, { fromUrl = false } = {}) {
   const a = APPS.find(x => x.id === id);
-  if (!a) return;
+  if (!a) {
+    showMissing(id);
+    if (!fromUrl) syncUrl(id, "push");
+    return;
+  }
   const d = $("[data-detail]");
   const org = matchOrganization(a, ORGS);
   const dupes = duplicatesOf(a);
@@ -331,6 +390,7 @@ function openDetail(id) {
     <p class="muted small">Accept creates a proposed Partner — confirm on Organizations to publish.</p>`;
   d.hidden = false;
   d.dataset.app = id;
+  if (!fromUrl) syncUrl(id, "push");
   d.scrollIntoView({ block: "start" });
 }
 
@@ -536,6 +596,8 @@ async function boot() {
   fillEventFilter();
   renderRows();
   refreshBadge();
+  applyUrl();
+  window.addEventListener("popstate", applyUrl);
 
   $$("[data-f-event],[data-f-status],[data-f-source]").forEach(el =>
     el.addEventListener("change", renderRows));
@@ -545,7 +607,7 @@ async function boot() {
   document.addEventListener("click", e => {
     const open = e.target.closest("[data-open]");
     if (open) return openDetail(open.dataset.open);
-    if (e.target.closest("[data-close]")) { $("[data-detail]").hidden = true; return; }
+    if (e.target.closest("[data-close]")) { closeDetail(); return; }
 
     const d = $("[data-detail]");
     const id = d?.dataset.app;

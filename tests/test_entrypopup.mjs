@@ -99,7 +99,8 @@ await T('signed copy is exact',()=>{
 await T('Learnings hub reads #tab=sessions and #tab=micros',()=>{
   const view=readFileSync(`${ROOT}/assets/js/paaipe-session-view.js`,'utf8');
   ok(view.includes('hubTabFromLocation'),'reads location');
-  ok(view.includes('tab=micros'),'micros hash');
+  ok(view.includes('name === "micros"'),'micros is a real tab name');
+  ok(view.includes('#tab='),'writes the tab into the hash');
   const h=readFileSync(`${ROOT}/portal-sessions.html`,'utf8');
   ok(h.includes('data-ss-hub-tab="sessions"')&&h.includes('data-ss-hub-tab="micros"'),'existing tabs');
 });

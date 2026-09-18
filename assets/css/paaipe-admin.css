@@ -433,24 +433,45 @@ body[data-admin-partners] .tally span{
 body[data-admin-partners] .tally b{color:var(--navy)}
 body[data-admin-partners] td{padding:11px 12px}
 body[data-admin-partners] .detail{padding:14px 16px;margin-top:12px;scroll-margin-top:88px}
-body[data-admin-partners] .detail .dmeta{margin:8px 0 12px}
-body[data-admin-partners] .detail .ehead{margin:14px 0 8px}
-body[data-admin-partners] .detail .dacts{margin-top:8px}
+body[data-admin-partners] .papp-band + .papp-band{
+  margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+body[data-admin-partners] .detail .dhead{align-items:center;margin-bottom:2px}
+body[data-admin-partners] .detail .dhead .btn{flex:none}
+body[data-admin-partners] .papp-title{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+body[data-admin-partners] .detail .dhead b{display:inline;font-size:17px;color:var(--navy)}
+body[data-admin-partners] .detail .dmeta{margin:0 0 12px;color:var(--muted);font-size:13px}
+body[data-admin-partners] .detail .ehead{margin:0 0 8px}
 body[data-admin-partners] .detail .f{margin-bottom:8px}
 body[data-admin-partners] .detail .tags{margin-bottom:8px}
-body[data-admin-partners] .detail .note{margin-top:6px}
 body[data-admin-partners] .detail .answers{
   display:grid;grid-template-columns:1fr 1fr;gap:8px 18px}
 body[data-admin-partners] .detail .ans dd{margin-top:2px}
 body[data-admin-partners] .phone-inline{
-  display:flex;align-items:center;gap:8px;flex-wrap:nowrap;white-space:nowrap}
-body[data-admin-partners] .phone-inline .btn{flex:none;width:auto;padding:4px 10px;font-size:12px}
-body[data-admin-partners] .note-tools{
-  display:flex;gap:10px;align-items:flex-end}
-body[data-admin-partners] .note-tools .f{flex:1;margin:0;min-width:0}
+  display:flex;align-items:baseline;gap:6px;flex-wrap:nowrap;white-space:nowrap}
+body[data-admin-partners] .phone-inline .btn{
+  flex:none;width:auto;height:auto;min-height:0;padding:0 6px;font-size:12px;
+  line-height:inherit;border-color:transparent;box-shadow:none}
+body[data-admin-partners] .papp-decision{
+  display:flex;flex-direction:column;gap:12px;background:#fff;border-radius:12px;
+  padding:14px 16px}
+body[data-admin-partners] .papp-decision > .f{margin-bottom:0}
+body[data-admin-partners] .papp-decision > .f .muted{margin:6px 0 0}
+body[data-admin-partners] .papp-note-row{
+  display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;align-items:start}
+body[data-admin-partners] .papp-note-row .f{margin:0}
+body[data-admin-partners] .papp-assign{display:flex;flex-direction:column;gap:8px;min-width:0}
+body[data-admin-partners] .papp-assign [data-save-note]{align-self:flex-start}
+body[data-admin-partners] .papp-mail{
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+body[data-admin-partners] .papp-mail .muted{margin-left:auto}
+body[data-admin-partners] .papp-decide-row{
+  display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px}
+body[data-admin-partners] .papp-chores,
+body[data-admin-partners] .papp-verdict{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 @media (max-width:640px){
   body[data-admin-partners] .detail .answers{grid-template-columns:1fr}
-  body[data-admin-partners] .note-tools{flex-direction:column;align-items:stretch}
+  body[data-admin-partners] .papp-note-row{grid-template-columns:1fr}
 }
 /* -------------------------------------------------------------- event Email */
 .cols.email-open{grid-template-columns:1fr}

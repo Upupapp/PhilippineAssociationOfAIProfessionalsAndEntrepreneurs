@@ -69,7 +69,7 @@ export function leanReportHtml(report) {
       ${statCard("Status", report.status)}
       ${statCard("Registrations", report.registrations, report.registrations.live ? "from Registrations" : "")}
       ${statCard("Feedback responses", report.feedback, report.feedback.live ? "from Feedback" : "")}
-      ${statCard("Partners on this event", report.partners, report.partners.live ? "from Partners" : "")}
+      ${statCard("Partners on this event", report.partners, report.partners.live ? "from Event sponsors" : "")}
     </div>
     <div class="r-two" style="margin-top:14px">
       <section class="card">
@@ -111,7 +111,8 @@ export function fullDashboardHtml(report) {
   return `${missing ? honestyBanner("Live counts only. A figure that cannot be read is marked as not available — never filled in.") : ""}
     <div class="rstats">
       ${statCard("Registrations", report.registrations, report.registrations.live ? "from Registrations" : "")}
-      ${statCard("Partner applications", report.partnerApplications, report.partnerApplications.live ? "from Partners" : "")}
+      ${statCard("Partner applications", report.partnerApplications, report.partnerApplications.live ? "from Partner applications" : "")}
+      ${statCard("Partners on this event", report.partners, report.partners.live ? "from Event sponsors" : "")}
       ${statCard("Feedback responses", report.feedback, report.feedback.live ? "once feedback exists" : "")}
       ${statCard("Response rate", report.responseRate, report.responseRate.live ? "responses / joined" : "")}
     </div>

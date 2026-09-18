@@ -13,7 +13,7 @@
  * returns. People who registered before that have no client path to their
  * id; the public block stays hidden rather than faking a lookup.
  */
-import { firebaseConfig, DATABASE_ID, currentAgent } from "/assets/js/paaipe-firebase.js";
+import { firebaseConfig, DATABASE_ID, currentAgent, isAdminNow } from "/assets/js/paaipe-firebase.js";
 import {
   COL, eventDateLong, eventDateTimeLine, formatTime12, eventStartAt,
   eventStatusShort,
@@ -195,12 +195,26 @@ export async function getFeedbackResponse(eventId, registrationId) {
   }
 }
 
-export async function writeFeedbackQuestions(eventId, next, { hadResponses = false } = {}) {
+/** Question document ids that appear as keys in any response.answers map. */
+export function citedQuestionIds(responses) {
+  const ids = new Set();
+  for (const row of responses || []) {
+    const answers = row?.answers;
+    if (!answers || typeof answers !== "object") continue;
+    for (const k of Object.keys(answers)) {
+      if (k) ids.add(k);
+    }
+  }
+  return ids;
+}
+
+export async function writeFeedbackQuestions(eventId, next, { citedIds } = {}) {
   const F = await import(`${SDK}/firebase-firestore.js`);
   const database = await db();
   const current = await listFeedbackQuestions(eventId);
   if (!current.ok) throw Object.assign(new Error(current.reason), { code: "unavailable" });
 
+  const cited = citedIds instanceof Set ? citedIds : new Set(citedIds || []);
   const byKey = new Map(current.rows.map(q => [q.questionKey, q]));
   const seen = new Set();
   const usedKeys = new Set(current.rows.map(q => q.questionKey));
@@ -228,8 +242,9 @@ export async function writeFeedbackQuestions(eventId, next, { hadResponses = fal
       continue;
     }
 
-    if (existing && existing.type !== type && hadResponses) {
-      // Type must not change after answers exist: archive and add a new key.
+    const existingId = existing ? (existing.id || questionDocId(eventId, existing.questionKey)) : "";
+    if (existing && existing.type !== type && cited.has(existingId)) {
+      // Type is immutable once any answer cites this document id.
       await F.setDoc(F.doc(database, COL.feedbackQuestions, existing.id), { active: false, order: i }, { merge: true });
       seen.add(existing.questionKey);
       key = newQuestionKey(usedKeys);
@@ -287,7 +302,8 @@ export async function submitFeedbackResponse(eventId, registrationId, answers) {
  *
  * Registrations counted by eventId only. A row with no eventId is excluded,
  * not treated as zero. Waitlist is not a status — never a number, never a
- * charted 0. attended / no_show stay inside the joined denominator only. */
+ * charted 0. Mix is registered vs cancelled only. attended / no_show stay
+ * inside the joined denominator, not the mix. */
 
 export function regsForEvent(regs, eventId) {
   return (regs || []).filter(r => r && r.eventId && r.eventId === eventId);
@@ -297,12 +313,19 @@ export function isCancelled(reg) {
   return (reg?.status || "") === "cancelled";
 }
 
+/** Mix bar "Registered": missing status or registered. Not attended / no_show. */
 export function isRegisteredStatus(reg) {
   return !reg?.status || reg.status === "registered";
 }
 
+/** Joined denominator: missing, registered, attended, no_show. Not cancelled. */
+export function isJoinedStatus(reg) {
+  const s = reg?.status;
+  return !s || s === "registered" || s === "attended" || s === "no_show";
+}
+
 export function joinedRegs(regs, eventId) {
-  return regsForEvent(regs, eventId).filter(r => !isCancelled(r));
+  return regsForEvent(regs, eventId).filter(isJoinedStatus);
 }
 
 function live(value, source, extra = {}) {
@@ -318,7 +341,7 @@ export function buildEventReport(ev, {
   regsReason = "", sponsorsReason = "", appsReason = "",
 } = {}) {
   const mine = regsOk ? regsForEvent(regs, ev.id) : [];
-  const joined = mine.filter(r => !isCancelled(r));
+  const joined = mine.filter(isJoinedStatus);
   const registered = mine.filter(isRegisteredStatus).length;
   const cancelled = mine.filter(isCancelled).length;
   const status = eventStatusShort(ev);
@@ -364,10 +387,12 @@ export function buildEventReport(ev, {
     ),
     joined: regsOk ? live(joined.length, "Registrations")
       : stub(regsReason || "Joined count could not be read.", "Registrations"),
-    partners: sponsorsOk ? live(sponsors.length, "Partners")
-      : stub(sponsorsReason || "Partners could not be read. This is not a count of zero.", "Partners"),
-    partnerApplications: appsOk ? live(apps.length, "Partners")
-      : stub(appsReason || "Partner applications could not be read. This is not a count of zero.", "Partners"),
+    // Document count of paaipe_event_sponsors. Do not sum contributionType.
+    partners: sponsorsOk ? live(sponsors.length, "Event sponsors")
+      : stub(sponsorsReason || "Event sponsors could not be read. This is not a count of zero.", "Event sponsors"),
+    // All paaipe_partner_applications for this eventId, every status including spam.
+    partnerApplications: appsOk ? live(apps.length, "Partner applications")
+      : stub(appsReason || "Partner applications could not be read. This is not a count of zero.", "Partner applications"),
     feedback: fb,
     responseRate: rate,
     breakdown,
@@ -435,12 +460,13 @@ export function reportExportHtml({ ev, report, context = "Event report" }) {
   const when = report.when.live ? report.when.value : "";
   const status = report.status.live ? report.status.value : "";
   const sub = [when, status].filter(Boolean).join(" · ");
-  const tracked = [report.registrations, report.partnerApplications, report.feedback, report.responseRate];
+  const tracked = [report.registrations, report.partners, report.partnerApplications, report.feedback, report.responseRate];
   const anyStub = tracked.some(c => c && !c.live);
 
   const rows = [
     ["Registrations",        report.registrations,       "Registrations"],
-    ["Partner applications", report.partnerApplications, "Partners"],
+    ["Partner applications", report.partnerApplications, "Partner applications"],
+    ["Partners on this event", report.partners,          "Event sponsors"],
     ["Feedback responses",   report.feedback,            "Feedback"],
     ["Response rate",        report.responseRate,        "Responses / joined"],
   ];
@@ -544,9 +570,9 @@ const PUBLIC_CSS = `
 .efb-yn button{width:auto;padding:0 22px}
 .efb-scale button[aria-pressed="true"],.efb-yn button[aria-pressed="true"]{
   background:var(--navy,#002166);border-color:var(--navy,#002166);color:#fff}
-.efb-q input[type=text]{width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid var(--line,#c9dcf3);
-  font:inherit;font-size:15px;box-sizing:border-box}
-.efb-q input[type=text]:focus{outline:0;border-color:var(--blue,#1E6FE8);box-shadow:0 0 0 3px rgba(30,111,232,.12)}
+.efb-q input[type=text],.efb-q textarea{width:100%;padding:12px 16px;border-radius:14px;border:1.5px solid var(--line,#c9dcf3);
+  font:inherit;font-size:15px;box-sizing:border-box;resize:vertical;min-height:48px}
+.efb-q input[type=text]:focus,.efb-q textarea:focus{outline:0;border-color:var(--blue,#1E6FE8);box-shadow:0 0 0 3px rgba(30,111,232,.12)}
 .efb-go{width:100%;margin-top:8px;padding:14px 22px;border:0;border-radius:14px;font:inherit;font-weight:700;
   font-size:15.5px;cursor:pointer;background:linear-gradient(90deg,#F2A71B,#F7B733);color:var(--navy,#002166)}
 .efb-go:disabled{opacity:.55;cursor:not-allowed}
@@ -587,7 +613,15 @@ export async function mountPublicFeedback(host, ev, overrides = {}) {
   if (existing?.ok && existing.row) return paintSent(host, ev);
 
   const now = overrides.now || new Date();
-  if (!feedbackIsOpen(ev, now)) return paintLocked(host, ev);
+  if (!feedbackIsOpen(ev, now)) {
+    let admin = overrides.admin;
+    if (admin === undefined) {
+      try { admin = await isAdminNow(); } catch { admin = false; }
+    }
+    // Start gate is client-side (date YYYY-MM-DD + startTime HH:mm PHT).
+    // Admin bypasses it. Join still hides the block from everyone else.
+    if (!admin) return paintLocked(host, ev);
+  }
 
   const qs = overrides.questions || await listFeedbackQuestions(ev.id);
   if (!qs.ok) return paintUnavailable(host, ev, qs.reason);
@@ -651,7 +685,7 @@ function paintOpen(host, ev, questions, receipt) {
     }
     return `<div class="efb-q" data-efb-q="${esc(q.id)}" data-type="${q.type}" data-required="${q.required ? "1" : "0"}">
       <b>${esc(q.prompt)}${req}</b>
-      <input type="text" data-efb-text="${esc(q.id)}" maxlength="500" autocomplete="off"></div>`;
+      <textarea data-efb-text="${esc(q.id)}" maxlength="2000" rows="3" autocomplete="off"></textarea></div>`;
   }).join("");
 
   host.innerHTML = `<section class="efb" data-feedback-card data-state="open">
@@ -687,7 +721,15 @@ function paintOpen(host, ev, questions, receipt) {
         show("Please answer the required questions before sending.");
         return;
       }
-      if (!val) continue;
+      if (!val) continue; // optional blank: omit the key
+      if (q.type === Q_TYPE.SHORT) {
+        if (val.length > 2000) {
+          show("A short answer can be at most 2,000 characters.");
+          return;
+        }
+        answers[q.id] = val;
+        continue;
+      }
       answers[q.id] = q.type === Q_TYPE.SCALE ? Number(val) : val;
     }
     const btn = $(".efb-go", host);
@@ -708,7 +750,7 @@ function paintOpen(host, ev, questions, receipt) {
 
 /* ------------------------------------------------ admin question list */
 
-export function questionRowHtml(q) {
+export function questionRowHtml(q, { typeLocked = false } = {}) {
   const type = Q_TYPE_LABEL[q.type] || q.type;
   const archived = q.active === false;
   return `<div class="fq${archived ? " archived" : ""}" data-fq draggable="${archived ? "false" : "true"}"
@@ -727,11 +769,12 @@ export function questionRowHtml(q) {
         <input data-fq-prompt-in maxlength="200" value="${esc(q.prompt)}"></div>
       <div class="frow">
         <div class="f"><label>Type</label>
-          <select data-fq-type>
+          <select data-fq-type${typeLocked ? " disabled" : ""}>
             <option value="${Q_TYPE.SCALE}"${q.type === Q_TYPE.SCALE ? " selected" : ""}>1–5</option>
             <option value="${Q_TYPE.YESNO}"${q.type === Q_TYPE.YESNO ? " selected" : ""}>Yes / No</option>
             <option value="${Q_TYPE.SHORT}"${q.type === Q_TYPE.SHORT ? " selected" : ""}>Short text</option>
-          </select></div>
+          </select>
+          ${typeLocked ? `<p class="note" style="margin:8px 0 0">Type is locked because an answer cites this question. Archive it and add a new key to change type.</p>` : ""}</div>
         <div class="f"><label>Required</label>
           <select data-fq-req>
             <option value="1"${q.required ? " selected" : ""}>Required</option>

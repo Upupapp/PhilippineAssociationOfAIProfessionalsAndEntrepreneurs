@@ -37,6 +37,7 @@ const REGS=[
   {id:'r2',eventId:'2026-10-ai-exchange',email:'ben@x.com'},
   {id:'r3',eventId:'2026-10-ai-exchange',email:'cara@x.com',status:'cancelled'},
   {id:'r4',eventId:'2026-10-ai-exchange',email:'dan@x.com',status:'attended'},
+  {id:'r5',eventId:'2026-10-ai-exchange',email:'eve@x.com',status:'no_show'},
   {id:'legacy',event:'PAAIPE AI Exchange — October 2026',email:'leo@x.com'},
 ];
 
@@ -97,20 +98,21 @@ await T('Clarence locked two collections and no invented third',()=>{
   ok(!col.includes('"paaipe_event_feedback"'),'no invented single collection');
 });
 
-await T('starter keys and types are the four locked ones',async()=>{
+await T('starter keys, types, and the signed mock prompts',async()=>{
   const p=await ctx.newPage();
   await routeAdmin(p);
   await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
   const r=await p.evaluate(async()=>{
     const m=await import('/assets/js/paaipe-feedback.js');
-    return m.STARTER_QUESTIONS.map(q=>({k:q.questionKey,t:q.type,req:q.required}));
+    return m.STARTER_QUESTIONS.map(q=>({k:q.questionKey,t:q.type,req:q.required,p:q.prompt,order:q.order}));
   });
   eq(r,[
-    {k:'overall',t:'1-5',req:true},
-    {k:'recommend',t:'yes-no',req:true},
-    {k:'mostUseful',t:'short',req:true},
-    {k:'improve',t:'short',req:false},
+    {k:'overall',t:'1-5',req:true,p:'Overall, how was this session?',order:0},
+    {k:'recommend',t:'yes-no',req:true,p:'Would you recommend this to another Agent?',order:1},
+    {k:'mostUseful',t:'short',req:true,p:'What was most useful?',order:2},
+    {k:'improve',t:'short',req:false,p:'What should we improve?',order:3},
   ],'starters');
+  ok(r.every(q=>'order' in q && !('displayOrder' in q)),'field is order, never displayOrder');
   await p.close();
 });
 
@@ -158,7 +160,8 @@ await T('Event reports lean tab uses live counts and never ships 48/12/4.2/25%',
   await p.waitForSelector('[data-tabpanel="reports"] .rstat',{timeout:9000});
   const t=await p.locator('[data-tabpanel="reports"]').innerText();
   ok(!/\b48\b/.test(t)&&!/\b25%/.test(t)&&!/\b4\.2\b/.test(t),`must not ship mock figures: ${t.slice(0,400)}`);
-  // three non-cancelled with eventId: r1 registered, r2 missing status, r4 attended. r3 cancelled still counts in registrations total (4 with eventId). legacy excluded.
+  // non-cancelled with eventId: r1 registered, r2 missing, r4 attended, r5 no_show.
+  // r3 cancelled still counts in registrations total (5 with eventId). legacy excluded.
   ok(/Registrations/.test(t),'registrations card');
   ok(/Not measured/.test(t),'attendance/watch/revenue named');
   ok(await p.locator('[data-export-report]').isVisible(),'Export');
@@ -180,6 +183,7 @@ await T('Reports list When/status come from the event; waitlist is not a number'
   const dash=await p.locator('[data-rpanel="dashboard"]').innerText();
   ok(/Waitlist/.test(dash),'waitlist is named');
   ok(/not measured/i.test(dash),'and labelled not measured');
+  ok(/Partner applications/.test(dash)&&/Partners on this event/.test(dash),'the two partner counts are not conflated');
   ok(!/\b48\b/.test(dash)&&!/\b25%/.test(dash),`no mock figures: ${dash.slice(0,500)}`);
   ok(!/Attended/.test(dash)&&!/No-show/.test(dash)&&!/No show/.test(dash),'attended/no_show are not report bars');
   await p.close();
@@ -230,7 +234,7 @@ await T('joined denominator excludes cancelled and rows with no eventId; rate no
     });
     const live=m.buildEventReport(ev,{
       regs,regsOk:true,sponsors:[],sponsorsOk:true,apps:[],appsOk:true,
-      questions:{ok:true,rows:[]},feedback:{ok:true,rows:[{id:'x',answers:{}}]},
+      questions:{ok:true,rows:[]},feedback:{ok:true,rows:[{id:'x',answers:{}},{id:'y',answers:{}}]},
     });
     return {
       emptyRateLive: empty.responseRate.live,
@@ -246,13 +250,13 @@ await T('joined denominator excludes cancelled and rows with no eventId; rate no
   }, REGS);
   eq(r.emptyRateLive,false,'joined 0 is not measured, not 0%');
   ok(/no joined/i.test(r.emptyReason),r.emptyReason);
-  eq(r.registrations,4,'legacy without eventId excluded');
-  eq(r.joined,3,'cancelled out of joined');
-  eq(r.registered,2,'missing status counts as registered; attended is not in this bar');
+  eq(r.registrations,5,'legacy without eventId excluded');
+  eq(r.joined,4,'cancelled out of joined; attended and no_show stay in the denominator');
+  eq(r.registered,2,'missing status counts as registered; attended/no_show are not in this bar');
   eq(r.cancelled,1,'cancelled');
   eq(r.waitlistLive,false,'waitlist not a number');
   eq(r.waitlistFig,'Not measured','waitlist is labelled, never 0');
-  eq(r.rate,'33%','1/3 joined');
+  eq(r.rate,'50%','2/4 joined');
   await p.close();
 });
 
@@ -400,6 +404,101 @@ await T('Export button label is exactly Export',async()=>{
   await p.waitForSelector('[data-export-report]',{timeout:9000});
   eq((await p.locator('[data-export-report]').innerText()).trim(),'Export','label');
   await p.close();
+});
+
+await T('questions field is order never displayOrder; public never writes questions',()=>{
+  const feed=readFileSync(`${ROOT}/assets/js/paaipe-feedback.js`,'utf8');
+  ok(!/displayOrder/.test(feed),'feedback helper has no displayOrder');
+  const qBlock=RULES.slice(RULES.indexOf('paaipe_event_feedback_questions'), RULES.indexOf('paaipe_event_feedback_responses'));
+  ok(/hasOnly\(\['eventId','questionKey','order'/.test(qBlock),'order is the field');
+  ok(!/displayOrder/.test(qBlock),'questions rules never name displayOrder');
+  ok(/allow create: if isAdmin\(\)/.test(qBlock)&&/allow update: if isAdmin\(\)/.test(qBlock),'public never writes questions');
+  ok(/allow delete: if false/.test(qBlock),'no delete on questions');
+  const rBlock=RULES.slice(RULES.indexOf('paaipe_event_feedback_responses'));
+  ok(/allow delete: if false/.test(rBlock),'no delete on responses');
+  ok(/submittedAt == request.time/.test(rBlock),'submittedAt is request.time on create');
+  ok(/submittedAt == resource.data.submittedAt/.test(rBlock),'submittedAt immutable on update');
+});
+
+await T('partner applications and partners-on-event are separate counts',async()=>{
+  const p=await ctx.newPage();
+  await routeAdmin(p);
+  await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
+  const r=await p.evaluate(async()=>{
+    const m=await import('/assets/js/paaipe-feedback.js');
+    const ev={id:'2026-10-ai-exchange',title:'AI Exchange — October 2026',status:'registration_open',
+      date:'2026-10-13',startTime:'20:00',endTime:'21:30'};
+    const live=m.buildEventReport(ev,{
+      regs:[],regsOk:true,
+      sponsors:[{id:'s1',contributionType:'cash'},{id:'s2',contributionType:'in_kind'}],
+      sponsorsOk:true,
+      apps:[{status:'new'},{status:'spam'},{status:'accepted'}],
+      appsOk:true,
+      questions:{ok:true,rows:[]},feedback:{ok:true,rows:[]},
+    });
+    return {
+      partners: live.partners.value,
+      partnersSource: live.partners.source,
+      apps: live.partnerApplications.value,
+      appsSource: live.partnerApplications.source,
+    };
+  });
+  eq(r.partners,2,'sponsor document count, not a sum of contributionType');
+  eq(r.apps,3,'all application statuses including spam');
+  ok(r.partnersSource!==r.appsSource,`${r.partnersSource} vs ${r.appsSource}`);
+  await p.close();
+});
+
+await T('an answer cites the question document id, never order or the key alone',async()=>{
+  const p=await ctx.newPage();
+  await routeAdmin(p);
+  await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
+  const r=await p.evaluate(async()=>{
+    const m=await import('/assets/js/paaipe-feedback.js');
+    const id=m.questionDocId('2026-10-ai-exchange','overall');
+    const cited=m.citedQuestionIds([{answers:{[id]:4}}]);
+    return {id, hasDoc:cited.has(id), hasKey:cited.has('overall'), hasOrder:cited.has('0')};
+  });
+  eq(r.id,'2026-10-ai-exchange_overall','doc id');
+  eq(r.hasDoc,true,'cites document id');
+  eq(r.hasKey,false,'not the questionKey alone');
+  eq(r.hasOrder,false,'not order');
+  await p.close();
+});
+
+await T('admin bypasses the start gate on a joined public page',async()=>{
+  const p=await ctx.newPage();
+  p.on('pageerror',e=>errs.push(String(e)));
+  await p.route('**/assets/js/paaipe-firebase-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_FB}));
+  await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:memberStub}));
+  await p.route('**/assets/js/paaipe-events-data-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_DATA}));
+  await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub}));
+  await p.goto(`${BASE}/event-2026-10-ai-exchange.html`,{waitUntil:'load'});
+  await p.waitForSelector('html[data-event-view]',{timeout:9000});
+  const state=await p.evaluate(async (qs)=>{
+    const m=await import('/assets/js/paaipe-feedback.js');
+    const host=document.querySelector('[data-event-feedback]');
+    const ev={id:'2026-10-ai-exchange',title:'AI Exchange — October 2026',
+      status:'registration_open',date:'2026-10-13',startTime:'20:00',endTime:'21:30'};
+    await m.mountPublicFeedback(host, ev, {
+      joined:true, admin:true,
+      receipt:{registrationId:'r1',email:'ada@x.com'},
+      existing:{ok:true,row:null},
+      now:new Date('2026-10-01T12:00:00+08:00'),
+      questions:{ok:true,rows:qs},
+    });
+    return host.getAttribute('data-feedback-state');
+  }, QS);
+  eq(state,'open','admin sees the form before start');
+  await p.close();
+});
+
+await T('short answers allow 2000 characters; dashboard names both partner counts',async()=>{
+  const feed=readFileSync(`${ROOT}/assets/js/paaipe-feedback.js`,'utf8');
+  ok(/maxlength="2000"/.test(feed),'short max 2000');
+  const dash=readFileSync(`${ROOT}/assets/js/paaipe-event-reports.js`,'utf8');
+  ok(/Partner applications/.test(dash)&&/Partners on this event/.test(dash),'split labels');
+  ok(!/contributionType/.test(dash),'reports do not sum contributionType');
 });
 
 await T('no console errors',()=>ok(errs.length===0,errs.join(' | ')));

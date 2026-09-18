@@ -31,7 +31,7 @@ import { mountEventEmail } from "/assets/js/paaipe-event-email.js";
 import {
   STARTER_QUESTIONS, questionRowHtml, bindQuestionList, readQuestionsFrom,
   listFeedbackQuestions, listFeedbackResponses, writeFeedbackQuestions,
-  newQuestionKey, whoSeesCopy, Q_TYPE,
+  citedQuestionIds, newQuestionKey, whoSeesCopy, Q_TYPE,
 } from "/assets/js/paaipe-feedback.js";
 import { loadReportBundle, leanReportHtml, exportReport } from "/assets/js/paaipe-event-reports.js";
 
@@ -535,6 +535,9 @@ async function loadFeedbackTab(eventId) {
     </div>`;
     return;
   }
+  const fb = await listFeedbackResponses(eventId);
+  const cited = fb.ok ? citedQuestionIds(fb.rows)
+    : new Set(qs.rows.map(q => q.id).filter(Boolean));
   const active = qs.rows.filter(q => q.active);
   // Seed the starter four only when this event has no question docs at all.
   // If every existing doc is inactive, do not reuse those keys.
@@ -542,7 +545,7 @@ async function loadFeedbackTab(eventId) {
   const rows = active.length
     ? active
     : (seed ? STARTER_QUESTIONS.map((q, i) => ({ ...q, id: "", eventId, order: i, active: true })) : []);
-  const list = rows.map(questionRowHtml).join("");
+  const list = rows.map(q => questionRowHtml(q, { typeLocked: Boolean(q.id && cited.has(q.id)) })).join("");
   const emptyNote = seed
     ? `<p class="note" data-fq-seed style="margin-top:0">Starter four — overall, recommend, mostUseful, improve. They are not stored until you Save. The public form stays empty until then.</p>`
     : (active.length ? "" : `<p class="note" style="margin-top:0">Every question has been removed (kept inactive so old answers still resolve). Add a new question with a new key — do not reuse one.</p>`);
@@ -577,9 +580,11 @@ async function saveFeedbackForm(eventId) {
   const next = readQuestionsFrom(list);
   try {
     const fb = await listFeedbackResponses(eventId);
-    // If responses cannot be listed, assume answers may exist so a type change
-    // archives and mints a new key rather than rewriting the answered one.
-    await writeFeedbackQuestions(eventId, next, { hadResponses: !fb.ok || Boolean(fb.rows.length) });
+    // If responses cannot be listed, treat every current question id as cited
+    // so a type change archives rather than rewriting an answered document.
+    const cited = fb.ok ? citedQuestionIds(fb.rows)
+      : new Set(next.map(q => q.id).filter(Boolean));
+    await writeFeedbackQuestions(eventId, next, { citedIds: cited });
     flash("Saved. The public form reads these question documents.", true);
     LOADED.delete(`${eventId}:feedback`);
     await loadFeedbackTab(eventId);

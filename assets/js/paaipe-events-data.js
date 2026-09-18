@@ -422,8 +422,10 @@ export function eventDateTimeLine(ev) {
   return "";
 }
 
-/** Instant the feedback form opens: that event's start datetime in PHT.
- *  Null when the record has no date, so a missing date cannot look like "now". */
+/** Instant the feedback form opens: that event's date (YYYY-MM-DD) plus
+ *  startTime (HH:mm) in PHT. Compared client-side; rules cannot parse those
+ *  strings. Null when the record has no date, so a missing date cannot look
+ *  like "now". */
 export function eventStartAt(ev) {
   const date = String(ev?.date || "").trim();
   const time = String(ev?.startTime || "").trim();

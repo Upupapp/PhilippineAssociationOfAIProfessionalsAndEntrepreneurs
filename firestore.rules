@@ -432,23 +432,28 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
-    // --- PAAIPE: event feedback (Clarence, locked) -----------------
+    // --- PAAIPE: event feedback (Clarence, locked; Aryhan addendum) -
     //
     // Two collections. Do not fold questions into the event, into
-    // questionsEnabled, or into sessions/micros.
+    // questionsEnabled, or into sessions/micros. The order field is `order`,
+    // never displayOrder.
     //
     //   paaipe_event_feedback_questions/{eventId}_{questionKey}
     //   paaipe_event_feedback_responses/{eventId}_{registrationId}
     //
     // Remove a question by active:false so old answers still resolve.
+    // type is immutable once any answer cites that document id — the client
+    // archives and mints a new questionKey; rules cannot see the answers map
+    // of another collection.
     // A response is created once; create on an existing id is an update and
-    // is refused. Public may get/create a response only by that known id —
-    // listing the responses collection is administrator-only. Registrations
-    // stay unreadable to the submitter (RA 10173); join is decided client-side
-    // from a registrationId the new form kept, not by widening those reads.
+    // is refused. submittedAt is request.time on create and immutable after.
+    // Public never writes questions. Public cannot list responses; a joined
+    // user may get their own doc by known id. Admin reads/writes anytime
+    // (no delete). Registrations stay unreadable to the submitter (RA 10173);
+    // join is decided client-side from a registrationId the new form kept.
 
     function isWellFormedFeedbackQuestion(d) {
-      return d.keys().hasAll(['eventId','questionKey','order','prompt','type','required','active'])
+      return d.keys().hasOnly(['eventId','questionKey','order','prompt','type','required','active'])
           && d.eventId is string && d.eventId.size() > 0 && d.eventId.size() <= 120
           && d.questionKey is string && d.questionKey.size() > 0 && d.questionKey.size() <= 80
           && d.questionKey.matches('^[A-Za-z][A-Za-z0-9_-]{0,79}$')

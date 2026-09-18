@@ -1,4 +1,4 @@
-# paaipe.org — crawler rules. Public marketing pages are allowed.
+# paaipe.org - crawler rules. Public marketing pages are allowed.
 # Admin, Agent portal, fixtures, email templates and test/tooling paths are not.
 
 User-agent: *

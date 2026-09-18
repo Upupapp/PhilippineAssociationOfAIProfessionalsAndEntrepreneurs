@@ -156,7 +156,12 @@ service cloud.firestore {
 
       allow update: if request.auth != null && request.auth.uid == uid
                     && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen'])
+                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen','photoUrl'])
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['photoUrl'])
+                        || request.resource.data.photoUrl == ''
+                        || (request.resource.data.photoUrl is string
+                            && request.resource.data.photoUrl.matches(
+                                 '^https://media\\.paaipe\\.org/agents/' + uid + '/profile\\.(jpg|png|webp)$')))
                     // belt and braces: neither may move even if listed above
                     && request.resource.data.status == resource.data.status
                     && request.resource.data.get('agentNumber', null)
@@ -442,10 +447,9 @@ service cloud.firestore {
     // vertical. Portal members may read published rows only; administrators
     // write everything. displayOrder is the portal order.
     //
-    // Upload (source == "upload", storagePath, posterStoragePath) is schema-
-    // ready. Storage itself is not wired in v1 — the admin UI refuses upload
-    // client-side — but the rules still allow an admin to write those fields
-    // so flipping LEARNINGS_UPLOAD_STORAGE_READY later needs no rules change.
+    // Upload (source == "upload", storagePath, posterStoragePath) is allowed.
+    // Files themselves live on media.paaipe.org; these fields store the
+    // returned path. YouTube remains the other source.
 
     function isWellFormedLearning(d) {
       return d.keys().hasAll(['title','source','published','displayOrder','updatedAt'])

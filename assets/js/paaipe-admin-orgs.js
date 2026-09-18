@@ -10,13 +10,14 @@
  *   - an organization with sponsorships cannot be deleted, only deactivated
  * The second is absolute: the rules refuse delete outright, for everyone.
  */
-import { currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
+import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import { renderAdminNav, renderAdminTop, renderCrumbs } from "/assets/js/paaipe-admin.js";
 import {
   COL, TIER, SPONSOR_STATUS, TIER_LIMITS,
   listOrganizations, listEvents, listEventSponsors, groupSponsors,
 } from "/assets/js/paaipe-events-data.js";
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
+import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const $  = (s, r = document) => r.querySelector(s);
@@ -82,7 +83,8 @@ function openOrgEditor(id) {
       <button class="btn btn-ghost btn-sm" data-close>Close</button></div>
     <div class="f"><label>Name</label><input data-o-name value="${esc(o.name || "")}" maxlength="120"></div>
     <div class="f"><label>Website</label><input data-o-web value="${esc(o.website || "")}" maxlength="300"></div>
-    <div class="f"><label>Logo path</label><input data-o-logo value="${esc(o.logoUrl || "")}" maxlength="300"></div>
+    <div class="f"><label>Logo path</label><input data-o-logo value="${esc(o.logoUrl || "")}" maxlength="300">
+      <input type="file" data-o-logo-file accept="image/jpeg,image/png,image/webp"></div>
     <div class="f"><label>Status</label><select data-o-status>
       <option value="active"${o.status === "active" ? " selected" : ""}>active</option>
       <option value="inactive"${o.status !== "active" ? " selected" : ""}>inactive</option></select></div>
@@ -90,10 +92,28 @@ function openOrgEditor(id) {
     <p class="note">Saving updates every event that credits this organization and the public
       Partners page, because the logo is stored once. Deleting is refused by the rules — an
       organization that is a Partner on an event would leave those rows orphaned, so deactivate instead.</p>
-    <p class="note"><b>Logo upload is not built.</b> There is no storage bucket wired up yet, so
-      this takes a path to a file already in the repository rather than pretending to accept one.</p>`;
+    <p class="note">Pick a logo file to store it on media.paaipe.org. The returned URL is written into
+      the path field above. You can still paste a path instead.</p>`;
   d.hidden = false;
   d.dataset.org = id;
+}
+
+async function uploadOrgLogo(id) {
+  const d = $("[data-org-editor]");
+  const input = $("[data-o-logo-file]", d);
+  const file = input?.files?.[0];
+  if (!file) return;
+  const pathInput = $("[data-o-logo]", d);
+  try {
+    const token = await idTokenForRequest();
+    const up = await postMediaUpload({ file, kind: MEDIA_KIND.LOGO, id, token });
+    if (!up?.url) throw Object.assign(new Error("Upload did not return a media URL. Nothing was saved."), { code: "media/invalid-response" });
+    if (pathInput) pathInput.value = up.url;
+    flash("Logo uploaded. Save to publish it everywhere this organization appears.", true);
+  } catch (ex) {
+    if (input) input.value = "";
+    flash(ex?.message || String(ex));
+  }
 }
 
 async function saveOrg(id) {
@@ -252,6 +272,11 @@ async function loadSponsors() {
     if (e.target.closest("[data-save-org]")) return saveOrg($("[data-org-editor]").dataset.org);
     const ss = e.target.closest("[data-save-sponsor]");
     if (ss) return saveSponsor(ss.closest("tr").dataset.sponsor);
+  });
+  document.addEventListener("change", e => {
+    if (!e.target.matches("[data-o-logo-file]")) return;
+    const id = $("[data-org-editor]")?.dataset.org;
+    if (id) uploadOrgLogo(id);
   });
 
   document.documentElement.setAttribute("data-admin-orgs", String(ORGS.length));

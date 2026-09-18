@@ -298,6 +298,7 @@ function showMissing(id) {
         <div class="papp-title"><b>Application not found</b></div>
         <button class="btn btn-ghost btn-sm" data-close>Close</button>
       </div>
+      <p class="muted">${esc(id)}</p>
       <p class="muted">That application is not in the loaded list.</p>
     </section>`;
   d.hidden = false;
@@ -306,7 +307,9 @@ function showMissing(id) {
 
 function applyUrl() {
   const id = readSearch().id || "";
+  const d = $("[data-detail]");
   if (!id) { hideDetail(); return; }
+  if (d && !d.hidden && d.dataset.app === id) return;
   openDetail(id, { fromUrl: true });
 }
 

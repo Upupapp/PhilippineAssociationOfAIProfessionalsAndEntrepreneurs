@@ -1,0 +1,108 @@
+/* PAAIPE Agent portal entry popup.
+ *
+ * Ericson signed this UI: Approve. Match the signed mock. Do not restyle.
+ * Tokens already on the portal: navy #002166, gold #F2A71B, cyan #15BBEA,
+ * Inter, 16–22px radii. Public site stays Poppins; this file is Home-only.
+ *
+ * Class names are pe-* so the gold AI PORTAL pill cannot collide with the
+ * portal's membership .pill.
+ */
+
+.pe-entry{
+  position:fixed;inset:0;background:rgba(8,22,52,.46);backdrop-filter:blur(6px);
+  display:grid;place-items:center;z-index:40;padding:16px;
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+.pe-modal{
+  width:760px;max-width:100%;background:#fff;border-radius:22px;
+  border:1px solid rgba(230,226,216,.9);
+  box-shadow:0 30px 80px rgba(0,33,102,.28),0 0 0 1px rgba(21,187,234,.18);
+  position:relative;overflow:hidden;
+}
+.pe-modal:before{
+  content:"";position:absolute;left:0;right:0;top:0;height:3px;
+  background:linear-gradient(90deg,var(--gold,#F2A71B),var(--cyan,#15BBEA) 70%,var(--blue,#1E6FE8));
+}
+.pe-gridglow{
+  pointer-events:none;position:absolute;inset:0;
+  background-image:radial-gradient(rgba(30,111,232,.07) 1px,transparent 1px);
+  background-size:18px 18px;mask-image:linear-gradient(180deg,#000,transparent 42%);opacity:.9;
+}
+.pe-head{position:relative;padding:26px 28px 6px;display:flex;gap:16px;align-items:flex-start}
+.pe-mark{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.pe-mark img{height:26px;width:auto}
+.pe-mark-pill{
+  font-size:10px;font-weight:800;letter-spacing:.12em;color:#3A2B05;
+  background:linear-gradient(135deg,var(--lgold,#F6DB74),var(--gold,#F2A71B));
+  padding:4px 9px;border-radius:999px;
+}
+.pe-head h1{
+  margin:0;font-size:26px;letter-spacing:-.03em;color:var(--navy,#002166);font-weight:800;
+}
+.pe-lead{margin:6px 0 0;color:#6B7793;font-size:14.5px;line-height:1.45;max-width:46ch}
+.pe-x{
+  position:absolute;top:18px;right:18px;width:36px;height:36px;border-radius:12px;
+  border:1px solid #E6E2D8;background:#fff;color:var(--navy,#002166);
+  font-size:18px;line-height:1;cursor:pointer;appearance:none;-webkit-appearance:none;
+  font-family:inherit;padding:0;
+}
+.pe-choices{
+  position:relative;display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:18px 22px 8px;
+}
+.pe-opt{
+  display:flex;gap:14px;text-align:left;background:#fff;
+  border:1px solid #E6E2D8;border-radius:16px;padding:16px 16px 14px;
+  cursor:pointer;position:relative;min-height:118px;width:100%;
+  appearance:none;-webkit-appearance:none;font:inherit;color:inherit;margin:0;
+}
+.pe-opt:hover,.pe-opt:focus-visible,.pe-opt.pe-focus{
+  border-color:#C9D8F2;box-shadow:0 8px 24px rgba(10,63,150,.08);
+  background:linear-gradient(180deg,#fff,#F7FAFF);
+}
+.pe-opt:focus-visible{outline:2px solid rgba(30,111,232,.35);outline-offset:0}
+.pe-ic{
+  width:42px;height:42px;border-radius:13px;flex:none;display:grid;place-items:center;
+  background:#F3F6FC;border:1px solid #E4EDFA;
+}
+.pe-ic svg{
+  width:20px;height:20px;stroke:#0A3F96;fill:none;stroke-width:1.8;
+  stroke-linecap:round;stroke-linejoin:round;
+}
+/* Navy icon fill signed on Watch Sessions; hover uses the same fill. */
+.pe-opt:hover .pe-ic,
+.pe-opt:focus-visible .pe-ic,
+.pe-opt.pe-focus .pe-ic{
+  background:linear-gradient(160deg,#0B2A6B,var(--blue,#1E6FE8));border-color:transparent;
+}
+.pe-opt:hover .pe-ic svg,
+.pe-opt:focus-visible .pe-ic svg,
+.pe-opt.pe-focus .pe-ic svg{stroke:#fff}
+.pe-choices:hover .pe-opt.pe-focus:not(:hover):not(:focus-visible){
+  border-color:#E6E2D8;box-shadow:none;background:#fff;
+}
+.pe-choices:hover .pe-opt.pe-focus:not(:hover):not(:focus-visible) .pe-ic{
+  background:#F3F6FC;border:1px solid #E4EDFA;
+}
+.pe-choices:hover .pe-opt.pe-focus:not(:hover):not(:focus-visible) .pe-ic svg{
+  stroke:#0A3F96;
+}
+.pe-opt h3{margin:0;font-size:15.5px;color:var(--navy,#002166);font-weight:700;letter-spacing:-.01em}
+.pe-desc{margin:4px 0 10px;font-size:13px;line-height:1.4;color:#6B7793}
+.pe-route{
+  display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  letter-spacing:.06em;text-transform:uppercase;color:#0A3F96;
+}
+.pe-route-dash{width:14px;height:1px;background:var(--gold,#F2A71B);display:inline-block}
+.pe-foot{
+  position:relative;display:flex;align-items:center;justify-content:space-between;
+  padding:8px 22px 18px;color:#93A0B8;font-size:12.5px;gap:12px;
+}
+.pe-skip{
+  background:none;border:0;color:#6B7793;font:inherit;font-weight:600;
+  cursor:pointer;padding:8px 4px;appearance:none;-webkit-appearance:none;white-space:nowrap;
+}
+@media (max-width:560px){
+  .pe-modal{border-radius:16px}
+  .pe-choices{grid-template-columns:1fr}
+  .pe-foot{flex-wrap:wrap}
+}

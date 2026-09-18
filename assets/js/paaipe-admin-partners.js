@@ -38,6 +38,7 @@ import {
 } from "/assets/js/paaipe-events-data.js";
 import { firebaseConfig, DATABASE_ID, currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
 import { renderAdminNav, renderAdminTop, setNavBadge } from "/assets/js/paaipe-admin.js";
+import { readSearch, writeSearch, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const $  = (s, r = document) => r.querySelector(s);
@@ -261,9 +262,64 @@ function websiteCell(a) {
             target="_blank" rel="noopener">${esc(w)}</a></dd></div>`;
 }
 
-function openDetail(id) {
+/* The open row is the `id` query param, next to the existing `event` filter.
+ * pushState on open so Back returns to the list; replaceState on close so a
+ * shared ?id= link does not send Close off the page. Never a full reload. */
+function partnerQuery(id) {
+  const q = readSearch();
+  const params = {};
+  if (q.event) params.event = q.event;
+  if (id) params.id = id;
+  return params;
+}
+
+function syncAppUrl(id, { push = true } = {}) {
+  writeSearch(partnerQuery(id), { push });
+}
+
+function hideDetail() {
+  const d = $("[data-detail]");
+  if (!d) return;
+  d.hidden = true;
+  delete d.dataset.app;
+}
+
+function closeDetail() {
+  hideDetail();
+  syncAppUrl("", { push: false });
+}
+
+function showMissing(id) {
+  const d = $("[data-detail]");
+  if (!d) return;
+  d.innerHTML = `
+    <section class="papp-band" data-band="application">
+      <div class="dhead">
+        <div class="papp-title"><b>Application not found</b></div>
+        <button class="btn btn-ghost btn-sm" data-close>Close</button>
+      </div>
+      <p class="muted">${esc(id)}</p>
+      <p class="muted">That application is not in the loaded list.</p>
+    </section>`;
+  d.hidden = false;
+  delete d.dataset.app;
+}
+
+function applyUrl() {
+  const id = readSearch().id || "";
+  const d = $("[data-detail]");
+  if (!id) { hideDetail(); return; }
+  if (d && !d.hidden && d.dataset.app === id) return;
+  openDetail(id, { fromUrl: true });
+}
+
+function openDetail(id, { fromUrl = false } = {}) {
   const a = APPS.find(x => x.id === id);
-  if (!a) return;
+  if (!a) {
+    showMissing(id);
+    if (!fromUrl) syncAppUrl(id, { push: true });
+    return;
+  }
   const d = $("[data-detail]");
   const org = matchOrganization(a, ORGS);
   const dupes = duplicatesOf(a);
@@ -343,6 +399,7 @@ function openDetail(id) {
   d.hidden = false;
   d.dataset.app = id;
   d.scrollIntoView({ block: "start" });
+  if (!fromUrl) syncAppUrl(id, { push: true });
 }
 
 /* ------------------------------------------------------------------ writes */
@@ -549,14 +606,20 @@ async function boot() {
   refreshBadge();
 
   $$("[data-f-event],[data-f-status],[data-f-source]").forEach(el =>
-    el.addEventListener("change", renderRows));
+    el.addEventListener("change", () => {
+      if (el.hasAttribute("data-f-event")) {
+        const ev = $("[data-f-event]")?.value || "";
+        writeSearch({ event: ev, id: readSearch().id || "" }, { push: true });
+      }
+      renderRows();
+    }));
   $("[data-f-q]")?.addEventListener("input", renderRows);
   $("[data-export]")?.addEventListener("click", exportCsv);
 
   document.addEventListener("click", e => {
     const open = e.target.closest("[data-open]");
     if (open) return openDetail(open.dataset.open);
-    if (e.target.closest("[data-close]")) { $("[data-detail]").hidden = true; return; }
+    if (e.target.closest("[data-close]")) { closeDetail(); return; }
 
     const d = $("[data-detail]");
     const id = d?.dataset.app;
@@ -582,6 +645,9 @@ async function boot() {
     const st = e.target.closest("[data-status]");
     if (st) return setStatus(id, st.dataset.status);
   });
+
+  applyUrl();
+  onViewChange(applyUrl);
 }
 
 if (document.body.hasAttribute("data-admin-partners")) boot();

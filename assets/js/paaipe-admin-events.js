@@ -28,6 +28,7 @@ import {
   registrationState, eventDateLong, eventDateTimeLine, eventStatusShort, groupSponsors,
 } from "/assets/js/paaipe-events-data.js";
 import { mountEventEmail } from "/assets/js/paaipe-event-email.js";
+import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 import {
   STARTER_QUESTIONS, questionRowHtml, bindQuestionList, readQuestionsFrom,
   listFeedbackQuestions, listFeedbackResponses, writeFeedbackQuestions,
@@ -289,7 +290,7 @@ function sponsorSummary(rows) {
 }
 
 
-function openEditor(id) {
+function openEditor(id, { push = true, tab } = {}) {
   // Per-event caches. Without this, opening October after September shows
   // September's sponsors under October's name until the fetch returns - the
   // worst kind of wrong, because it looks like data.
@@ -404,7 +405,12 @@ function openEditor(id) {
   renderRail(e);
   renderMediaTab(e);
   renderTabs();
-  selectTab(tabFromHash() || "details", { push: false });
+  selectTab(tab || tabFromHash() || "details", { push: false });
+  if (CURRENT) {
+    const params = { event: CURRENT.id, tab: TAB };
+    if (TAB === "email" && readHash().email === "history") params.email = "history";
+    writeHash(params, { push });
+  }
   loadTabCounts(id);
   loadHistory(id);
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -442,8 +448,8 @@ const LOADED = new Set();
 const panel = k => $(`[data-tabpanel="${k}"]`);
 
 function tabFromHash() {
-  const m = /[#&]tab=([a-z]+)/.exec(location.hash || "");
-  return m && TABS.some(([k]) => k === m[1]) ? m[1] : null;
+  const t = readHash().tab;
+  return t && TABS.some(([k]) => k === t) ? t : null;
 }
 
 function renderTabs() {
@@ -481,8 +487,9 @@ function selectTab(key, { push = true } = {}) {
   if (exp) exp.hidden = key !== "reports";
   renderTabs();
   if (push && CURRENT) {
-    const h = `#event=${encodeURIComponent(CURRENT.id)}&tab=${key}`;
-    if (location.hash !== h) history.replaceState(null, "", h);
+    const params = { event: CURRENT.id, tab: key };
+    if (key === "email" && readHash().email === "history") params.email = "history";
+    writeHash(params, { push: true });
   }
   loadTab(key);
 }
@@ -857,6 +864,35 @@ async function duplicateEvent(id) {
 
 /* --------------------------------------------------------------------- boot */
 
+function showList({ push = true } = {}) {
+  const cols = $("[data-editor-cols]");
+  if (cols) {
+    cols.hidden = true;
+    cols.classList.remove("email-open", "rail-hidden");
+  }
+  const rail = $("[data-publish-rail]"); if (rail) rail.hidden = false;
+  $("[data-event-list]").hidden = false;
+  CURRENT = null; EVENT_REPORT = null; renderList();
+  clearEventHead();
+  renderAdminTop({ title: "Events", subtitle: "Every AI Exchange, and what the public sees of it", email: ME });
+  renderCrumbs([["Dashboard", "admin.html"], "Events"]);
+  const chip = $("[data-state-chip]"); if (chip) chip.hidden = true;
+  writeHash({}, { push });
+}
+
+function applyFromLocation() {
+  const v = readHash();
+  if (!v.event) {
+    if (CURRENT) showList({ push: false });
+    return;
+  }
+  if (!CURRENT || CURRENT.id !== v.event) {
+    openEditor(v.event, { push: false, tab: v.tab });
+    return;
+  }
+  if (v.tab && v.tab !== TAB) selectTab(v.tab, { push: false });
+}
+
 (async function () {
   if (!$("[data-admin-events]")) return;
   renderAdminNav("admin-events.html");
@@ -903,6 +939,9 @@ async function duplicateEvent(id) {
     return;
   }
   renderList();
+
+  applyFromLocation();
+  onViewChange(applyFromLocation);
 
   document.addEventListener("click", e => {
     const ed = e.target.closest("[data-edit-event]");
@@ -967,16 +1006,7 @@ async function duplicateEvent(id) {
       return exportReport(CURRENT, EVENT_REPORT, "Event report");
 
     if (e.target.closest("[data-back]")) {
-      const cols = $("[data-editor-cols]");
-      cols.hidden = true;
-      cols.classList.remove("email-open", "rail-hidden");
-      const rail = $("[data-publish-rail]"); if (rail) rail.hidden = false;
-      $("[data-event-list]").hidden = false;
-      CURRENT = null; EVENT_REPORT = null; renderList();
-      clearEventHead();
-      renderAdminTop({ title: "Events", subtitle: "Every AI Exchange, and what the public sees of it", email: ME });
-      renderCrumbs([["Dashboard", "admin.html"], "Events"]);
-      const chip = $("[data-state-chip]"); if (chip) chip.hidden = true;
+      showList({ push: true });
       return;
     }
     if (e.target.closest("[data-save-event]")) return saveEvent($("[data-event-editor]").dataset.event);

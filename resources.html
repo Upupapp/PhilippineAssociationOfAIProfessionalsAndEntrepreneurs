@@ -420,7 +420,8 @@
   </div>
 </footer>
 
-<script>
+<script type="module">
+  import { bindFilterChips } from "/assets/js/paaipe-view-url.js";
   const chips = [...document.querySelectorAll('.chip')];
   const cards = [...document.querySelectorAll('.res-card')];
   const countEl = document.getElementById('count');
@@ -435,12 +436,10 @@
     countEl.textContent = `Showing ${shown} of ${cards.length} resources`;
     emptyEl.classList.toggle('show', shown === 0);
   }
-  chips.forEach(chip => chip.addEventListener('click', () => {
-    chips.forEach(c => c.classList.remove('on'));
-    chip.classList.add('on');
-    apply(chip.dataset.filter);
-  }));
-  apply('all');
+  bindFilterChips({
+    chips, apply,
+    allowed: ["all","video","presentation","explainer","checklist","guide","template"],
+  });
 </script>
 
 <script src="assets/js/leave-dialog.js" data-cancel="Back to Resources" data-title="This resource opens on another site"></script>

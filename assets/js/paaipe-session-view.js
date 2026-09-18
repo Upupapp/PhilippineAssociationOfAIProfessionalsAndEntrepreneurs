@@ -26,6 +26,7 @@ import {
   youtubeEmbedSrc,
   LEARNING_SOURCE,
 } from "/assets/js/paaipe-learnings-data.js";
+import { readHash, readView, patchHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const hide = el => { if (el) el.style.display = "none"; };
 const setText = (root, sel, text) =>
@@ -203,7 +204,7 @@ function posterUrlFor(row) {
   return "";
 }
 
-function closeWatchPopup() {
+function closeWatchPopup({ silent = false } = {}) {
   const pop = document.querySelector("[data-ss-watch-popup]");
   if (!pop || pop.hidden) return;
   destroyEmbed(pop.querySelector("[data-ss-popup-player]"));
@@ -213,6 +214,7 @@ function closeWatchPopup() {
   const opener = pop._opener;
   pop._opener = null;
   if (opener && typeof opener.focus === "function") opener.focus();
+  if (!silent && readHash().play) patchHash({ play: "" }, { push: true });
 }
 
 function ensureWatchPopup() {
@@ -251,7 +253,7 @@ function ensureWatchPopup() {
   return pop;
 }
 
-function openWatchPopup(row, { aspect = "16:9", opener = null } = {}) {
+function openWatchPopup(row, { aspect = "16:9", opener = null, syncUrl = true } = {}) {
   if (!row?.youtubeId) return;
   const pop = ensureWatchPopup();
   const panel = pop.querySelector("[data-ss-watch-panel]");
@@ -259,11 +261,15 @@ function openWatchPopup(row, { aspect = "16:9", opener = null } = {}) {
   panel.setAttribute("data-aspect", aspect === "9:16" ? "9:16" : "16:9");
   pop.setAttribute("aria-label", row.title || "Session recording");
   pop._opener = opener;
+  pop._rowId = row.id;
   pop.hidden = false;
   pop.removeAttribute("aria-hidden");
   document.body.style.overflow = "hidden";
   mountEmbed(stage, row, { autoplay: true });
   pop.querySelector(".ss-watch-close")?.focus();
+  if (syncUrl && row.id && readHash().play !== row.id) {
+    patchHash({ play: row.id }, { push: true });
+  }
 }
 
 function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
@@ -433,16 +439,17 @@ function applyReelsChrome(root = document) {
 
 
   if (page === "sessions-hub") {
-    // Sub-tabs: Sessions (default) | Micros.
+    // Sub-tabs: Sessions (default) | Micros. Nested play popup is #tab=&play=.
     const tabs = [...document.querySelectorAll("[data-ss-hub-tab]")];
     const panels = {
       sessions: document.querySelector('[data-ss-hub-panel="sessions"]'),
       micros: document.querySelector('[data-ss-hub-panel="micros"]'),
     };
+    const HUB = { sessions: [], micros: [] };
     function hubTabFromLocation() {
-      const q = new URLSearchParams(location.search).get("tab");
-      const h = /(?:^|#|&)tab=([a-z]+)/.exec(location.hash || "");
-      const name = (q || (h && h[1]) || "").toLowerCase();
+      // Hash is the live contract (#tab=sessions|#tab=micros). ?tab= still
+      // opens the same view so a half-written query link keeps working.
+      const name = String(readView().tab || "").toLowerCase();
       return name === "micros" ? "micros" : "sessions";
     }
     function showHubTab(name, { focus = false, syncUrl = false } = {}) {
@@ -459,8 +466,32 @@ function applyReelsChrome(root = document) {
         panels[k].hidden = k !== tab;
       });
       if (syncUrl) {
-        const next = `#tab=${tab}`;
-        if (location.hash !== next) history.replaceState(null, "", next);
+        const next = { tab };
+        writeHash(next, { push: true });
+        closeWatchPopup({ silent: true });
+      }
+    }
+    function playFromLocation() {
+      const id = readHash().play;
+      const tab = hubTabFromLocation();
+      if (!id) {
+        closeWatchPopup({ silent: true });
+        return;
+      }
+      const row = (tab === "micros" ? HUB.micros : HUB.sessions).find(r => r.id === id)
+        || HUB.sessions.find(r => r.id === id)
+        || HUB.micros.find(r => r.id === id);
+      const pop = document.querySelector("[data-ss-watch-popup]");
+      if (row && pop && !pop.hidden && pop._rowId === row.id) return;
+      if (row) {
+        showHubTab(HUB.micros.some(r => r.id === id) && !HUB.sessions.some(r => r.id === id)
+          ? "micros" : tab);
+        openWatchPopup(row, {
+          aspect: HUB.micros.some(r => r.id === id) ? "9:16" : "16:9",
+          syncUrl: false,
+        });
+      } else {
+        closeWatchPopup({ silent: true });
       }
     }
     tabs.forEach(t => {
@@ -479,7 +510,10 @@ function applyReelsChrome(root = document) {
       });
     });
     showHubTab(hubTabFromLocation());
-    window.addEventListener("hashchange", () => showHubTab(hubTabFromLocation()));
+    onViewChange(() => {
+      showHubTab(hubTabFromLocation());
+      playFromLocation();
+    });
 
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -573,12 +607,15 @@ function applyReelsChrome(root = document) {
           listPublishedSessions(),
           listPublishedMicros(),
         ]);
+        HUB.sessions = sessions;
+        HUB.micros = micros;
         renderSessions(sessions);
         renderMicros(micros);
         document.documentElement.setAttribute(
           "data-sessions-ready",
           `live:${sessions.length}:${micros.length}`
         );
+        playFromLocation();
       } catch (ex) {
         const host = document.querySelector("[data-ss-live-sessions]");
         if (host) {
@@ -765,7 +802,7 @@ function applyReelsChrome(root = document) {
         const url = new URL(location.href);
         url.searchParams.set("session", s.id);
         url.searchParams.set("rec", next.id);
-        history.replaceState(null, "", url);
+        history.pushState({ paaipeView: 1 }, "", url);
         paint(next);
       });
     };
@@ -780,5 +817,10 @@ function applyReelsChrome(root = document) {
     paint(active);
     document.documentElement.setAttribute("data-session-view", s.id);
     document.documentElement.setAttribute("data-ss-active-rec", active.id);
+    onViewChange(() => {
+      const next = pickInitial();
+      if (next && next.id !== active.id) paint(next);
+      document.documentElement.setAttribute("data-ss-active-rec", active.id);
+    });
   }
 })();

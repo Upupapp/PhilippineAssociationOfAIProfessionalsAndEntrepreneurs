@@ -15,6 +15,7 @@ import {
   listEvents, acceptsPartners,
 } from "/assets/js/paaipe-events-data.js";
 import { openPartnerApply } from "/assets/js/paaipe-partner.js";
+import { writeSearch, readSearch, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -104,7 +105,7 @@ function editorHtml(org) {
     </div>`;
 }
 
-function render(view, org) {
+function render(view, org, { push = false } = {}) {
   const host = $("[data-org-panel]");
   if (!host) return;
   if (view === "editor") host.innerHTML = editorHtml(org);
@@ -112,6 +113,11 @@ function render(view, org) {
   else host.innerHTML = listHtml();
   document.documentElement.setAttribute("data-org-view", view === "editor" ? "editor" : (ORGS.length ? "list" : "empty"));
   document.documentElement.setAttribute("data-org-count", String(ORGS.length));
+  if (view === "editor") {
+    writeSearch(org?.id ? { id: org.id } : { new: "1" }, { push });
+  } else {
+    writeSearch({}, { push });
+  }
 }
 
 function validWebsite(raw) {
@@ -147,7 +153,7 @@ async function onSave(form) {
       ORGS.push({ ...saved, status: saved.status || "inactive" });
       ORGS.sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
     }
-    render("list");
+    render("list", null, { push: true });
   } catch (ex) {
     btn.disabled = false;
     btn.textContent = "Save";
@@ -198,12 +204,12 @@ async function onApply(org) {
 function bind() {
   const root = $("[data-org-root]") || document;
   root.addEventListener("click", e => {
-    if (e.target.closest("[data-org-add]")) { render("editor", null); return; }
-    if (e.target.closest("[data-org-cancel]")) { render("list"); return; }
+    if (e.target.closest("[data-org-add]")) { render("editor", null, { push: true }); return; }
+    if (e.target.closest("[data-org-cancel]")) { render("list", null, { push: true }); return; }
     const edit = e.target.closest("[data-org-edit]");
     if (edit) {
       const id = edit.closest("[data-org-card]")?.dataset.orgId;
-      render("editor", ORGS.find(o => o.id === id) || null);
+      render("editor", ORGS.find(o => o.id === id) || null, { push: true });
       return;
     }
     const apply = e.target.closest("[data-org-apply]");
@@ -245,4 +251,10 @@ function bind() {
   else if (q.get("id")) render("editor", ORGS.find(o => o.id === q.get("id")) || null);
   else render("list");
   document.documentElement.setAttribute("data-org-ready", "1");
+  onViewChange(() => {
+    const q2 = readSearch();
+    if (q2.new === "1") render("editor", null);
+    else if (q2.id) render("editor", ORGS.find(o => o.id === q2.id) || null);
+    else render("list");
+  });
 })();

@@ -68,7 +68,8 @@ const appStub=`
 const br=await chromium.launch();
 const ctx=await br.newContext({viewport:{width:1280,height:900}});
 const errs=[];
-async function openAdmin(viewport){
+const qs=p=>Object.fromEntries(new URL(p.url()).searchParams);
+async function openAdmin(viewport, path='admin-partners.html'){
   const p=await ctx.newPage();
   if(viewport) await p.setViewportSize(viewport);
   p.on('pageerror',e=>errs.push(String(e)));
@@ -78,7 +79,7 @@ async function openAdmin(viewport){
   await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub}));
   await p.route('**/firebasejs/12.19.0/firebase-app.js',r=>r.fulfill({contentType:'text/javascript',body:appStub}));
   await p.route('**/firebasejs/12.19.0/firebase-firestore.js',r=>r.fulfill({contentType:'text/javascript',body:firestoreStub}));
-  await p.goto(`${BASE}/admin-partners.html`,{waitUntil:'load'});
+  await p.goto(`${BASE}/${path}`,{waitUntil:'load'});
   await p.waitForSelector('[data-open]',{timeout:9000});
   return p;
 }
@@ -219,6 +220,70 @@ await T('Save note is ghost; Accept is the only gold button',async()=>{
   ok(hint&&last,'mail hint and last template laid out');
   ok(Math.abs(hint.y-last.y)<10,'Opens your mail app sits on the mail line');
   ok(hint.x>last.x,'hint at the end of that line');
+  await p.close();
+});
+
+await T('opening a row writes the application id into the URL without reloading',async()=>{
+  const p=await openAdmin();
+  let loads=0;
+  p.on('load',()=>{loads++});
+  eq(qs(p).id,undefined,'list URL has no id');
+  await p.locator('[data-open="AbCd1234efgh"]').click();
+  ok(await p.locator('[data-detail]').isVisible(),'detail shown');
+  eq(qs(p).id,'AbCd1234efgh','id is in the address');
+  eq(loads,0,'pushState, not a navigation');
+  await p.close();
+});
+
+await T('reload with that URL reopens the same application',async()=>{
+  const p=await openAdmin(null,'admin-partners.html?id=AbCd1234efgh');
+  const d=p.locator('[data-detail]');
+  ok(await d.isVisible(),'detail shown from the URL');
+  ok(/Northwind Analytics/.test(await d.innerText()),'the named application');
+  eq(qs(p).id,'AbCd1234efgh','address unchanged');
+  await p.reload({waitUntil:'load'});
+  await p.waitForSelector('[data-open]',{timeout:9000});
+  ok(await p.locator('[data-detail]').isVisible(),'still open after reload');
+  ok(/Northwind Analytics/.test(await p.locator('[data-detail]').innerText()),'same company');
+  eq(qs(p).id,'AbCd1234efgh','id survived reload');
+  await p.close();
+});
+
+await T('close and Back restore the list URL, keeping ?event=',async()=>{
+  const p=await openAdmin(null,'admin-partners.html?event=2026-10-ai-exchange');
+  eq(await p.locator('[data-open="AbCd1234efgh"]').count(),1,'October application listed');
+  eq(await p.locator('[data-open="GhIj5678klmn"]').count(),0,'November application filtered out');
+  eq(qs(p).event,'2026-10-ai-exchange','event is in the address');
+  await p.locator('[data-open="AbCd1234efgh"]').click();
+  eq(qs(p).id,'AbCd1234efgh','id added');
+  eq(qs(p).event,'2026-10-ai-exchange','event kept on open');
+
+  await p.goBack({waitUntil:'commit'});
+  await p.waitForFunction(()=>!new URL(location.href).searchParams.get('id'));
+  ok(await p.locator('[data-detail]').isHidden(),'Back hides the panel');
+  eq(qs(p).id,undefined,'Back restores the list URL');
+  eq(qs(p).event,'2026-10-ai-exchange','event still there after Back');
+
+  await p.locator('[data-open="AbCd1234efgh"]').click();
+  eq(qs(p).id,'AbCd1234efgh','open again');
+  await p.locator('[data-close]').click();
+  ok(await p.locator('[data-detail]').isHidden(),'close hides it');
+  eq(qs(p).id,undefined,'close drops the id');
+  eq(qs(p).event,'2026-10-ai-exchange','and keeps the event filter');
+  await p.close();
+});
+
+await T('an id that is not in the loaded list is named, not a blank panel',async()=>{
+  const p=await openAdmin(null,'admin-partners.html?id=not-a-real-app');
+  const d=p.locator('[data-detail]');
+  ok(await d.isVisible(),'the panel is shown');
+  const t=await d.innerText();
+  ok(/not-a-real-app/.test(t),'it names the id from the URL');
+  ok(/not in the loaded list/i.test(t),'and says why it is empty');
+  eq(await d.locator('[data-accept]').count(),0,'it is not a blank application record');
+  await p.locator('[data-close]').click();
+  ok(await d.isHidden(),'close still works');
+  eq(qs(p).id,undefined,'and returns to the list URL');
   await p.close();
 });
 

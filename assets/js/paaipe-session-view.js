@@ -313,9 +313,16 @@ function applyReelsChrome(root = document) {
       sessions: document.querySelector('[data-ss-hub-panel="sessions"]'),
       micros: document.querySelector('[data-ss-hub-panel="micros"]'),
     };
-    function showHubTab(name, { focus = false } = {}) {
+    function hubTabFromLocation() {
+      const q = new URLSearchParams(location.search).get("tab");
+      const h = /(?:^|#|&)tab=([a-z]+)/.exec(location.hash || "");
+      const name = (q || (h && h[1]) || "").toLowerCase();
+      return name === "micros" ? "micros" : "sessions";
+    }
+    function showHubTab(name, { focus = false, syncUrl = false } = {}) {
+      const tab = name === "micros" ? "micros" : "sessions";
       tabs.forEach(t => {
-        const on = t.getAttribute("data-ss-hub-tab") === name;
+        const on = t.getAttribute("data-ss-hub-tab") === tab;
         t.classList.toggle("on", on);
         t.setAttribute("aria-selected", on ? "true" : "false");
         t.tabIndex = on ? 0 : -1;
@@ -323,11 +330,15 @@ function applyReelsChrome(root = document) {
       });
       Object.keys(panels).forEach(k => {
         if (!panels[k]) return;
-        panels[k].hidden = k !== name;
+        panels[k].hidden = k !== tab;
       });
+      if (syncUrl) {
+        const next = `#tab=${tab}`;
+        if (location.hash !== next) history.replaceState(null, "", next);
+      }
     }
     tabs.forEach(t => {
-      t.addEventListener("click", () => showHubTab(t.getAttribute("data-ss-hub-tab")));
+      t.addEventListener("click", () => showHubTab(t.getAttribute("data-ss-hub-tab"), { syncUrl: true }));
       t.addEventListener("keydown", e => {
         const i = tabs.indexOf(t);
         if (i < 0) return;
@@ -338,10 +349,11 @@ function applyReelsChrome(root = document) {
         else if (e.key === "End") next = tabs.length - 1;
         if (next < 0) return;
         e.preventDefault();
-        showHubTab(tabs[next].getAttribute("data-ss-hub-tab"), { focus: true });
+        showHubTab(tabs[next].getAttribute("data-ss-hub-tab"), { focus: true, syncUrl: true });
       });
     });
-    showHubTab("sessions");
+    showHubTab(hubTabFromLocation());
+    window.addEventListener("hashchange", () => showHubTab(hubTabFromLocation()));
 
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));

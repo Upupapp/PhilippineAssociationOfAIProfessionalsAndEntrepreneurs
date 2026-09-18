@@ -15,6 +15,7 @@ import {
   listRegistrations, setRegistrationStatus, REG_STATUS, regStatusOf,
 } from "/assets/js/paaipe-firebase.js";
 import { renderAdminNav, renderAdminTop, renderCrumbs, setNavBadge } from "/assets/js/paaipe-admin.js";
+import { readHash, patchHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -117,7 +118,7 @@ function render() {
 
 /* ------------------------------------------------------------ detail drawer */
 
-function openDetail(id) {
+function openDetail(id, { push = true } = {}) {
   const r = ALL.find(x => x.id === id);
   if (!r) return;
   const d = $("[data-detail]");
@@ -153,6 +154,7 @@ function openDetail(id) {
   d.hidden = false;
   d.dataset.id = id;
   d.scrollIntoView({ block: "nearest" });
+  patchHash({ id }, { push });
 }
 
 async function mark(id, status) {
@@ -214,7 +216,11 @@ function flash(msg) {
 /* --------------------------------------------------------------------- boot */
 
 function wireFilters() {
-  const sync = () => { render(); $("[data-detail]").hidden = true; };
+  const sync = () => {
+    render();
+    $("[data-detail]").hidden = true;
+    patchHash({ id: "" }, { push: true });
+  };
   $("[data-f-event]")  ?.addEventListener("change", e => { state.event   = e.target.value; sync(); });
   $("[data-f-status]") ?.addEventListener("change", e => { state.status  = e.target.value; sync(); });
   $("[data-f-profile]")?.addEventListener("change", e => { state.profile = e.target.value; sync(); });
@@ -234,7 +240,11 @@ function wireFilters() {
   });
 
   $("[data-detail]")?.addEventListener("click", e => {
-    if (e.target.closest("[data-close]")) { $("[data-detail]").hidden = true; return; }
+    if (e.target.closest("[data-close]")) {
+      $("[data-detail]").hidden = true;
+      patchHash({ id: "" }, { push: true });
+      return;
+    }
     const m = e.target.closest("[data-mark]");
     if (m) mark($("[data-detail]").dataset.id, m.dataset.mark);
   });
@@ -283,5 +293,17 @@ function fillSelect(sel, values, allLabel) {
   fillSelect($("[data-f-profile]"), profilesIn(ALL), "All profiles");
   wireFilters();
   render();
+  const applyRegLoc = () => {
+    const id = readHash().id;
+    const d = $("[data-detail]");
+    if (!id) {
+      if (d) d.hidden = true;
+      return;
+    }
+    if (d && !d.hidden && d.dataset.id === id) return;
+    openDetail(id, { push: false });
+  };
+  applyRegLoc();
+  onViewChange(applyRegLoc);
   document.documentElement.setAttribute("data-admin-regs", String(ALL.length));
 })();

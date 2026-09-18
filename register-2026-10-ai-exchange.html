@@ -124,9 +124,13 @@
   </aside>
 </div></div>
 <footer><div class="wrap"><span>© 2026 Philippine Association of AI Professionals and Entrepreneurs</span><span>Building the Philippines' AI-Powered Future — Together.</span></div></footer>
-<script>
+<script type="module">
+  import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
   const form=document.getElementById('reg'),steps=[...form.querySelectorAll('.step')],bar=document.getElementById('bar'),row=[...form.querySelectorAll('.stepsrow span')];
-  let cur=1;const show=n=>{cur=n;steps.forEach(s=>s.classList.toggle('on',+s.dataset.step===n));row.forEach(r=>{const k=+r.dataset.s;r.classList.toggle('on',k===n);r.classList.toggle('done',k<n)});bar.style.width=(n/3*100)+'%';form.scrollIntoView({behavior:'smooth',block:'start'});const f=steps[n-1].querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),select');if(f)setTimeout(()=>{const a=document.activeElement;if(!a||a===document.body)f.focus()},350)};
+  let cur=1;
+  const paint=n=>{cur=n;steps.forEach(s=>s.classList.toggle('on',+s.dataset.step===n));row.forEach(r=>{const k=+r.dataset.s;r.classList.toggle('on',k===n);r.classList.toggle('done',k<n)});bar.style.width=(n/3*100)+'%';form.scrollIntoView({behavior:'smooth',block:'start'});const f=steps[n-1].querySelector('input:not([type=hidden]):not([type=radio]):not([type=checkbox]),select');if(f)setTimeout(()=>{const a=document.activeElement;if(!a||a===document.body)f.focus()},350)};
+  const show=(n,{push=true}={})=>{const step=Math.min(3,Math.max(1,+n||1));paint(step);writeHash(step===1?{}:{step:String(step)},{push})};
+  function stepFromLocation(){const n=parseInt(readHash().step||"1",10);return n>=1&&n<=3?n:1}
   function validate(n){const sec=steps[n-1];let ok=true;sec.querySelectorAll('.f').forEach(f=>{const req=f.querySelector('[required]');let bad=false;if(req){if(req.type==='checkbox')bad=!req.checked;else if(req.tagName==='TEXTAREA')bad=!req.value.trim();else if(req.type==='email')bad=!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(req.value.trim());else bad=!req.value.trim()}const radios=f.querySelectorAll('input[type=radio]');if(radios.length&&![...radios].some(r=>r.checked))bad=true;f.classList.toggle('invalid',bad);if(bad)ok=false});if(!ok){const first=sec.querySelector('.f.invalid');first&&first.scrollIntoView({behavior:'smooth',block:'center'})}return ok}
   form.querySelectorAll('[data-next]').forEach(b=>b.addEventListener('click',()=>{if(validate(cur))show(cur+1)}));
   form.querySelectorAll('[data-prev]').forEach(b=>b.addEventListener('click',()=>show(cur-1)));
@@ -166,4 +170,6 @@
     }
   });
   form.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.tagName!=='TEXTAREA'&&cur<3){e.preventDefault();if(validate(cur))show(cur+1)}});
+  paint(stepFromLocation());
+  onViewChange(()=>paint(stepFromLocation()));
 </script><script type="module" src="assets/js/paaipe-register-questions.js"></script></body></html>

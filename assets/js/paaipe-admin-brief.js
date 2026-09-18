@@ -17,6 +17,7 @@ import {
   currentAgent, isAdminNow, signOutNow, listRegistrations, regStatusOf, REG_STATUS,
 } from "/assets/js/paaipe-firebase.js";
 import { renderAdminNav, renderAdminTop, renderCrumbs } from "/assets/js/paaipe-admin.js";
+import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -143,10 +144,25 @@ function render() {
   // which for PAAIPE meant September rather than the October event people are
   // registering for now.
   EVENT = (ALL[0] && ALL[0].event) || events[0] || "";
+  {
+    const hashed = readHash().event;
+    if (hashed === "" || (hashed && events.includes(hashed))) EVENT = hashed;
+  }
   const sel = $("[data-f-event]");
   sel.innerHTML = `<option value="">All events</option>` +
     events.map(e => `<option value="${esc(e)}"${e === EVENT ? " selected" : ""}>${esc(e)}</option>`).join("");
-  sel.addEventListener("change", e => { EVENT = e.target.value; render(); });
+  sel.addEventListener("change", e => {
+    EVENT = e.target.value;
+    writeHash(EVENT ? { event: EVENT } : {}, { push: true });
+    render();
+  });
+  onViewChange(() => {
+    const want = readHash().event || "";
+    if (want === EVENT) return;
+    EVENT = want;
+    sel.value = EVENT;
+    render();
+  });
 
   $("[data-copy]")?.addEventListener("click", async () => {
     const btn = $("[data-copy]"), was = btn.textContent;

@@ -21,6 +21,7 @@ import {
   logLearningActivity,
 } from "/assets/js/paaipe-learnings-data.js";
 import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
+import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -55,7 +56,14 @@ function when(ts) {
 
 /* ----------------------------------------------------------------- tabs */
 
-function showTab(name, { focus = false } = {}) {
+function syncLearnUrl({ push = true } = {}) {
+  const params = { tab: KIND };
+  if (EDIT_ID === "") params.new = "1";
+  else if (EDIT_ID) params.id = EDIT_ID;
+  writeHash(params, { push });
+}
+
+function showTab(name, { focus = false, push = true } = {}) {
   KIND = name === "micros" ? "micros" : "sessions";
   $$("[data-learn-tab]").forEach(t => {
     const on = t.getAttribute("data-learn-tab") === KIND;
@@ -66,8 +74,9 @@ function showTab(name, { focus = false } = {}) {
   $$("[data-learn-panel]").forEach(p => {
     p.hidden = p.getAttribute("data-learn-panel") !== KIND;
   });
-  closeEditor();
+  closeEditor({ silent: true });
   renderList(KIND);
+  syncLearnUrl({ push });
 }
 
 function wireTabs() {
@@ -145,15 +154,16 @@ async function reload(kind = null) {
 
 /* --------------------------------------------------------------- editor */
 
-function closeEditor() {
+function closeEditor({ silent = false } = {}) {
   EDIT_ID = null;
   const d = $("[data-editor]");
   if (d) { d.hidden = true; d.innerHTML = ""; }
+  if (!silent) syncLearnUrl({ push: true });
 }
 
-function openEditor(kind, id) {
+function openEditor(kind, id, { push = true } = {}) {
   KIND = kind;
-  showTab(kind);
+  showTab(kind, { push: false });
   EDIT_ID = id == null ? "" : id;
   const existing = id ? (STORE[kind] || []).find(r => r.id === id) : null;
   const isNew = !existing;
@@ -243,6 +253,7 @@ function openEditor(kind, id) {
   d.scrollIntoView({ behavior: "smooth", block: "nearest" });
   paintPreview();
   $("[data-f-title]", d)?.focus();
+  syncLearnUrl({ push });
 }
 
 function currentSource() {
@@ -535,7 +546,16 @@ function wireDrag(body) {
     if (e.target.matches("[data-f-youtube], [data-f-file]")) paintPreview();
   });
 
-  showTab("sessions");
+  showTab("sessions", { push: false });
+  function applyLearnFromLocation() {
+    const v = readHash();
+    const tab = v.tab === "micros" ? "micros" : "sessions";
+    if (v.new === "1") { openEditor(tab, null, { push: false }); return; }
+    if (v.id) { openEditor(tab, v.id, { push: false }); return; }
+    showTab(tab, { push: false });
+  }
+  applyLearnFromLocation();
+  onViewChange(applyLearnFromLocation);
   document.documentElement.setAttribute(
     "data-admin-learnings",
     String(STORE.sessions.length + STORE.micros.length)

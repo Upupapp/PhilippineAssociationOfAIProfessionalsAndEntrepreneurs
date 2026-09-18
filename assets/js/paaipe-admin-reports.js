@@ -8,6 +8,7 @@ import { figureText, figureNote } from "/assets/js/paaipe-feedback.js";
 import {
   loadReportBundle, fullDashboardHtml, feedbackTabHtml, exportReport,
 } from "/assets/js/paaipe-event-reports.js";
+import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -30,12 +31,10 @@ function flash(msg, good = false) {
 }
 
 function eventFromHash() {
-  const m = /[#&]event=([^&]+)/.exec(location.hash || "");
-  return m ? decodeURIComponent(m[1]) : null;
+  return readHash().event || null;
 }
 function tabFromHash() {
-  const m = /[#&]tab=([a-z]+)/.exec(location.hash || "");
-  return m && m[1] === "feedback" ? "feedback" : "dashboard";
+  return readHash().tab === "feedback" ? "feedback" : "dashboard";
 }
 
 function renderList() {
@@ -81,7 +80,7 @@ async function fillListCounts() {
   }
 }
 
-function showList() {
+function showList({ push = true } = {}) {
   CURRENT = null; REPORT = null;
   $("[data-reports-list]").hidden = false;
   $("[data-reports-event]").hidden = true;
@@ -89,10 +88,10 @@ function showList() {
   $("[data-export-report]").hidden = true;
   renderAdminTop({ title: "Reports", subtitle: "One row per event. Open a row for the full dashboard.", email: ME });
   renderCrumbs([["Dashboard", "admin.html"], "Reports"]);
-  if (location.hash) history.replaceState(null, "", location.pathname);
+  writeHash({}, { push });
 }
 
-async function openEvent(id, tab = "dashboard") {
+async function openEvent(id, tab = "dashboard", { push = true } = {}) {
   CURRENT = EVENTS.find(e => e.id === id) || null;
   if (!CURRENT) return showList();
   $("[data-reports-list]").hidden = true;
@@ -118,7 +117,7 @@ async function openEvent(id, tab = "dashboard") {
     if (dash) dash.innerHTML = `<div class="banner">${esc(msg)}</div>`;
     if (fb) fb.innerHTML = `<div class="banner">${esc(msg)}</div>`;
   }
-  selectRtab(tab, { push: true });
+  selectRtab(tab, { push });
 }
 
 function selectRtab(key, { push = true } = {}) {
@@ -126,8 +125,7 @@ function selectRtab(key, { push = true } = {}) {
   $$("[data-rtab]").forEach(b => b.setAttribute("aria-selected", b.dataset.rtab === TAB ? "true" : "false"));
   $$("[data-rpanel]").forEach(p => { p.hidden = p.dataset.rpanel !== TAB; });
   if (push && CURRENT) {
-    const h = `#event=${encodeURIComponent(CURRENT.id)}&tab=${TAB}`;
-    if (location.hash !== h) history.replaceState(null, "", h);
+    writeHash({ event: CURRENT.id, tab: TAB }, { push: true });
   }
 }
 
@@ -176,6 +174,15 @@ function selectRtab(key, { push = true } = {}) {
   renderList();
   document.documentElement.setAttribute("data-admin-reports", String(EVENTS.length));
   const want = eventFromHash();
-  if (want) await openEvent(want, tabFromHash());
+  if (want) await openEvent(want, tabFromHash(), { push: false });
   else await fillListCounts();
+  onViewChange(() => {
+    const id = eventFromHash();
+    if (!id) {
+      if (CURRENT) showList({ push: false });
+      return;
+    }
+    if (!CURRENT || CURRENT.id !== id) openEvent(id, tabFromHash(), { push: false });
+    else selectRtab(tabFromHash(), { push: false });
+  });
 })();

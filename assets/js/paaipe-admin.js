@@ -23,6 +23,7 @@ import {
   verifyResetCode, completePasswordReset, extractResetCode,
   STATUS,
 } from "/assets/js/paaipe-firebase.js";
+import { writeHash, readHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -218,17 +219,18 @@ const PANELS = ["loading", "signin", "forgot", "code", "newpass", "done"];
 let resetCode = "";     // the oobCode, once verified
 let resetEmail = "";    // whose account it belongs to
 
-function panel(name) {
+function panel(name, { push = false } = {}) {
   PANELS.forEach(p => {
     const el = $(`[data-panel="${p}"]`);
     if (el) el.hidden = p !== name;
   });
-  // Focus synchronously. A deferred focus() is the only thing here that touches
-  // the DOM after the panel is already up, and a stray timer landing between a
-  // person (or a test) typing and submitting is a race with nothing to gain:
-  // the element is visible on this same tick, so it can take focus now.
   const first = $(`[data-panel="${name}"] input`);
   if (first) { try { first.focus({ preventScroll: true }); } catch { first.focus(); } }
+  if (name === "forgot" || name === "code" || name === "newpass" || name === "done") {
+    writeHash({ door: name }, { push });
+  } else if (name === "signin") {
+    writeHash({}, { push });
+  }
 }
 
 const errBox  = () => $("[data-admin-error]");
@@ -265,7 +267,7 @@ async function useCode(code, btn) {
     showErr("");
     const f = $("[data-reset-for]");
     if (f) f.textContent = `For ${resetEmail}.`;
-    panel("newpass");
+    panel("newpass", { push: true });
   } catch (ex) {
     showErr(friendlyCodeError(ex));
   }
@@ -280,7 +282,14 @@ function wireDoor() {
     if (!go) return;
     e.preventDefault();
     showErr(""); showNote("");
-    panel(go.dataset.go);
+    panel(go.dataset.go, { push: true });
+  });
+
+  onViewChange(() => {
+    if (!$("[data-door]") || !$("[data-console]")?.hidden) return;
+    const door = readHash().door;
+    if (door === "forgot" || door === "code") panel(door);
+    else if (!door) panel("signin");
   });
 
   // --- sign in -------------------------------------------------------------
@@ -330,7 +339,7 @@ function wireDoor() {
     if (s) s.textContent = `If ${email} has a PAAIPE account, a code is on its way. Check Spam and Promotions too.`;
     const c = $('[data-form="code"]');
     if (c) c.code.value = "";
-    panel("code");
+    panel("code", { push: true });
   });
 
   // --- use the code --------------------------------------------------------
@@ -362,7 +371,7 @@ function wireDoor() {
     if (d) d.textContent = `You can now sign in as ${was} with your new password.`;
     const si = $('[data-form="signin"]');
     if (si) { si.email.value = was; si.password.value = ""; }
-    panel("done");
+    panel("done", { push: true });
   });
 }
 
@@ -621,7 +630,12 @@ async function boot() {
 
   let me = null;
   try { me = await currentAgent(); } catch { me = null; }
-  if (!me) { document.documentElement.setAttribute("data-admin-door", "ready"); return panel("signin"); }
+  if (!me) {
+    document.documentElement.setAttribute("data-admin-door", "ready");
+    const door = readHash().door;
+    if (door === "forgot" || door === "code") return panel(door);
+    return panel("signin");
+  }
 
   let allowed = false;
   try { allowed = await isAdminNow(); }

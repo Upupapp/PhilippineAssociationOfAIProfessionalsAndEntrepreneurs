@@ -18,6 +18,7 @@ import {
 } from "/assets/js/paaipe-events-data.js";
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
 import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
+import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const $  = (s, r = document) => r.querySelector(s);
@@ -74,7 +75,7 @@ function renderOrgs() {
     : `<tr><td colspan="5" class="empty">No organization has been added yet. Run scripts/seed-events.mjs to load the four PAAIPE partners.</td></tr>`;
 }
 
-function openOrgEditor(id) {
+function openOrgEditor(id, { push = true } = {}) {
   const o = ORGS.find(x => x.id === id);
   if (!o) return;
   const d = $("[data-org-editor]");
@@ -96,6 +97,7 @@ function openOrgEditor(id) {
       the path field above. You can still paste a path instead.</p>`;
   d.hidden = false;
   d.dataset.org = id;
+  writeHash({ ...readHash(), org: id }, { push });
 }
 
 async function uploadOrgLogo(id) {
@@ -261,14 +263,28 @@ async function loadSponsors() {
   if (sel) {
     sel.innerHTML = `<option value="">Choose an event…</option>` +
       EVENTS.map(e => `<option value="${esc(e.id)}">${esc(e.title)}</option>`).join("");
-    sel.addEventListener("change", async e => { EVENT_ID = e.target.value; await loadSponsors(); });
-    if (EVENTS.length) { EVENT_ID = EVENTS[EVENTS.length - 1].id; sel.value = EVENT_ID; await loadSponsors(); }
+    sel.addEventListener("change", async e => {
+      EVENT_ID = e.target.value;
+      writeHash({ ...readHash(), event: EVENT_ID || "" }, { push: true });
+      await loadSponsors();
+    });
+    const want = readHash().event;
+    if (want && EVENTS.some(ev => ev.id === want)) {
+      EVENT_ID = want; sel.value = EVENT_ID; await loadSponsors();
+    } else if (EVENTS.length) {
+      EVENT_ID = EVENTS[EVENTS.length - 1].id; sel.value = EVENT_ID; await loadSponsors();
+    }
   }
 
   document.addEventListener("click", e => {
     const eo = e.target.closest("[data-edit-org]");
     if (eo) return openOrgEditor(eo.closest("tr").dataset.org);
-    if (e.target.closest("[data-close]")) { $("[data-org-editor]").hidden = true; return; }
+    if (e.target.closest("[data-close]")) {
+      $("[data-org-editor]").hidden = true;
+      const h = readHash(); delete h.org;
+      writeHash(h, { push: true });
+      return;
+    }
     if (e.target.closest("[data-save-org]")) return saveOrg($("[data-org-editor]").dataset.org);
     const ss = e.target.closest("[data-save-sponsor]");
     if (ss) return saveSponsor(ss.closest("tr").dataset.sponsor);
@@ -277,6 +293,21 @@ async function loadSponsors() {
     if (!e.target.matches("[data-o-logo-file]")) return;
     const id = $("[data-org-editor]")?.dataset.org;
     if (id) uploadOrgLogo(id);
+  });
+
+  const orgWant = readHash().org;
+  if (orgWant) openOrgEditor(orgWant, { push: false });
+  onViewChange(() => {
+    const v = readHash();
+    const selEl = $("[data-f-event]");
+    if (v.event && v.event !== EVENT_ID) {
+      EVENT_ID = v.event;
+      if (selEl) selEl.value = EVENT_ID;
+      loadSponsors();
+    }
+    const d = $("[data-org-editor]");
+    if (!v.org) { if (d) d.hidden = true; }
+    else if (d?.dataset.org !== v.org || d?.hidden) openOrgEditor(v.org, { push: false });
   });
 
   document.documentElement.setAttribute("data-admin-orgs", String(ORGS.length));

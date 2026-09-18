@@ -17,6 +17,7 @@ import {
   wrapEmailHtml, previewEmailHtml, applyPreviewSamples,
   formatManila, toManilaInputValue, parseManilaInput,
 } from "/assets/js/paaipe-email-shell.js";
+import { readHash, patchHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
 export const OUTBOUND_WIRED = false;
 
@@ -145,6 +146,8 @@ export function mountEventEmail(host, ctx) {
     host.addEventListener("change", onChange);
     host.addEventListener("keydown", onKey);
   }
+  const st = stateOf(ctx.event.id);
+  if (readHash().email === "history") st.view = "history";
   render(host);
 }
 
@@ -431,6 +434,7 @@ function onClick(e) {
     st.view = view.dataset.emailView;
     st.previewOpen = st.confirmOpen = false;
     st.viewItemId = null;
+    patchHash({ email: st.view === "history" ? "history" : "" }, { push: true });
     render(host); return;
   }
 
@@ -620,3 +624,15 @@ function cancelSchedule(ctx, st, id) {
 }
 
 export const _test = { audienceOf, countsOf, uniqueEmails, audienceSummary, PIPELINE_COPY, OUTBOUND_WIRED };
+
+onViewChange(() => {
+  const host = document.querySelector('[data-tabpanel="email"]');
+  if (!host?._emailCtx?.event) return;
+  const want = readHash().email === "history" ? "history" : "compose";
+  const st = stateOf(host._emailCtx.event.id);
+  if (st.view === want) return;
+  st.view = want;
+  st.previewOpen = st.confirmOpen = false;
+  st.viewItemId = null;
+  render(host);
+});

@@ -240,7 +240,8 @@
 
   </main>
 </div></div>
-<script>
+<script type="module">
+  import { bindFilterChips } from "/assets/js/paaipe-view-url.js";
   const chips = [...document.querySelectorAll('.libchip')];
   const cards = [...document.querySelectorAll('.res-card')];
   const countEl = document.getElementById('count');
@@ -265,12 +266,10 @@
         : 'Nothing in this format yet. Choose another filter, or check back when a file is added.';
     }
   }
-  chips.forEach(chip => chip.addEventListener('click', () => {
-    chips.forEach(c => c.classList.remove('on'));
-    chip.classList.add('on');
-    apply(chip.dataset.filter);
-  }));
-  apply('all');
+  bindFilterChips({
+    chips, apply,
+    allowed: ["all","slides","pdf","template","checklist","doc"],
+  });
 
   document.querySelectorAll('[data-copy]').forEach(btn => {
     btn.addEventListener('click', async e => {

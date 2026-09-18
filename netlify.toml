@@ -71,3 +71,19 @@
   to = "/admin"
   status = 301
   force = true
+
+# Pretty URLs already serve /signup from signup.html, but live still returns
+# 200 for both /signup and /signup.html (and / vs /index.html). Canonicals
+# already name the extensionless URL. These 301s close that duplicate.
+# www → apex and trailing-slash → bare path already 301 on the live host.
+[[redirects]]
+  from = "/index.html"
+  to = "/"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/*.html"
+  to = "/:splat"
+  status = 301
+  force = true

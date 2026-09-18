@@ -1,7 +1,7 @@
-/* Admin partner-applications inbox — the tightened list/detail UI.
+/* Admin partner-applications inbox — the tightened list and signed detail bar.
  *
  * Behaviour of Accept / org matching / mailto / Firestore writes is unchanged;
- * these assertions cover the page loading, filtering, and the compact panel.
+ * these assertions cover the page loading, filtering, and the three-band panel.
  */
 import { chromium } from 'playwright';
 import { readFileSync } from 'fs';
@@ -29,6 +29,11 @@ const APPS=[
    contactName:'Pat Cruz',email:'pat@gethired.ph',phone:'+639171111111',
    website:'https://gethired.ph',supportTypes:['media'],message:'',
    source:'events_list',status:'contacted',eventId:'2026-11-ai-exchange',
+   createdAt:AT,consentAt:AT,privacyVersion:'1.0'},
+  {id:'NoWeb9999xxxx',reference:'PA-2026-NOWB',companyName:'Silent Hosting',
+   contactName:'Ada Lim',email:'ada@silent.example',phone:'+639179999999',
+   website:'',supportTypes:['venue'],message:'',
+   source:'success_page',status:'declined',eventId:'2026-10-ai-exchange',
    createdAt:AT,consentAt:AT,privacyVersion:'1.0'},
 ];
 
@@ -80,7 +85,7 @@ async function openAdmin(viewport){
 
 await T('the page loads the list without the gaps card or placeholder search',async()=>{
   const p=await openAdmin();
-  eq(await p.locator('[data-open]').count(),2,'both applications');
+  eq(await p.locator('[data-open]').count(),3,'three applications');
   ok(!(await p.locator('.top .search').isVisible()),'placeholder search is hidden');
   const body=await p.locator('body').innerText();
   ok(!/What this screen cannot do yet/i.test(body),'gaps card gone');
@@ -138,6 +143,82 @@ await T('Copy sits inline next to the phone, including on a narrow viewport',asy
   ok(phone&&copy,'both are laid out');
   ok(Math.abs(copy.y-phone.y)<6,`Copy must share the phone row (phone y=${phone.y}, copy y=${copy.y})`);
   ok(copy.width<140,`Copy must not be a full-width control (${copy.width}px)`);
+  eq(await p.locator('[data-copy]').evaluate(e=>getComputedStyle(e).fontSize),'12px','Copy is 12px');
+  await p.close();
+});
+
+await T('the signed bar is three bands, one Offering heading, status on the title line',async()=>{
+  const p=await openAdmin();
+  await p.locator('[data-open="AbCd1234efgh"]').click();
+  const d=p.locator('[data-detail]');
+  eq(await d.locator('[data-band]').count(),3,'three bands');
+  eq(await d.locator('[data-band]').evaluateAll(els=>els.map(e=>e.dataset.band)),
+     ['application','offering','decision'],'application, offering, decision');
+  eq(await d.locator('.ehead').count(),1,'not six eheads');
+  eq((await d.locator('.ehead').innerText()).trim(),'Offering','the one heading');
+  ok(await d.locator('.papp-title .pill').count(),'status pill on the company line');
+  eq(await d.locator('.dmeta .pill').count(),0,'no separate status row');
+  const css=readFileSync(`${ROOT}/assets/css/paaipe-admin.css`,'utf8');
+  const partner=css.split('/* ================================================= partner applications ===')[1];
+  ok(/\.papp-band \+ \.papp-band\{[^}]*border-top:1px solid var\(--line\)/.test(partner),
+     'bands split by 1px var(--line)');
+  ok(/\.papp-band \+ \.papp-band\{[^}]*16px/.test(partner),'bands split by 16px');
+  ok(/\.papp-decision\{[^}]*border-radius:12px/.test(partner),'decision radius 12');
+  ok(/\.papp-decision\{[^}]*padding:14px 16px/.test(partner),'decision padding 14 16');
+  await p.close();
+});
+
+await T('contact stays two columns; empty website omits the cell and the dash',async()=>{
+  const p=await openAdmin();
+  await p.locator('[data-open="AbCd1234efgh"]').click();
+  const d=p.locator('[data-detail]');
+  const cols=await d.locator('.answers').evaluate(el=>getComputedStyle(el).gridTemplateColumns);
+  ok(cols.split(/\s+/).filter(Boolean).length===2,`contact grid is two columns (${cols})`);
+  eq(await d.locator('.answers .ans').count(),4,'website present when set');
+  const contact=await d.locator('.answers .ans').nth(0).boundingBox();
+  const email=await d.locator('.answers .ans').nth(1).boundingBox();
+  const mobile=await d.locator('.answers .ans').nth(2).boundingBox();
+  ok(contact&&email&&mobile,'contact cells laid out');
+  ok(Math.abs(contact.y-email.y)<4,'Contact and Email share a row');
+  ok(Math.abs(mobile.y-contact.y)>8,'Mobile is the next row');
+  const emailH=await d.locator('.answers .ans').nth(1).locator('dd').boundingBox();
+  const phoneH=await d.locator('.phone-inline').boundingBox();
+  ok(emailH&&phoneH,'email and phone measured');
+  ok(Math.abs(phoneH.height-emailH.height)<6,
+     `Copy must not change the row height (phone ${phoneH.height}px vs email ${emailH.height}px)`);
+  await p.locator('[data-close]').click();
+  await p.locator('[data-open="NoWeb9999xxxx"]').click();
+  const dts=await d.locator('.answers dt').allInnerTexts();
+  eq(dts.map(s=>s.trim()),['Contact','Email','Mobile'],'no Website cell when empty');
+  const dashes=await d.locator('.answers dd').evaluateAll(els=>els.map(e=>e.textContent.trim()));
+  ok(!dashes.includes('—'),'no dash for a missing website');
+  await p.close();
+});
+
+await T('Save note is ghost; Accept is the only gold button',async()=>{
+  const p=await openAdmin();
+  await p.locator('[data-open="AbCd1234efgh"]').click();
+  const d=p.locator('[data-detail]');
+  const gold=await d.locator('.btn-gold').evaluateAll(els=>els.map(e=>({
+    accept:e.hasAttribute('data-accept'),save:e.hasAttribute('data-save-note'),
+    text:e.textContent.replace(/\s+/g,' ').trim()})));
+  eq(gold.length,1,'one gold control');
+  ok(gold[0].accept,'that gold control is Accept');
+  eq(gold[0].text,'Accept — add as Partner (proposed)','Accept label unchanged');
+  const save=d.locator('[data-save-note]');
+  ok(await save.evaluate(e=>e.classList.contains('btn-ghost')),'Save note is ghost');
+  ok(await save.evaluate(e=>!e.classList.contains('btn-gold')),'Save note is not gold');
+  ok(await d.locator('[data-status="declined"]').evaluate(e=>e.classList.contains('danger')),
+     'Decline is danger');
+  ok(await d.locator('[data-status="spam"]').evaluate(e=>e.classList.contains('danger')),
+     'spam stays danger');
+  const mail=d.locator('.papp-mail');
+  eq(await mail.locator('[data-mail]').count(),3,'mailto templates on one line');
+  const hint=await mail.locator('.muted').boundingBox();
+  const last=await mail.locator('[data-mail]').last().boundingBox();
+  ok(hint&&last,'mail hint and last template laid out');
+  ok(Math.abs(hint.y-last.y)<10,'Opens your mail app sits on the mail line');
+  ok(hint.x>last.x,'hint at the end of that line');
   await p.close();
 });
 

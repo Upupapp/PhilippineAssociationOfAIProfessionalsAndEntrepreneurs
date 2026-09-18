@@ -253,6 +253,14 @@ function mailtoFor(a, key) {
     `&body=${encodeURIComponent(t.body(a))}`;
 }
 
+function websiteCell(a) {
+  const w = String(a.website || "").trim();
+  if (!w) return "";
+  const href = /^https?:\/\//i.test(w) ? w : `https://${w}`;
+  return `<div class="ans"><dt>Website</dt><dd><a href="${esc(href)}"
+            target="_blank" rel="noopener">${esc(w)}</a></dd></div>`;
+}
+
 function openDetail(id) {
   const a = APPS.find(x => x.id === id);
   if (!a) return;
@@ -261,74 +269,77 @@ function openDetail(id) {
   const dupes = duplicatesOf(a);
 
   d.innerHTML = `
-    <div class="dhead">
-      <div><b>${esc(a.companyName || "—")}</b>
-        <small>${esc(a.reference || "")} · ${esc(eventTitle(a))}</small></div>
-      <button class="btn btn-ghost btn-sm" data-close>Close</button>
-    </div>
-
-    <p class="dmeta">${pill(a.status)}
-      <span class="muted">submitted ${esc(dateShort(a.createdAt))}</span></p>
-
-    <dl class="answers">
-      <div class="ans"><dt>Contact</dt><dd>${esc(a.contactName || "—")}</dd></div>
-      <div class="ans"><dt>Email</dt><dd><a href="mailto:${esc(a.email || "")}">${esc(a.email || "—")}</a></dd></div>
-      <div class="ans"><dt>Mobile</dt><dd class="phone-inline"><a href="tel:${esc(a.phone || "")}">${esc(a.phone || "—")}</a><button type="button" class="btn btn-ghost btn-sm" data-copy="${esc(a.phone || "")}">Copy</button></dd></div>
-      <div class="ans"><dt>Website</dt><dd>${a.website
-        ? `<a href="${esc(/^https?:\/\//i.test(a.website) ? a.website : `https://${a.website}`)}"
-              target="_blank" rel="noopener">${esc(a.website)}</a>`
-        : "—"}</dd></div>
-    </dl>
-    <p class="muted small">Consent ${esc(dateLong(a.consentAt))} · Privacy Notice v${esc(a.privacyVersion || "—")}</p>
-
-    <h3 class="ehead">Offering</h3>
-    ${offeringChips(a)}
-    ${a.message ? `<p>${esc(a.message)}</p>` : ""}
-
-    <h3 class="ehead">Organization</h3>
-    <div class="f"><label>Accept will use</label>
-      <select data-link-org>
-        <option value="">Create a new organization — "${esc(a.companyName || "")}"</option>
-        ${ORGS.map(o => `<option value="${esc(o.id)}"${o.id === org?.id ? " selected" : ""}
-          >${esc(o.name)}${o.website ? ` — ${esc(o.website)}` : ""}</option>`).join("")}
-      </select></div>
-    <p class="muted small">Check the match before accepting — guessed from name and website, not stored on the application.</p>
-    ${a.organizationId
-      ? `<p class="muted small">Linked to organization ${esc(a.organizationId)}.</p>` : ""}
-
-    ${dupes.length ? `<h3 class="ehead">Also applied</h3>
-      <ul class="plist">${dupes.map(x => `<li class="yes"><span>${esc(eventTitle(x))} —
+    <section class="papp-band" data-band="application">
+      <div class="dhead">
+        <div class="papp-title"><b>${esc(a.companyName || "—")}</b>${pill(a.status)}</div>
+        <button class="btn btn-ghost btn-sm" data-close>Close</button>
+      </div>
+      <p class="dmeta">${esc(a.reference || "")} · ${esc(eventTitle(a))} · submitted ${esc(dateShort(a.createdAt))}</p>
+      <dl class="answers">
+        <div class="ans"><dt>Contact</dt><dd>${esc(a.contactName || "—")}</dd></div>
+        <div class="ans"><dt>Email</dt><dd><a href="mailto:${esc(a.email || "")}">${esc(a.email || "—")}</a></dd></div>
+        <div class="ans"><dt>Mobile</dt><dd class="phone-inline"><a href="tel:${esc(a.phone || "")}">${esc(a.phone || "—")}</a><button type="button" class="btn btn-ghost btn-sm" data-copy="${esc(a.phone || "")}">Copy</button></dd></div>
+        ${websiteCell(a)}
+      </dl>
+      <p class="muted small">Consent ${esc(dateLong(a.consentAt))} · Privacy Notice v${esc(a.privacyVersion || "—")}</p>
+      ${dupes.length ? `<ul class="plist">${dupes.map(x => `<li class="yes"><span>${esc(eventTitle(x))} —
         ${esc(STATUS_LABEL[x.status] || x.status)}, ${esc(dateShort(x.createdAt))}
         (${esc(x.reference || "")})</span></li>`).join("")}</ul>` : ""}
+    </section>
 
-    <h3 class="ehead">Internal note</h3>
-    <div class="f"><textarea data-note rows="2" maxlength="2000"
-      placeholder="What was agreed, who is handling it, anything the next person needs.">${esc(a.adminNote || "")}</textarea></div>
-    <div class="note-tools">
-      <div class="f"><label>Assigned to</label>
-        <input data-assign maxlength="254" placeholder="an administrator's email"
-               value="${esc(a.assignedTo || "")}"></div>
-      <button type="button" class="btn btn-gold btn-sm" data-save-note>Save note</button>
-    </div>
+    <section class="papp-band" data-band="offering">
+      <h3 class="ehead">Offering</h3>
+      ${offeringChips(a)}
+      ${a.message ? `<p>${esc(a.message)}</p>` : ""}
+    </section>
 
-    <h3 class="ehead">Email</h3>
-    <div class="dacts">
-      ${Object.entries(MAIL_TEMPLATES).map(([k, t]) =>
-        `<a class="btn btn-ghost btn-sm" data-mail="${esc(k)}"
-            href="${esc(mailtoFor(a, k))}">${esc(t.label)}</a>`).join("")}
-    </div>
-    <p class="muted small">Opens your mail app</p>
+    <section class="papp-band" data-band="decision">
+      <div class="papp-decision">
+        <div class="f"><label>Accept will use</label>
+          <select data-link-org>
+            <option value="">Create a new organization — "${esc(a.companyName || "")}"</option>
+            ${ORGS.map(o => `<option value="${esc(o.id)}"${o.id === org?.id ? " selected" : ""}
+              >${esc(o.name)}${o.website ? ` — ${esc(o.website)}` : ""}</option>`).join("")}
+          </select>
+          <p class="muted small">Check the match before accepting — guessed from name and website, not stored on the application.</p>
+          ${a.organizationId
+            ? `<p class="muted small">Linked to organization ${esc(a.organizationId)}.</p>` : ""}
+        </div>
 
-    <h3 class="ehead">Decision</h3>
-    <div class="dacts">
-      <button class="btn btn-gold btn-sm" data-accept ${a.status === "accepted" ? "disabled" : ""}>
-        Accept — add as Partner (proposed)</button>
-      <button class="btn btn-ghost btn-sm" data-status="contacted" ${a.status === "contacted" ? "disabled" : ""}>Mark contacted</button>
-      <button class="btn btn-ghost btn-sm" data-status="in_discussion" ${a.status === "in_discussion" ? "disabled" : ""}>In discussion</button>
-      <button class="btn btn-ghost btn-sm" data-status="declined" ${a.status === "declined" ? "disabled" : ""}>Decline</button>
-      <button class="btn btn-ghost btn-sm danger" data-status="spam" ${a.status === "spam" ? "disabled" : ""}>Mark spam</button>
-    </div>
-    <p class="muted small">Accept creates a proposed Partner — confirm on Organizations to publish.</p>`;
+        <div class="papp-note-row">
+          <div class="f papp-note"><label>Internal note</label>
+            <textarea data-note rows="2" maxlength="2000"
+              placeholder="What was agreed, who is handling it, anything the next person needs.">${esc(a.adminNote || "")}</textarea></div>
+          <div class="papp-assign">
+            <div class="f"><label>Assigned to</label>
+              <input data-assign maxlength="254" placeholder="an administrator's email"
+                     value="${esc(a.assignedTo || "")}"></div>
+            <button type="button" class="btn btn-ghost btn-sm" data-save-note>Save note</button>
+          </div>
+        </div>
+
+        <div class="papp-mail">
+          ${Object.entries(MAIL_TEMPLATES).map(([k, t]) =>
+            `<a class="btn btn-ghost btn-sm" data-mail="${esc(k)}"
+                href="${esc(mailtoFor(a, k))}">${esc(t.label)}</a>`).join("")}
+          <span class="muted small">Opens your mail app</span>
+        </div>
+
+        <div class="papp-decide-row">
+          <div class="papp-chores">
+            <button class="btn btn-ghost btn-sm" data-status="contacted" ${a.status === "contacted" ? "disabled" : ""}>Mark contacted</button>
+            <button class="btn btn-ghost btn-sm" data-status="in_discussion" ${a.status === "in_discussion" ? "disabled" : ""}>In discussion</button>
+            <button class="btn btn-ghost btn-sm danger" data-status="spam" ${a.status === "spam" ? "disabled" : ""}>Mark spam</button>
+          </div>
+          <div class="papp-verdict">
+            <button class="btn btn-ghost btn-sm danger" data-status="declined" ${a.status === "declined" ? "disabled" : ""}>Decline</button>
+            <button class="btn btn-gold btn-sm" data-accept ${a.status === "accepted" ? "disabled" : ""}>
+              Accept — add as Partner (proposed)</button>
+          </div>
+        </div>
+        <p class="muted small">Accept creates a proposed Partner — confirm on Organizations to publish.</p>
+      </div>
+    </section>`;
   d.hidden = false;
   d.dataset.app = id;
   d.scrollIntoView({ block: "start" });

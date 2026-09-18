@@ -58,11 +58,36 @@ await T("watch and slides still use ?session= (not a new path)", () => {
 
 const br = await chromium.launch();
 const errs = [];
+const REAL_FB = read("assets/js/paaipe-firebase.js");
+const REAL_LEARN = read("assets/js/paaipe-learnings-data.js");
+const memberFb = `
+  export * from '/assets/js/paaipe-firebase-real.js';
+  export function isConfigured(){ return true }
+  export async function currentAgent(){
+    return {
+      uid:'u1', email:'member@example.com', full_name:'Rosa Villanueva',
+      status:'agent', isAgent:true, emailVerified:true,
+      directoryVisible:false, agentNumber:'0006', confirmationSeen:true
+    };
+  }`;
 
 async function page(path) {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
   p.on("pageerror", e => errs.push(String(e)));
+  await p.goto(`${BASE}/${path}`, { waitUntil: "load" });
+  return { p, ctx };
+}
+
+async function memberPage(path, extraRoutes = async () => {}) {
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  p.on("pageerror", e => errs.push(String(e)));
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: memberFb }));
+  await extraRoutes(p);
   await p.goto(`${BASE}/${path}`, { waitUntil: "load" });
   return { p, ctx };
 }
@@ -90,11 +115,13 @@ await T("a pasted Events filter opens that view", async () => {
 });
 
 await T("Resources chips write #filter= and honour a pasted link", async () => {
-  const { p, ctx } = await page("resources.html");
-  await p.locator('[data-filter="video"]').click();
+  const { p, ctx } = await memberPage("resources.html");
+  await p.waitForSelector('html[data-gate="ok"]', { timeout: 9000 });
+  await p.locator('.chips [data-filter="video"]').click();
   ok(/#filter=video/.test(p.url()), `video url: ${p.url()}`);
   await ctx.close();
-  const pasted = await page("resources.html#filter=presentation");
+  const pasted = await memberPage("resources.html#filter=presentation");
+  await pasted.p.waitForSelector('html[data-gate="ok"]', { timeout: 9000 });
   ok(await pasted.p.locator('.chip[data-filter="presentation"]').evaluate(el => el.classList.contains("on")),
     "presentation chip on from hash");
   await pasted.ctx.close();
@@ -109,10 +136,18 @@ await T("Partners chips write #filter=", async () => {
   await ctx.close();
 });
 
+await T("Portal Resources chips write #filter=", async () => {
+  const { p, ctx } = await memberPage("portal-resources.html");
+  await p.locator('.libchip[data-filter="slides"]').click();
+  ok(/#filter=slides/.test(p.url()), `slides url: ${p.url()}`);
+  await ctx.close();
+});
+
 await T("Registration steps write #step= and Back returns to the previous step", async () => {
   const { p, ctx } = await page("register-2026-10-ai-exchange.html");
   await p.fill('[name="full_name"]', "Maria Santos");
   await p.fill('[name="email"]', "maria@example.com");
+  await p.locator('input[name="profile"][value="founder"]').check();
   await p.locator("[data-next]").first().click();
   await p.waitForFunction(() => location.hash === "#step=2", { timeout: 4000 });
   ok(await p.locator('[data-step="2"]').evaluate(el => el.classList.contains("on")), "step 2 on");
@@ -128,18 +163,6 @@ await T("a pasted registration step opens that step", async () => {
   await ctx.close();
 });
 
-const REAL_FB = read("assets/js/paaipe-firebase.js");
-const REAL_LEARN = read("assets/js/paaipe-learnings-data.js");
-const fbStub = `
-  export * from '/assets/js/paaipe-firebase-real.js';
-  export function isConfigured(){ return true }
-  export async function currentAgent(){
-    return {
-      uid:'u1', email:'member@example.com', full_name:'Rosa Villanueva',
-      status:'agent', isAgent:true, emailVerified:true,
-      directoryVisible:false, agentNumber:'0006', confirmationSeen:true
-    };
-  }`;
 const learnStub = `
   export * from '/assets/js/paaipe-learnings-data-real.js';
   export async function listPublishedSessions(){ return [
@@ -157,7 +180,7 @@ async function openHub(hash = "") {
   await p.route("**/assets/js/paaipe-firebase-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
   await p.route("**/assets/js/paaipe-firebase.js", r =>
-    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+    r.fulfill({ contentType: "text/javascript", body: memberFb }));
   await p.route("**/assets/js/paaipe-learnings-data-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
@@ -300,13 +323,29 @@ await T("Admin door Forgot password writes #door=forgot; Back returns to sign-in
     ` }));
   await p.goto(`${BASE}/admin.html`, { waitUntil: "load" });
   await p.waitForSelector('html[data-admin-door="ready"]', { timeout: 9000 });
-  await p.locator('[data-go="forgot"]').click();
+  await p.getByRole("button", { name: "Forgot password" }).click();
   await p.waitForFunction(() => /door=forgot/.test(location.hash), { timeout: 4000 });
   ok(await p.locator('[data-panel="forgot"]').isVisible(), "forgot panel");
   await p.goBack();
   await p.waitForFunction(() => !/door=forgot/.test(location.hash), { timeout: 4000 });
   ok(await p.locator('[data-panel="signin"]').isVisible(), "back to sign-in");
   await ctx.close();
+
+  const pasted = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const pp = await pasted.newPage();
+  pp.on("pageerror", e => errs.push(String(e)));
+  await pp.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await pp.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: `
+      export * from '/assets/js/paaipe-firebase-real.js';
+      export async function currentAgent(){return null}
+      export async function isAdminNow(){return false}
+    ` }));
+  await pp.goto(`${BASE}/admin.html#door=forgot`, { waitUntil: "load" });
+  await pp.waitForSelector('html[data-admin-door="ready"]', { timeout: 9000 });
+  ok(await pp.locator('[data-panel="forgot"]').isVisible(), "pasted #door=forgot");
+  await pasted.close();
 });
 
 await T("no console errors", () => ok(errs.length === 0, errs.join(" | ")));

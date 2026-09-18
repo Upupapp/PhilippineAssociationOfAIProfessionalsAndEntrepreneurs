@@ -137,8 +137,21 @@ export const SUPPORT_TYPES = [
 ];
 
 export const PARTNER_SOURCES = [
-  "public_event", "events_list", "success_page", "portal_sessions", "portal_events", "portal_session",
+  "public_event", "events_list", "success_page", "portal_sessions", "portal_events",
+  "portal_session", "portal_organization",
 ];
+
+/** Picker sentinel on Partner apply when this email already has organizations. */
+export const OTHER_ORGANIZATION = "__other__";
+
+/** Status pills on My Organization. Derived from data; the member cannot set one. */
+export const ORG_PILL = {
+  unpublished: { key: "unpublished", label: "Not published", cls: "info" },
+  review:      { key: "review",      label: "Under review",  cls: "soon" },
+  partner:     { key: "partner",     label: "Partner",       cls: "ok" },
+};
+
+const OPEN_APPLICATION = new Set(["new", "contacted", "in_discussion", "accepted"]);
 
 /** An event that can still gain a partner. Held and cancelled cannot - offering
  *  to sponsor last month's session is a form nobody should be shown. */
@@ -204,15 +217,16 @@ export function domainOf(url) {
   } catch { return ""; }
 }
 
-/* THE ORGANIZATION MATCH RUNS IN THE ADMIN CONSOLE, NOT AT SUBMIT TIME.
+/* ORGANIZATION MATCH.
  *
- * The brief asked that submitting create or link an Organization. It must not:
- * paaipe_organizations is what the public Partners page and every event credit
- * render from, so a public write there is a name and a logo on paaipe.org for
- * anyone who asks. The rules keep that collection admin-only, an application
- * carries only what the applicant typed, and the match is recomputed HERE from
- * the live org list every time it is displayed. Nothing the applicant sends is
- * trusted to name an organization.
+ * Admin still recomputes a guess from the live org list, because an application
+ * was written by a member of the public.
+ *
+ * Signed-in apply is match-then-create, in this order:
+ *   1. an org this email already owns (picker, or a typed name that matches)
+ *   2. a confirmed Partner (status == active) — unpublished others never appear
+ *   3. otherwise create a new unpublished org on this uid
+ * Anonymous apply still cannot create an org: there is no uid to own it.
  */
 export function matchOrganization(app, orgs) {
   const byName = normaliseCompany(app.companyName);
@@ -221,6 +235,52 @@ export function matchOrganization(app, orgs) {
   return orgs.find(o => byName && normaliseCompany(o.name) === byName)
       || (byDomain ? orgs.find(o => domainOf(o.website) === byDomain) : null)
       || null;
+}
+
+export function confirmedAttachCopy(name) {
+  return `We'll attach this to ${name}`;
+}
+
+/** Pill on a My Organization card. Partner (active) wins; else an open
+ *  application is Under review; else Not published. */
+export function organizationPill(org, apps = []) {
+  if (org?.status === "active") return ORG_PILL.partner;
+  const open = (apps || []).some(a => {
+    if (!OPEN_APPLICATION.has(a.status)) return false;
+    if (a.organizationId && org?.id && a.organizationId === org.id) return true;
+    return Boolean(org?.name) && normaliseCompany(a.companyName) === normaliseCompany(org.name);
+  });
+  return open ? ORG_PILL.review : ORG_PILL.unpublished;
+}
+
+/**
+ * Decide which organization an application should use. Does not write.
+ *
+ * `publicOrgs` must be confirmed (active) Partners only — unpublished matches
+ * never appear. `myOrgs` are this email's, including unpublished.
+ *
+ * @returns {{organization: object|null, how: 'own'|'confirmed'|'new', create: boolean}}
+ */
+export function resolveOrganizationMatch({
+  companyName, website, selectedOrgId, myOrgs = [], publicOrgs = [],
+} = {}) {
+  const own = Array.isArray(myOrgs) ? myOrgs : [];
+  const pub = (Array.isArray(publicOrgs) ? publicOrgs : [])
+    .filter(o => o && o.status === "active");
+
+  if (selectedOrgId && selectedOrgId !== OTHER_ORGANIZATION) {
+    const picked = own.find(o => o.id === selectedOrgId);
+    if (picked) return { organization: picked, how: "own", create: false };
+  }
+
+  const probe = { companyName, website };
+  const ownHit = matchOrganization(probe, own);
+  if (ownHit) return { organization: ownHit, how: "own", create: false };
+
+  const confirmed = matchOrganization(probe, pub);
+  if (confirmed) return { organization: confirmed, how: "confirmed", create: false };
+
+  return { organization: null, how: "new", create: true };
 }
 
 const toDate = v =>
@@ -282,11 +342,67 @@ export async function getEvent(id) {
   return s.exists() ? { id: s.id, ...s.data() } : null;
 }
 
-export async function listOrganizations() {
+/** @param asAdmin pass true only from the admin console. After the org read
+ *  rule is conditional, an unconstrained list is refused to everyone else —
+ *  the public Partners page would go blank rather than show the confirmed ones.
+ *  Visitors MUST constrain to status == 'active' (the only public state). */
+export async function listOrganizations({ asAdmin = false } = {}) {
   const F = await import(`${SDK}/firebase-firestore.js`);
-  const snap = await F.getDocs(F.collection(await db(), COL.organizations));
+  const col = F.collection(await db(), COL.organizations);
+  const snap = await F.getDocs(asAdmin
+    ? col
+    : F.query(col, F.where("status", "==", "active")));
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+/** Organizations this signed-in member owns. Constrained by createdByUserId,
+ *  which is what the read rule can prove — an unconstrained list is refused. */
+export async function listMyOrganizations(uid) {
+  if (!uid) return [];
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const snap = await F.getDocs(F.query(
+    F.collection(await db(), COL.organizations),
+    F.where("createdByUserId", "==", uid)));
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+}
+
+async function currentAuthUser() {
+  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
+  const { getAuth } = await import(`${SDK}/firebase-auth.js`);
+  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
+  return getAuth(app).currentUser || null;
+}
+
+/** Create or update an unpublished org on this uid. The member cannot set the
+ *  status pill — create is always inactive; update may not change status. */
+export async function saveMyOrganization({ id, name, website }) {
+  const user = await currentAuthUser();
+  if (!user) throw Object.assign(new Error("not-signed-in"), { code: "unauthenticated" });
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const n = String(name || "").trim().slice(0, 120);
+  const w = String(website || "").trim().slice(0, 300);
+  if (!n) throw new Error("An organization needs a name.");
+  if (id) {
+    await F.setDoc(F.doc(await db(), COL.organizations, id), {
+      name: n, website: w, updatedAt: F.serverTimestamp(),
+    }, { merge: true });
+    return { id, name: n, website: w };
+  }
+  const ref = F.doc(F.collection(await db(), COL.organizations));
+  const doc = {
+    name: n,
+    website: w,
+    status: "inactive",
+    type: "sponsor",
+    relationshipStatus: "prospect",
+    ownerEmail: String(user.email || "").trim().toLowerCase(),
+    createdByUserId: user.uid,
+    createdAt: F.serverTimestamp(),
+  };
+  await F.setDoc(ref, doc);
+  return { id: ref.id, ...doc };
 }
 
 /** Sponsorships for an event, each joined to its organization so a caller never
@@ -304,7 +420,7 @@ export async function listEventSponsors(eventId, { asAdmin = false } = {}) {
                    F.where("status", "in", PUBLIC_SPONSOR_STATUSES));
   const rows = (await F.getDocs(q)).docs.map(d => ({ id: d.id, ...d.data() }));
   if (!rows.length) return [];
-  const orgs = new Map((await listOrganizations()).map(o => [o.id, o]));
+  const orgs = new Map((await listOrganizations({ asAdmin })).map(o => [o.id, o]));
   return rows
     .map(r => ({ ...r, organization: orgs.get(r.organizationId) || null }))
     .sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
@@ -498,6 +614,30 @@ export async function myApplications(uid) {
  */
 export async function submitPartnerApplication(fields) {
   const F = await import(`${SDK}/firebase-firestore.js`);
+  const user = await currentAuthUser();
+  const myOrgs = user ? await listMyOrganizations(user.uid).catch(() => []) : [];
+  const publicOrgs = await listOrganizations().catch(() => []);
+  const resolved = resolveOrganizationMatch({
+    companyName: fields.companyName,
+    website: fields.website,
+    selectedOrgId: fields.selectedOrgId || "",
+    myOrgs,
+    publicOrgs,
+  });
+  let organization = resolved.organization;
+  if (resolved.create && user) {
+    try {
+      organization = await saveMyOrganization({
+        name: fields.companyName,
+        website: fields.website || "",
+      });
+    } catch {
+      // The application is the record of the offer. An unpublished org is the
+      // extra write; failing it must not swallow the application.
+      organization = null;
+    }
+  }
+
   const ref = F.doc(F.collection(await db(), COL.partners));
   const reference = partnerReference(ref.id);
   const doc = {
@@ -519,8 +659,9 @@ export async function submitPartnerApplication(fields) {
     consentAt:         F.serverTimestamp(),
     createdAt:         F.serverTimestamp(),
   };
+  if (organization?.id) doc.organizationId = organization.id;
   await F.setDoc(ref, doc);
-  return { id: ref.id, reference };
+  return { id: ref.id, reference, organizationId: organization?.id || "" };
 }
 
 /** Partner applications for ONE event. Constrained by eventId, which is both

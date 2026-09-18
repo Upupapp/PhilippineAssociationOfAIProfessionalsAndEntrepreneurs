@@ -206,18 +206,74 @@ service cloud.firestore {
     // unreadable, and the Zoom link is in a separate document (below) that no
     // client may read at all.
 
+    // A CONFIRMED Partner is a public marketing fact. An unpublished org a
+    // member saved on My Organization, or that apply created for them, is not:
+    // the only public state is Partner (status == 'active'). Same trap as
+    // events: a conditional read refuses an unconstrained list, so the public
+    // Partners page MUST query status == 'active', and My Organization MUST
+    // query createdByUserId == request.auth.uid.
+    function ownsOrganization(data) {
+      return request.auth != null
+          && data.get('createdByUserId', '') == request.auth.uid;
+    }
+
+    function isWellFormedMemberOrgCreate(d) {
+      return request.auth != null
+          && request.auth.token.email != null
+          && d.keys().hasOnly(['name','website','status','type','relationshipStatus',
+                               'ownerEmail','createdByUserId','createdAt'])
+          && d.name is string && d.name.size() > 0 && d.name.size() <= 120
+          // A member cannot publish themselves. Partner is the only public
+          // state, and only an administrator may set status to active.
+          && d.status == 'inactive'
+          && d.type == 'sponsor'
+          && d.relationshipStatus == 'prospect'
+          && d.website is string && d.website.size() <= 300
+          && d.ownerEmail is string
+          && d.ownerEmail == request.auth.token.email.lower()
+          && d.createdByUserId == request.auth.uid
+          && d.createdAt == request.time;
+    }
+
+    function isWellFormedMemberOrgUpdate() {
+      return ownsOrganization(resource.data)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['name','website','updatedAt'])
+          && request.resource.data.name is string
+          && request.resource.data.name.size() > 0
+          && request.resource.data.name.size() <= 120
+          && request.resource.data.website is string
+          && request.resource.data.website.size() <= 300
+          && request.resource.data.status == resource.data.status
+          && request.resource.data.get('ownerEmail', '')
+               == resource.data.get('ownerEmail', '')
+          && request.resource.data.get('createdByUserId', '')
+               == resource.data.get('createdByUserId', '')
+          && request.resource.data.updatedAt == request.time;
+    }
+
     match /paaipe_organizations/{id} {
-      // Names, logos and websites are public marketing facts - the Partners page
-      // has shown them for months. Only an administrator may change one, and a
-      // change here reaches every event that credits the organization.
-      allow read: if true;
-      allow create, update: if isAdmin()
-                    && request.resource.data.name is string
-                    && request.resource.data.name.size() > 0
-                    && request.resource.data.name.size() <= 120
-                    && request.resource.data.status in ['active','inactive'];
+      allow read: if isAdmin()
+                  || resource.data.status == 'active'
+                  || ownsOrganization(resource.data);
+
+      allow create: if (isAdmin()
+                        && request.resource.data.name is string
+                        && request.resource.data.name.size() > 0
+                        && request.resource.data.name.size() <= 120
+                        && request.resource.data.status in ['active','inactive'])
+                    || isWellFormedMemberOrgCreate(request.resource.data);
+
+      allow update: if (isAdmin()
+                        && request.resource.data.name is string
+                        && request.resource.data.name.size() > 0
+                        && request.resource.data.name.size() <= 120
+                        && request.resource.data.status in ['active','inactive'])
+                    || isWellFormedMemberOrgUpdate();
+
       // Deleting an organization would orphan every sponsorship that cites it.
       // Deactivate instead - that is a status, and it keeps the history.
+      // Members have no delete in v1 either.
       allow delete: if false;
     }
 
@@ -273,13 +329,12 @@ service cloud.firestore {
     //
     // WHAT A SUBMITTER MAY NOT DO, and why each matters:
     //
-    //  - They may not CREATE OR TOUCH AN ORGANIZATION. The brief asked that a
-    //    submission create or link a paaipe_organizations record. That would
-    //    hand every anonymous visitor a write into the collection the public
-    //    Partners page and every event credit render from - a name and a logo
-    //    on paaipe.org, for free. The match therefore happens in the admin
-    //    console, against the live org list, and the org is created when an
-    //    administrator ACCEPTS. `paaipe_organizations` stays admin-only above.
+    //  - They may not publish an organization. A signed-in member may create or
+    //    reuse an unpublished org on THEIR uid (My Organization / apply), and
+    //    may name a confirmed Partner (status == active) when the matcher hits
+    //    one. They may not attach to someone else's unpublished org: canClaim
+    //    only allows active, or createdByUserId == request.auth.uid. Anonymous
+    //    apply still cannot create an org — there is no uid to own it.
     //
     //  - They may not read anybody else's application. A competitor reading who
     //    else is bidding to sponsor the October Exchange is a commercial leak,
@@ -325,10 +380,23 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    function canClaimOrganization(orgId) {
+      return orgId is string
+          && orgId.size() > 0 && orgId.size() <= 120
+          && exists(/databases/$(database)/documents/paaipe_organizations/$(orgId))
+          && (
+               get(/databases/$(database)/documents/paaipe_organizations/$(orgId))
+                 .data.status == 'active'
+               || (request.auth != null
+                   && get(/databases/$(database)/documents/paaipe_organizations/$(orgId))
+                        .data.get('createdByUserId', '') == request.auth.uid)
+             );
+    }
+
     function isWellFormedPartnerApplication(d) {
       return d.keys().hasAll(['eventId','reference','companyName','contactName',
                               'email','phone','consentAt','status','createdAt'])
-          && d.keys().size() <= 18
+          && d.keys().size() <= 20
           // An application arrives NEW. A submitter cannot pre-accept themselves.
           && d.status == 'new'
           && d.reference is string && d.reference.matches('^PA-20[0-9][0-9]-[0-9A-Z]{4}$')
@@ -348,13 +416,16 @@ service cloud.firestore {
               || (d.supportTypes is list && d.supportTypes.size() <= 5
                   && d.supportTypes.hasOnly(['speaker','vouchers','venue','media','other'])))
           && (!('source' in d.keys())       || (d.source in ['public_event','events_list','success_page',
-                                                             'portal_sessions','portal_session']))
+                                                             'portal_sessions','portal_session',
+                                                             'portal_events','portal_organization']))
           && (!('eventTitle' in d.keys())   || (d.eventTitle is string && d.eventTitle.size() <= 200))
           && (!('submittedByUserId' in d.keys())
               // You may only claim to be YOURSELF, and only if signed in.
               || (d.submittedByUserId is string
                   && (d.submittedByUserId == '' 
                       || (request.auth != null && d.submittedByUserId == request.auth.uid))))
+          && (!('organizationId' in d.keys())
+              || canClaimOrganization(d.organizationId))
           && (!('isSample' in d.keys())     || d.isSample is bool)
           && (!('privacyVersion' in d.keys()) || (d.privacyVersion is string && d.privacyVersion.size() <= 20))
           && (!('userAgent' in d.keys())    || (d.userAgent is string && d.userAgent.size() <= 300))

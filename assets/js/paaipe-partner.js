@@ -31,9 +31,11 @@
  *     logo if the application is accepted - which is when a logo is needed, and
  *     is already how every other partner logo on the site gets set.
  *
- *   - IT DOES NOT CREATE AN ORGANIZATION. See the long note in
- *     paaipe-events-data.js: that collection renders the public Partners page,
- *     so a public write into it is a logo on paaipe.org for anyone who asks.
+ *   - IT CREATES AN UNPUBLISHED ORGANIZATION only for a signed-in member, on
+ *     their uid, when the name does not match one of their own orgs or a
+ *     confirmed Partner. Unpublished orgs of other people never appear. The
+ *     org stays inactive until PAAIPE confirms the partnership. Anonymous
+ *     apply still writes only the application.
  *
  *   - THE RATE LIMIT IS NOT A RATE LIMIT. There is no server, so what this can
  *     do is a honeypot and a per-browser cooldown: both stop accidents and a
@@ -44,6 +46,8 @@
 import {
   SUPPORT_TYPES, acceptsPartners, normalisePhone, listEvents,
   submitPartnerApplication, myApplications, partnerReference,
+  listMyOrganizations, listOrganizations, resolveOrganizationMatch,
+  confirmedAttachCopy, OTHER_ORGANIZATION,
 } from "/assets/js/paaipe-events-data.js";
 import { currentAgent } from "/assets/js/paaipe-firebase.js";
 
@@ -84,11 +88,11 @@ const CSS = `
 .pdlg .f{margin-bottom:14px}
 .pdlg .f label{display:block;font-size:13px;font-weight:600;color:var(--navy,#061A4A);margin-bottom:6px}
 .pdlg .f label small{font-weight:400;color:var(--muted,#5A6B8C)}
-.pdlg input[type=text],.pdlg input[type=email],.pdlg input[type=tel],.pdlg input[type=url],.pdlg textarea{
+.pdlg input[type=text],.pdlg input[type=email],.pdlg input[type=tel],.pdlg input[type=url],.pdlg textarea,.pdlg select{
   width:100%;padding:11px 12px;border:1px solid #D7DEEC;border-radius:10px;font:inherit;font-size:14px;
   color:var(--ink,#0B1B3B);background:#fff}
 .pdlg textarea{min-height:78px;resize:vertical}
-.pdlg input:focus,.pdlg textarea:focus{outline:2px solid var(--royal,#1C46B4);outline-offset:1px;border-color:transparent}
+.pdlg input:focus,.pdlg textarea:focus,.pdlg select:focus{outline:2px solid var(--royal,#1C46B4);outline-offset:1px;border-color:transparent}
 .pdlg .frow{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .pdlg .err{display:none;color:#B3261E;font-size:12.5px;margin-top:5px}
 .pdlg .f.bad .err{display:block}
@@ -141,16 +145,37 @@ function injectStyles() {
 
 const TICK = '<svg viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>';
 
-function formHtml(ev, prefill) {
+function companyFieldsHtml(prefill, myOrgs) {
+  const hasMine = myOrgs.length > 0;
+  const selected = prefill.organizationId || (hasMine ? myOrgs[0].id : "");
+  const pick = hasMine ? `
+    <div class="f">
+      <label for="pa-company-pick">Company or organization name</label>
+      <select id="pa-company-pick" name="companyPick">
+        ${myOrgs.map(o => `<option value="${esc(o.id)}"${o.id === selected ? " selected" : ""}>${esc(o.name)}</option>`).join("")}
+        <option value="${OTHER_ORGANIZATION}">A different organization.</option>
+      </select>
+    </div>` : "";
+  const showTyped = !hasMine;
+  const initialName = hasMine
+    ? (myOrgs.find(o => o.id === selected)?.name || "")
+    : (prefill.companyName || "");
+  return `
+    ${pick}
+    <div class="f" data-company-typed${showTyped ? "" : " hidden"}>
+      <label for="pa-company">${hasMine ? "Company or organization name" : "Company or organization name"}</label>
+      <input id="pa-company" name="companyName" type="text" maxlength="160"
+             autocomplete="organization" placeholder="e.g., GetHired Philippines"
+             value="${esc(initialName)}">
+      <span class="err">Please tell us which company you're writing on behalf of.</span>
+      <span class="help" data-confirmed-match hidden></span>
+    </div>`;
+}
+
+function formHtml(ev, prefill, myOrgs) {
   return `
   <form class="pform" novalidate>
-    <div class="f">
-      <label for="pa-company">Company or organization name</label>
-      <input id="pa-company" name="companyName" type="text" maxlength="160" required
-             autocomplete="organization" placeholder="e.g., GetHired Philippines"
-             value="${esc(prefill.companyName || "")}">
-      <span class="err">Please tell us which company you're writing on behalf of.</span>
-    </div>
+    ${companyFieldsHtml(prefill, myOrgs)}
 
     <div class="frow">
       <div class="f">
@@ -309,13 +334,61 @@ export function validatePartnerForm(form) {
 async function prefillFor() {
   try {
     const me = await currentAgent();
-    return me ? { contactName: me.full_name || "", email: me.email || "" } : {};
+    return me ? { contactName: me.full_name || "", email: me.email || "", uid: me.uid } : {};
   } catch { return {}; }
 }
 
-async function openDialog(ev, source) {
+function syncCompanyFields(form, myOrgs, publicOrgs) {
+  const typed = form.querySelector("[data-company-typed]");
+  const pick = form.elements.companyPick?.value;
+  const name = form.elements.companyName;
+  const web = form.elements.website;
+  const matchEl = form.querySelector("[data-confirmed-match]");
+  const usingPick = Boolean(form.elements.companyPick) && pick && pick !== OTHER_ORGANIZATION;
+  if (typed) typed.hidden = usingPick;
+  if (usingPick) {
+    const o = myOrgs.find(x => x.id === pick);
+    if (o) {
+      name.value = o.name;
+      if (web && web.dataset.touched !== "1") web.value = o.website || "";
+    }
+    if (matchEl) { matchEl.hidden = true; matchEl.textContent = ""; }
+    return;
+  }
+  const hit = resolveOrganizationMatch({
+    companyName: (name?.value || "").trim(),
+    website: (web?.value || "").trim(),
+    selectedOrgId: OTHER_ORGANIZATION,
+    myOrgs,
+    publicOrgs,
+  });
+  if (matchEl) {
+    if (hit.how === "confirmed" && hit.organization) {
+      matchEl.hidden = false;
+      matchEl.textContent = confirmedAttachCopy(hit.organization.name);
+    } else {
+      matchEl.hidden = true;
+      matchEl.textContent = "";
+    }
+  }
+}
+
+async function openDialog(ev, source, extras = {}) {
   const d = dialog();
   const prefill = await prefillFor();
+  if (extras.organizationId) prefill.organizationId = extras.organizationId;
+  if (extras.companyName && !prefill.organizationId) prefill.companyName = extras.companyName;
+  const wanted = extras.organizationId
+    || new URLSearchParams(location.search).get("applyOrg")
+    || "";
+  let myOrgs = [];
+  let publicOrgs = [];
+  try { publicOrgs = await listOrganizations(); } catch { publicOrgs = []; }
+  if (prefill.uid) {
+    try { myOrgs = await listMyOrganizations(prefill.uid); } catch { myOrgs = []; }
+  }
+  if (wanted && myOrgs.some(o => o.id === wanted)) prefill.organizationId = wanted;
+
   d.innerHTML = `
     <div class="band">
       <button class="xbtn" type="button" data-cancel aria-label="Close">&times;</button>
@@ -324,22 +397,42 @@ async function openDialog(ev, source) {
       <p>Tell us about your company. PAAIPE reviews every application; nothing is published
          until it's confirmed.</p>
     </div>
-    <div class="body" data-body>${formHtml(ev, prefill)}</div>`;
+    <div class="body" data-body>${formHtml(ev, prefill, myOrgs)}</div>`;
   d.showModal();
 
   const body = $("[data-body]", d);
   const form = $("form", d);
 
+  syncCompanyFields(form, myOrgs, publicOrgs);
+  if (form.elements.companyPick && prefill.organizationId) {
+    form.elements.companyPick.value = prefill.organizationId;
+    syncCompanyFields(form, myOrgs, publicOrgs);
+  }
+
   // Focus SYNCHRONOUSLY. A deferred focus() once let a form submit empty under
   // load, because the handler ran before the field it was meant to fill.
-  form.elements.companyName.focus();
+  (form.elements.companyPick || form.elements.companyName).focus();
 
   const counter = $("[data-count]", form);
   form.elements.message.addEventListener("input", e => {
     if (counter) counter.textContent = String(e.target.value.length);
   });
 
-  $$("input,textarea", form).forEach(el =>
+  form.elements.companyPick?.addEventListener("change", () => {
+    if (form.elements.companyPick.value === OTHER_ORGANIZATION) {
+      form.elements.companyName.value = "";
+    }
+    syncCompanyFields(form, myOrgs, publicOrgs);
+  });
+  form.elements.companyName?.addEventListener("input", () => {
+    syncCompanyFields(form, myOrgs, publicOrgs);
+  });
+  form.elements.website?.addEventListener("input", () => {
+    form.elements.website.dataset.touched = "1";
+    syncCompanyFields(form, myOrgs, publicOrgs);
+  });
+
+  $$("input,textarea,select", form).forEach(el =>
     el.addEventListener("input", () => {
       if (el.closest(".f")?.classList.contains("bad")) markBad(el, false);
     }));
@@ -348,6 +441,12 @@ async function openDialog(ev, source) {
     e.preventDefault();
     const errBox = $("[data-submit-error]", form);
     errBox.textContent = "";
+
+    const pick = form.elements.companyPick?.value || "";
+    if (pick && pick !== OTHER_ORGANIZATION) {
+      const o = myOrgs.find(x => x.id === pick);
+      if (o) form.elements.companyName.value = o.name;
+    }
 
     const bad = validatePartnerForm(form);
     if (bad.length) {
@@ -391,6 +490,7 @@ async function openDialog(ev, source) {
         supportTypes: $$('input[name="supportTypes"]:checked', form).map(i => i.value),
         source,
         submittedByUserId: me?.uid || "",
+        selectedOrgId: (pick && pick !== OTHER_ORGANIZATION) ? pick : "",
       });
       markSubmitted(ev.id);
       body.innerHTML = successHtml(reference, ev);
@@ -403,6 +503,11 @@ async function openDialog(ev, source) {
         : `Could not send your application: ${ex?.message || ex}. Nothing was saved.`;
     }
   });
+}
+
+/** Open the apply dialog from My Organization, with an org already chosen. */
+export function openPartnerApply(ev, source, extras = {}) {
+  return openDialog(ev, source, extras);
 }
 
 const MY_STATUS_LABEL = {

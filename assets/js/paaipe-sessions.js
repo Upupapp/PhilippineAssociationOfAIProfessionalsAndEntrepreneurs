@@ -81,6 +81,20 @@ export function findSession(id) {
   return PAST_SESSIONS.find(s => s.id === id) || null;
 }
 
+/**
+ * Gamma's public /docs URLs send X-Frame-Options and cannot be framed
+ * (Chrome: "gamma.app refused to connect"). The in-portal slides page must
+ * not iframe those; it offers an on-brand Open control instead. Other hosts
+ * (a PDF, a real embed URL) can still be framed.
+ */
+export function slidesOpensExternally(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "") === "gamma.app";
+  } catch {
+    return false;
+  }
+}
+
 /** Landscape recordings for a session (never invents). */
 export function sessionRecordings(s) {
   if (!s) return [];

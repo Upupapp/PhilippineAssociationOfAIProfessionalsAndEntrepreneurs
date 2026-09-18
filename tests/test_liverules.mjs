@@ -36,8 +36,9 @@ r=await q({structuredQuery:{from:from('paaipe_event_sponsors'),
   where:inFilter('status',['confirmed','delivered'])}});
 T('a visitor may list confirmed sponsorships',r.status===200,`got ${r.status}`);
 
-r=await fetch(`${B}/paaipe_organizations?key=${KEY}&pageSize=1`);
-T('organizations are public marketing facts',r.status===200,`got ${r.status}`);
+r=await q({structuredQuery:{from:from('paaipe_organizations'),
+  where:{fieldFilter:{field:{fieldPath:'status'},op:'EQUAL',value:{stringValue:'active'}}}}});
+T('a visitor may list confirmed (active) organizations',r.status===200,`got ${r.status}: ${r.text}`);
 
 /* --- what a visitor may NOT --------------------------------------------- */
 r=await q({structuredQuery:{from:from('paaipe_events')}});

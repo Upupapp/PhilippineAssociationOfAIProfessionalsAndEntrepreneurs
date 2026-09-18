@@ -229,7 +229,7 @@ async function loadSponsors() {
   });
 
   try {
-    [ORGS, EVENTS] = await Promise.all([listOrganizations(), listEvents({ asAdmin: true })]);
+    [ORGS, EVENTS] = await Promise.all([listOrganizations({ asAdmin: true }), listEvents({ asAdmin: true })]);
   } catch (ex) {
     flash(`Could not load: ${ex?.message || ex}`);
     document.documentElement.setAttribute("data-admin-orgs", "error");

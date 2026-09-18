@@ -190,10 +190,13 @@ await T('the rules, not this door, are what actually refuses a non-admin',()=>{
   const rules=readFileSync(`${ROOT}/firestore.rules`,'utf8');
   ok(/function isAdmin\(\)/.test(rules),'isAdmin() exists in the rules');
   ok(/request\.auth\.token\.email/.test(rules),'and it reads the token, not a client claim');
-  // the collections a console page writes must all be admin-gated
-  for(const col of ['paaipe_events','paaipe_organizations','paaipe_event_sponsors'])
+  for(const col of ['paaipe_events','paaipe_event_sponsors'])
     ok(new RegExp(`match /${col}/[^]*?allow create, update: if isAdmin\\(\\)`).test(rules),
        `${col} must be admin-only to write`);
+  ok(/function isWellFormedMemberOrgCreate/.test(rules),
+     'a signed-in member may create an unpublished organization');
+  ok(/d\.status == 'inactive'/.test(rules.slice(rules.indexOf('function isWellFormedMemberOrgCreate'))),
+     'and cannot publish it themselves');
 });
 
 await T('no console errors',()=>ok(errs.length===0,errs.join(' | ')));

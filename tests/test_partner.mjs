@@ -34,12 +34,13 @@ const fbStub=({signedIn=false,uid='u1',email='rosa@example.com',name='Rosa Villa
 /* Every pure helper stays REAL — normalisePhone, acceptsPartners,
  * partnerReference, matchOrganization. Testing a reimplementation of the
  * validator would test the reimplementation. */
-const dataStub=({events=EVENTS,orgs=ORGS,mine=[],failWrite=null}={})=>`
+const dataStub=({events=EVENTS,orgs=ORGS,mine=[],myOrgs=[],failWrite=null}={})=>`
   export * from '/assets/js/paaipe-events-data-real.js';
   import { partnerReference } from '/assets/js/paaipe-events-data-real.js';
   window.__writes=[];
   export async function listEvents(){ return ${JSON.stringify(events)} }
   export async function listOrganizations(){ return ${JSON.stringify(orgs)} }
+  export async function listMyOrganizations(){ return ${JSON.stringify(myOrgs)} }
   export async function listEventSponsors(){ return [] }
   export async function myApplications(uid){
     const m=new Map();
@@ -74,7 +75,14 @@ async function fill(p,over={}){
   const v={company:'Northwind Analytics',name:'Rosa Villanueva',email:'rosa@example.com',
            phone:'0917 123 4567',web:'northwind.example.com',msg:'We can put up a speaker.',...over};
   const d=p.locator('[data-partner-dialog]');
-  if(v.company!==null) await d.locator('[name="companyName"]').fill(v.company);
+  const pick=d.locator('[name="companyPick"]');
+  if(await pick.count()){
+    if(v.companyPick) await pick.selectOption(v.companyPick);
+    else {
+      await pick.selectOption('__other__');
+      if(v.company!==null) await d.locator('[name="companyName"]').fill(v.company);
+    }
+  } else if(v.company!==null) await d.locator('[name="companyName"]').fill(v.company);
   if(v.name!==null)    await d.locator('[name="contactName"]').fill(v.name);
   if(v.email!==null)   await d.locator('[name="email"]').fill(v.email);
   if(v.phone!==null)   await d.locator('[name="phone"]').fill(v.phone);
@@ -117,9 +125,9 @@ await T('the registration success page offers it as a secondary link',async()=>{
   await p.close();
 });
 
-await T('the portal Sessions rows offer it',async()=>{
-  const p=await open('portal-sessions.html',{fb:{signedIn:true}});
-  ok(await p.locator('[data-partner-open]').count()>=2,'upcoming session rows');
+await T('the portal Events rows offer it',async()=>{
+  const p=await open('portal-events.html',{fb:{signedIn:true}});
+  ok(await p.locator('[data-partner-open]').count()>=2,'upcoming event rows');
   await p.close();
 });
 
@@ -392,7 +400,7 @@ await T('the same browser cannot send twice for one event in an hour',async()=>{
 /* ------------------------------------------------------- the portal status */
 
 await T('a member who already applied sees the status, not the button again',async()=>{
-  const p=await open('portal-sessions.html',{fb:{signedIn:true,uid:'u1'},
+  const p=await open('portal-events.html',{fb:{signedIn:true,uid:'u1'},
     data:{mine:[{id:'a1',eventId:'2026-11-ai-exchange',reference:'PA-2026-AB12',status:'contacted'}]}});
   const host=p.locator('[data-partner-cta][data-event-id="2026-11-ai-exchange"]');
   const t=await host.innerText();
@@ -406,7 +414,7 @@ await T('a member who already applied sees the status, not the button again',asy
 });
 
 await T('an application marked spam is not described to its author as spam',async()=>{
-  const p=await open('portal-sessions.html',{fb:{signedIn:true,uid:'u1'},
+  const p=await open('portal-events.html',{fb:{signedIn:true,uid:'u1'},
     data:{mine:[{id:'a1',eventId:'2026-11-ai-exchange',reference:'PA-2026-AB12',status:'spam'}]}});
   const t=await p.locator('[data-partner-cta][data-event-id="2026-11-ai-exchange"]').innerText();
   ok(!/spam/i.test(t),`telling somebody their offer was marked spam is gratuitous: ${t}`);
@@ -416,15 +424,79 @@ await T('an application marked spam is not described to its author as spam',asyn
 
 /* ----------------------------------------------------------- the data rules */
 
-await T('an application NEVER writes to organizations',async()=>{
+await T('an anonymous application does not pick an organization id',async()=>{
   const p=await open();
   await p.locator('[data-partner-open]').first().click();
   await fill(p,{company:'GetHired, Inc.'});
   await p.locator('[data-submit]').click();
   await p.waitForFunction(()=>window.__writes.length===1,{timeout:5000});
   const w=await p.evaluate(()=>window.__writes[0]);
-  ok(!('organizationId' in w),'an applicant may not name an organization');
+  ok(!w.selectedOrgId,'anonymous has no org to pick');
   ok(!('status' in w)||w.status===undefined||w.status==='new','and may not arrive pre-accepted');
+  await p.close();
+});
+
+await T('a signed-in member with orgs gets a picker plus A different organization',async()=>{
+  const mine=[{id:'northwind',name:'Northwind Analytics',website:'https://northwind.example.com',status:'inactive'}];
+  const p=await open('event-2026-10-ai-exchange.html',{fb:{signedIn:true,uid:'u1'},data:{myOrgs:mine}});
+  await p.locator('[data-partner-open]').first().click();
+  const d=p.locator('[data-partner-dialog]');
+  eq(await d.locator('[name="companyPick"]').count(),1,'the picker');
+  ok(/A different organization\./.test(await d.locator('[name="companyPick"]').innerText()),
+     'plus a way to type a new one');
+  eq(await d.locator('[name="companyPick"]').inputValue(),'northwind','their org is selected');
+  eq(await d.locator('[data-company-typed]').isVisible(),false,
+     'typed field stays hidden while their org is picked');
+  await d.locator('[name="companyPick"]').selectOption('__other__');
+  eq(await d.locator('[data-company-typed]').isVisible(),true,
+     'A different organization. reveals the typed name');
+  await fill(p,{companyPick:'northwind'});
+  await p.locator('[data-submit]').click();
+  await p.waitForFunction(()=>window.__writes.length===1,{timeout:5000});
+  const w=await p.evaluate(()=>window.__writes[0]);
+  eq(w.selectedOrgId,'northwind','reuses their org');
+  eq(w.companyName,'Northwind Analytics','name comes from the org');
+  await p.close();
+});
+
+await T('typing a confirmed Partner name offers to attach, unpublished others do not',async()=>{
+  const p=await open();
+  const r=await p.evaluate(async()=>{
+    const m=await import('/assets/js/paaipe-events-data.js');
+    const pub=[{id:'gethired',name:'GetHired Online',website:'https://gethired.ph',status:'active'}];
+    const unpublished=[{id:'secret',name:'Northwind Analytics',status:'inactive',createdByUserId:'someone-else'}];
+    return {
+      copy: m.confirmedAttachCopy('GetHired Online'),
+      hit: m.resolveOrganizationMatch({companyName:'GetHired Online',publicOrgs:pub,myOrgs:[]}),
+      missUnpub: m.resolveOrganizationMatch({companyName:'Northwind Analytics',publicOrgs:unpublished,myOrgs:[]}),
+      own: m.resolveOrganizationMatch({
+        companyName:'Northwind Analytics', selectedOrgId:'northwind',
+        myOrgs:[{id:'northwind',name:'Northwind Analytics',status:'inactive'}], publicOrgs:pub}),
+      typedOwn: m.resolveOrganizationMatch({
+        companyName:'Northwind Analytics',
+        myOrgs:[{id:'northwind',name:'Northwind Analytics',status:'inactive'}], publicOrgs:pub}),
+      create: m.resolveOrganizationMatch({companyName:'Brand New Co',publicOrgs:pub,myOrgs:[]}),
+    };
+  });
+  eq(r.copy,"We'll attach this to GetHired Online",'the attach copy');
+  eq(r.hit.how,'confirmed','confirmed Partner is named when the matcher hits');
+  eq(r.hit.organization.id,'gethired','attached to the public org');
+  eq(r.missUnpub.how,'new','someone else\'s unpublished org is not offered');
+  eq(r.missUnpub.create,true,'and we would create our own instead');
+  eq(r.own.how,'own','picker reuses their org');
+  eq(r.typedOwn.how,'own','a typed name that matches their org reuses it');
+  eq(r.create.create,true,'otherwise create');
+  await p.close();
+});
+
+await T('the form shows We’ll attach this to when a confirmed Partner matches',async()=>{
+  const p=await open();
+  await p.locator('[data-partner-open]').first().click();
+  await p.locator('[data-partner-dialog] [name="companyName"]').fill('GetHired Online');
+  await p.waitForFunction(()=>/We'll attach this to GetHired Online/.test(
+    document.querySelector('[data-confirmed-match]')?.textContent||''),{timeout:5000});
+  const t=await p.locator('[data-confirmed-match]').innerText();
+  ok(/We'll attach this to GetHired Online/.test(t),`got: ${t}`);
   await p.close();
 });
 

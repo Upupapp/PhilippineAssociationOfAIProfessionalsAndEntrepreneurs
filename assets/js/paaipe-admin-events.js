@@ -1289,7 +1289,7 @@ async function loadSponsorsTab(eventId) {
   host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Loading…</p></section>`;
   try {
     [SPONSORS, ORGS] = await Promise.all([
-      listEventSponsors(eventId, { asAdmin: true }), listOrganizations(),
+      listEventSponsors(eventId, { asAdmin: true }), listOrganizations({ asAdmin: true }),
     ]);
     SPONSORS = SPONSORS.map(s => ({ ...s, order: s.order ?? s.displayOrder ?? 100 }));
     renderSponsorsTab();
@@ -1369,7 +1369,7 @@ async function loadApplicationsTab(eventId) {
   host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Loading…</p></section>`;
   try {
     APPS = await listPartnerApplicationsFor(eventId);
-    if (!ORGS.length) { try { ORGS = await listOrganizations(); } catch { /* names only */ } }
+    if (!ORGS.length) { try { ORGS = await listOrganizations({ asAdmin: true }); } catch { /* names only */ } }
     renderApplicationsTab(eventId);
     setTabCount("applications", APPS.filter(a => a.status === PARTNER_STATUS.NEW).length);
   } catch (ex) {

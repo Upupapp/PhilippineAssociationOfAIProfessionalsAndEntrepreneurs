@@ -526,7 +526,7 @@ async function boot() {
 
   try {
     [APPS, EVENTS, ORGS] = await Promise.all([
-      listApplications(), listEvents({ asAdmin: true }), listOrganizations(),
+      listApplications(), listEvents({ asAdmin: true }), listOrganizations({ asAdmin: true }),
     ]);
   } catch (ex) {
     $("[data-rows]").innerHTML =

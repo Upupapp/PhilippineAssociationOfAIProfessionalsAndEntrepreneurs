@@ -155,7 +155,7 @@ await T('the signed bar is three bands, one Offering heading, status on the titl
   eq(await d.locator('[data-band]').evaluateAll(els=>els.map(e=>e.dataset.band)),
      ['application','offering','decision'],'application, offering, decision');
   eq(await d.locator('.ehead').count(),1,'not six eheads');
-  eq((await d.locator('.ehead').innerText()).trim(),'Offering','the one heading');
+  eq((await d.locator('.ehead').evaluate(e=>e.textContent)).trim(),'Offering','the one heading');
   ok(await d.locator('.papp-title .pill').count(),'status pill on the company line');
   eq(await d.locator('.dmeta .pill').count(),0,'no separate status row');
   const css=readFileSync(`${ROOT}/assets/css/paaipe-admin.css`,'utf8');
@@ -188,8 +188,8 @@ await T('contact stays two columns; empty website omits the cell and the dash',a
      `Copy must not change the row height (phone ${phoneH.height}px vs email ${emailH.height}px)`);
   await p.locator('[data-close]').click();
   await p.locator('[data-open="NoWeb9999xxxx"]').click();
-  const dts=await d.locator('.answers dt').allInnerTexts();
-  eq(dts.map(s=>s.trim()),['Contact','Email','Mobile'],'no Website cell when empty');
+  const dts=await d.locator('.answers dt').evaluateAll(els=>els.map(e=>e.textContent.trim()));
+  eq(dts,['Contact','Email','Mobile'],'no Website cell when empty');
   const dashes=await d.locator('.answers dd').evaluateAll(els=>els.map(e=>e.textContent.trim()));
   ok(!dashes.includes('—'),'no dash for a missing website');
   await p.close();

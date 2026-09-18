@@ -1,0 +1,15 @@
+# paaipe.org - crawler rules. Public marketing pages are allowed.
+# Admin, Agent portal, fixtures, email templates and test/tooling paths are not.
+
+User-agent: *
+Allow: /
+
+# Prefix match: /admin covers /admin, /admin.html and admin-*.html
+Disallow: /admin
+Disallow: /portal
+Disallow: /artifacts/
+Disallow: /assets/email/
+Disallow: /tests/
+Disallow: /scripts/
+
+Sitemap: https://paaipe.org/sitemap.xml

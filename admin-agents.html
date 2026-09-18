@@ -1,38 +1,6 @@
-<!doctype html><html lang="en" data-page="admin-agents"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Sign-ups — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-console data-admin-agents>
-<div class="ashell" data-console hidden>
-
-  <aside class="aside">
-    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
-    <ul class="amenu" data-admin-nav></ul>
-  </aside>
-
-  <div class="amain">
-    <header class="top" data-admin-top></header>
-
-    <div class="wrap">
-      <nav class="crumbs" data-crumbs></nav>
-      <div class="flash" data-admin-flash hidden></div>
-
-      <div class="banner" data-pending-wrap hidden>
-        <span><b><span data-pending-count>0 members are</span> waiting to be confirmed.</b>
-        Until you confirm someone they remain a Guest: they can use the Portal, but nothing calls
-        them an Agent and they are not listed in the Agent Directory.</span>
-      </div>
-
-      <section class="card">
-        <div class="hd"><h2>Members</h2><span class="count" data-members-count>…</span></div>
-        <div class="tbl"><table>
-          <thead><tr><th>Member</th><th>Status</th><th>Agent no.</th><th>Joined</th><th></th></tr></thead>
-          <tbody data-members><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
-        </table></div>
-        <p class="note">An Agent number is a label PAAIPE issues, not a counter — the value shown is a
-          suggestion and you can type any label before confirming.</p>
-        <p class="note"><b>The five founding Agents are not here.</b> They are supplied data used by
-          the public profile pages, not accounts, so there is nothing to confirm. This table lists
-          people who signed up on paaipe.org.</p>
-      </section>
-    </div>
-  </div>
-</div>
-<script type="module" src="assets/js/paaipe-admin.js"></script>
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Contacts — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><meta name="robots" content="noindex,nofollow"><script>
+  var hash = location.hash === "#pending" ? "#types=guest" : "";
+  location.replace("admin-contacts.html" + hash);
+</script></head><body>
+<p><a href="admin-contacts.html">Contacts</a></p>
 </body></html>

@@ -23,7 +23,7 @@ const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(`${m
 
 /* Every console page, and what it must do when it should not be shown. */
 const GUARDED=['admin-events.html','admin-partners.html','admin-registrations.html',
-               'admin-organizations.html','admin-speaker-brief.html'];
+               'admin-organizations.html','admin-speaker-brief.html','admin-contacts.html'];
 
 const fbStub=({signedIn=true,admin=true,signOutCalls=true}={})=>`
   export * from '/assets/js/paaipe-firebase-real.js';
@@ -121,7 +121,8 @@ await T('BREAK-CHECK: flipping ONLY isAdminNow decides it',async()=>{
 await T('an administrator reaches each console page',async()=>{
   const marker={'admin-events.html':'[data-admin-events]','admin-partners.html':'[data-admin-partners]',
                 'admin-registrations.html':'[data-admin-registrations]',
-                'admin-organizations.html':'[data-admin-orgs]','admin-speaker-brief.html':'[data-admin-brief]'};
+                'admin-organizations.html':'[data-admin-orgs]','admin-speaker-brief.html':'[data-admin-brief]',
+                'admin-contacts.html':'[data-admin-contacts]'};
   for(const page of GUARDED){
     const p=await go(page);
     await p.waitForSelector(`body${marker[page]}`,{timeout:9000});
@@ -158,7 +159,7 @@ await T('a failed admin check shows NO data and says so — and does not bounce'
 await T('every console page distinguishes "cannot ask" from "not an admin"',()=>{
   // Collapsing the two signs a real administrator out over a network blip and
   // then tells them their account was refused.
-  for(const f of ['events','partners','registrations','orgs','brief']){
+  for(const f of ['events','partners','registrations','orgs','brief','contacts']){
     const js=readFileSync(`${ROOT}/assets/js/paaipe-admin-${f}.js`,'utf8');
     ok(!/isAdminNow\(\)\.catch\(\(\) => false\)/.test(js),
        `paaipe-admin-${f}.js collapses a failed check into "not an admin"`);

@@ -86,12 +86,12 @@ export const ADMIN_NAV = [
   { sec: "EVENTS" },
   { href: "admin-events.html",        label: "Events",            icon: "cal",    built: true },
   { href: "admin-reports.html",       label: "Reports",           icon: "chart",  built: true },
-  { href: "admin-registrations.html", label: "Registrations",     icon: "check",  built: true, badge: "registrations" },
+  { href: "admin-contacts.html#types=registrant", label: "Registrations", icon: "check", built: true, badge: "registrations" },
   { href: "admin-partners.html",      label: "Partner applications", icon: "hand", built: true, badge: "partners" },
   { href: "admin-speaker-brief.html", label: "Speaker brief",     icon: "doc",    built: true },
   { sec: "PEOPLE" },
-  { href: "admin-agents.html",        label: "Sign-ups (Agents)", icon: "people", built: true },
-  { href: "admin-agents.html#pending", label: "Verifications",    icon: "shield", built: true, badge: "pending" },
+  { href: "admin-contacts.html",       label: "Contacts",         icon: "people", built: true },
+  { href: "admin-contacts.html#types=guest", label: "Verifications", icon: "shield", built: true, badge: "pending" },
   { sec: "CONTENT" },
   { href: "admin-learnings.html",     label: "Learnings",         icon: "play",   built: true },
   { href: "admin-organizations.html", label: "Organizations",     icon: "org",    built: true },
@@ -136,6 +136,29 @@ export function setNavBadge(key, n) {
   });
 }
 
+
+function navItemOn(item, current) {
+  if (!item.href) return false;
+  const hashAt = item.href.indexOf("#");
+  const path = hashAt < 0 ? item.href : item.href.slice(0, hashAt);
+  if (path !== current) return false;
+  const itemHash = hashAt < 0 ? "" : item.href.slice(hashAt + 1);
+  const now = typeof location !== "undefined" ? String(location.hash || "").replace(/^#/, "") : "";
+  const haveTypes = new URLSearchParams(now).get("types") || "";
+  if (!itemHash) {
+    const claimed = ADMIN_NAV.some(o => {
+      if (!o.href) return false;
+      const i = o.href.indexOf("#");
+      if (i < 0 || o.href.slice(0, i) !== current) return false;
+      const t = new URLSearchParams(o.href.slice(i + 1)).get("types") || "";
+      return Boolean(t) && t === haveTypes;
+    });
+    return !claimed;
+  }
+  const wantTypes = new URLSearchParams(itemHash).get("types") || "";
+  return Boolean(wantTypes) && wantTypes === haveTypes;
+}
+
 export function renderAdminNav(current) {
   const host = document.querySelector("[data-admin-nav]");
   if (!host) return;
@@ -144,7 +167,7 @@ export function renderAdminNav(current) {
     const badge = i.badge
       ? `<span class="nbadge" data-badge="${esc(i.badge)}" hidden></span>` : "";
     if (i.built) {
-      const on = (i.href || "").split("#")[0] === current ? ' class="on"' : "";
+      const on = navItemOn(i, current) ? ' class="on"' : "";
       return `<li><a${on} href="${esc(i.href)}">${svg(i.icon)}<span>${esc(i.label)}</span>${badge}</a></li>`;
     }
     // The reason lives in the tooltip, not inline: spelling it out under every

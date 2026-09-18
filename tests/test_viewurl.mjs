@@ -7,8 +7,8 @@ import { chromium } from "playwright";
 import { readFileSync } from "fs";
 import { pathToFileURL } from "url";
 
-const BASE = process.env.PAAIPE_BASE || "http://127.0.0.1:8899";
-const ROOT = process.env.PAAIPE_ROOT || "/Users/user/Philippine-Association-of-AI";
+const BASE = process.env.PAAIPE_BASE||"http://127.0.0.1:8899";
+const ROOT = process.env.PAAIPE_ROOT||"/Users/user/Philippine-Association-of-AI";
 const {
   parsePairs, formatHash,
 } = await import(pathToFileURL(`${ROOT}/assets/js/paaipe-view-url.js`));

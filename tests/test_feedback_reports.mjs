@@ -183,7 +183,7 @@ await T('Reports list When/status come from the event; waitlist is not a number'
   const dash=await p.locator('[data-rpanel="dashboard"]').innerText();
   ok(/Waitlist/.test(dash),'waitlist is named');
   ok(/not measured/i.test(dash),'and labelled not measured');
-  ok(/Partner applications/.test(dash)&&/Partners on this event/.test(dash),'the two partner counts are not conflated');
+  ok(/Partner applications/i.test(dash)&&/Partners on this event/i.test(dash),'the two partner counts are not conflated');
   ok(!/\b48\b/.test(dash)&&!/\b25%/.test(dash),`no mock figures: ${dash.slice(0,500)}`);
   ok(!/Attended/.test(dash)&&!/No-show/.test(dash)&&!/No show/.test(dash),'attended/no_show are not report bars');
   await p.close();
@@ -409,7 +409,7 @@ await T('Export button label is exactly Export',async()=>{
 await T('questions field is order never displayOrder; public never writes questions',()=>{
   const feed=readFileSync(`${ROOT}/assets/js/paaipe-feedback.js`,'utf8');
   ok(!/displayOrder/.test(feed),'feedback helper has no displayOrder');
-  const qBlock=RULES.slice(RULES.indexOf('paaipe_event_feedback_questions'), RULES.indexOf('paaipe_event_feedback_responses'));
+  const qBlock=RULES.slice(RULES.indexOf('isWellFormedFeedbackQuestion'), RULES.indexOf('isWellFormedFeedbackResponse'));
   ok(/hasOnly\(\['eventId','questionKey','order'/.test(qBlock),'order is the field');
   ok(!/displayOrder/.test(qBlock),'questions rules never name displayOrder');
   ok(/allow create: if isAdmin\(\)/.test(qBlock)&&/allow update: if isAdmin\(\)/.test(qBlock),'public never writes questions');

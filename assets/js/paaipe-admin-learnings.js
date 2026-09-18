@@ -280,7 +280,7 @@ function paintPreview() {
     ph.textContent = "Preview appears when a YouTube id is set";
     return;
   }
-  const embed = youtubeEmbedSrc(id);
+  const embed = youtubeEmbedSrc(id, { controls: true });
   ph.innerHTML = `<iframe src="${esc(embed)}" title="Preview" allow="accelerometer; encrypted-media; gyroscope; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin" style="position:absolute;inset:0;width:100%;height:100%;border:0"></iframe>`;
 }
 

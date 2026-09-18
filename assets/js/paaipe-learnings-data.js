@@ -75,14 +75,26 @@ export function youtubeWatchUrl(id) {
   return id ? `https://www.youtube.com/watch?v=${encodeURIComponent(id)}` : "";
 }
 
-/** In-portal nocookie embed src. Do not surface "Open on YouTube" in the UI. */
-export function youtubeEmbedSrc(youtubeId, { origin = "" } = {}) {
+/** In-portal nocookie embed src. Member playback defaults to controls=0 so
+ *  YouTube's share/chain, Watch-on-YouTube, title link, copy-link, and keyboard
+ *  shortcuts are not offered. Pair with the grab shield in session-view.
+ *  The video id still appears in the iframe src / network; unlisted ≠ DRM.
+ *  Do not surface "Open on YouTube" in the UI. Admin preview may pass
+ *  `{ controls: true }` — that page already has the watch URL in the editor. */
+export function youtubeEmbedSrc(youtubeId, {
+  origin = "",
+  autoplay = false,
+  controls = false,
+} = {}) {
   const id = encodeURIComponent(youtubeId || "");
   if (!id) return "";
   const o = encodeURIComponent(origin || (typeof location !== "undefined" ? location.origin : ""));
+  const chrome = controls ? "controls=1" : "controls=0&disablekb=1";
   return `https://www.youtube-nocookie.com/embed/${id}` +
-    `?rel=0&modestbranding=1&playsinline=1&controls=1` +
-    `&fs=0&iv_load_policy=3${o ? `&origin=${o}` : ""}`;
+    `?rel=0&modestbranding=1&playsinline=1&${chrome}` +
+    `&enablejsapi=1&fs=0&iv_load_policy=3` +
+    (autoplay ? "&autoplay=1" : "") +
+    (o ? `&origin=${o}` : "");
 }
 
 function row(doc) {

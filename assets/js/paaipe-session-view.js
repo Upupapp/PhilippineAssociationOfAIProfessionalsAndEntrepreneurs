@@ -5,9 +5,11 @@
  * position, a watched percentage and an "Attended" badge - all invented. A play
  * button that cannot play is the same defect as a claim that cannot be true.
  *
- * Playback is in-portal only: youtube-nocookie embed into [data-ss-player].
- * No "Open on YouTube", no copyable URL field, no new-tab handoff. The video id
- * still appears in the iframe src / network traffic; unlisted ≠ DRM.
+ * Playback is in-portal only: youtube-nocookie embed. Learnings cards open a
+ * centered 16:9 popup (same lock as Watch). No "Open on YouTube", no copyable
+ * URL field, no new-tab handoff. The video id still appears in the iframe src /
+ * network traffic; unlisted ≠ DRM. This does not stop someone reading the
+ * iframe src in devtools.
  */
 import {
   PAST_SESSIONS,
@@ -31,14 +33,10 @@ const setText = (root, sel, text) =>
 
 /** In-portal nocookie embed. Video id still appears in iframe src / network —
  *  unlisted ≠ DRM. controls=0 + a full grab shield block YouTube's link icon,
- *  "Watch on YouTube", and right-click "Copy video URL". Self-host is the only
- *  complete lock. */
-function embedSrc(youtubeId) {
-  const id = encodeURIComponent(youtubeId);
-  const origin = encodeURIComponent(location.origin);
-  return `https://www.youtube-nocookie.com/embed/${id}` +
-    `?rel=0&modestbranding=1&playsinline=1&controls=0&disablekb=1` +
-    `&enablejsapi=1&fs=0&iv_load_policy=3&origin=${origin}`;
+ *  "Watch on YouTube", title link, and right-click "Copy video URL". Self-host
+ *  is the only complete lock. */
+function embedSrc(youtubeId, { autoplay = false } = {}) {
+  return youtubeEmbedSrc(youtubeId, { autoplay });
 }
 
 let ytApiPromise = null;
@@ -76,12 +74,14 @@ function mountYtGrabShield(player) {
     "position:absolute;inset:0;z-index:5;cursor:pointer;background:transparent;touch-action:manipulation";
 
   const plates = [
-    // bottom-left chain/link control
-    ["bl", "left:0;bottom:0;width:72px;height:72px"],
-    // bottom-right Watch on YouTube
-    ["br", "right:0;bottom:0;width:min(46%,220px);height:64px"],
+    // top-left title that navigates to YouTube
+    ["tl", "left:0;top:0;width:min(72%,360px);height:64px"],
     // top-right YouTube logo / share affordance
-    ["tr", "top:0;right:0;width:min(30%,130px);height:56px"],
+    ["tr", "top:0;right:0;width:min(36%,150px);height:64px"],
+    // bottom-left chain/link control
+    ["bl", "left:0;bottom:0;width:88px;height:88px"],
+    // bottom-right Watch on YouTube watermark
+    ["br", "right:0;bottom:0;width:min(55%,260px);height:72px"],
   ];
   plates.forEach(([kind, box]) => {
     const plate = document.createElement("div");
@@ -125,14 +125,26 @@ function mountYtGrabShield(player) {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       toggle();
+      return;
     }
+    // Swallow YouTube shortcuts (f = fullscreen / open on YouTube family).
+    // Tab stays available so the close control remains reachable.
+    if (e.key === "Tab" || e.key === "Escape") return;
+    e.preventDefault();
   });
   player.appendChild(grab);
 }
 
-function mountEmbed(player, rec) {
-  if (!player || !rec?.youtubeId) return;
+function destroyEmbed(player) {
+  if (!player) return;
+  try { player._ytPlayer?.destroy?.(); } catch { /* already gone */ }
+  player._ytPlayer = null;
   player.innerHTML = "";
+}
+
+function mountEmbed(player, rec, { autoplay = false } = {}) {
+  if (!player || !rec?.youtubeId) return;
+  destroyEmbed(player);
   player.classList.add("is-embed");
   player.style.background = "#0a1c3e";
   if (getComputedStyle(player).position === "static") {
@@ -142,12 +154,10 @@ function mountEmbed(player, rec) {
   const frame = document.createElement("iframe");
   const frameId = "paaipe-yt-" + String(rec.id || rec.youtubeId).replace(/[^\w-]+/g, "");
   frame.id = frameId;
-  frame.src = embedSrc(rec.youtubeId);
+  frame.src = embedSrc(rec.youtubeId, { autoplay });
   frame.title = rec.title || "Session recording";
-  frame.setAttribute(
-    "allow",
-    "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-  );
+  // No PiP / fullscreen / web-share — those reopen YouTube chrome.
+  frame.setAttribute("allow", "accelerometer; autoplay; encrypted-media; gyroscope");
   frame.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
   // No popups / top-navigation — logo and Watch links cannot open youtube.com.
   frame.setAttribute(
@@ -168,15 +178,130 @@ function mountEmbed(player, rec) {
   ensureYtApi().then(YT => {
     if (!player.isConnected || !document.getElementById(frameId)) return;
     player._ytPlayer = new YT.Player(frameId, {
+      playerVars: { fs: 0, disablekb: 1, modestbranding: 1, rel: 0, controls: 0 },
       events: {
         onReady(ev) {
           player._ytPlayer = ev.target;
+          try { ev.target.setOption?.("fullscreen", false); } catch { /* ignore */ }
+          if (autoplay) ev.target.playVideo();
         },
       },
     });
   }).catch(() => {
     // API blocked: shield still stops right-click / chrome clicks
   });
+}
+
+const PLAY_ICON =
+  '<span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.14v13.72L19.5 12z"/></svg></span>';
+
+function posterUrlFor(row) {
+  if (row?.posterUrl) return row.posterUrl;
+  if (row?.youtubeId) {
+    return `https://i.ytimg.com/vi/${encodeURIComponent(row.youtubeId)}/hqdefault.jpg`;
+  }
+  return "";
+}
+
+function closeWatchPopup() {
+  const pop = document.querySelector("[data-ss-watch-popup]");
+  if (!pop || pop.hidden) return;
+  destroyEmbed(pop.querySelector("[data-ss-popup-player]"));
+  pop.hidden = true;
+  pop.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  const opener = pop._opener;
+  pop._opener = null;
+  if (opener && typeof opener.focus === "function") opener.focus();
+}
+
+function ensureWatchPopup() {
+  let pop = document.querySelector("[data-ss-watch-popup]");
+  if (pop) return pop;
+  pop = document.createElement("div");
+  pop.className = "ss-watch-popup";
+  pop.setAttribute("data-ss-watch-popup", "");
+  pop.setAttribute("role", "dialog");
+  pop.setAttribute("aria-modal", "true");
+  pop.setAttribute("aria-label", "Session recording");
+  pop.hidden = true;
+  pop.innerHTML =
+    `<div class="ss-watch-scrim" data-ss-watch-close></div>` +
+    `<div class="ss-watch-panel" data-ss-watch-panel data-aspect="16:9">` +
+      `<button type="button" class="ss-watch-close" data-ss-watch-close aria-label="Close">` +
+        `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>` +
+      `</button>` +
+      `<div class="ss-watch-stage is-embed" data-ss-popup-player></div>` +
+    `</div>`;
+  document.body.appendChild(pop);
+  pop.addEventListener("contextmenu", e => {
+    if (e.target.closest("[data-ss-popup-player], [data-yt-shield], [data-yt-plate]")) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+  pop.addEventListener("click", e => {
+    if (e.target.closest("[data-ss-watch-close]")) closeWatchPopup();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key !== "Escape" || pop.hidden) return;
+    e.preventDefault();
+    closeWatchPopup();
+  });
+  return pop;
+}
+
+function openWatchPopup(row, { aspect = "16:9", opener = null } = {}) {
+  if (!row?.youtubeId) return;
+  const pop = ensureWatchPopup();
+  const panel = pop.querySelector("[data-ss-watch-panel]");
+  const stage = pop.querySelector("[data-ss-popup-player]");
+  panel.setAttribute("data-aspect", aspect === "9:16" ? "9:16" : "16:9");
+  pop.setAttribute("aria-label", row.title || "Session recording");
+  pop._opener = opener;
+  pop.hidden = false;
+  pop.removeAttribute("aria-hidden");
+  document.body.style.overflow = "hidden";
+  mountEmbed(stage, row, { autoplay: true });
+  pop.querySelector(".ss-watch-close")?.focus();
+}
+
+function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
+  if (!stage) return;
+  stage.innerHTML = "";
+  if (row.source === LEARNING_SOURCE.YOUTUBE && row.youtubeId) {
+    const poster = posterUrlFor(row);
+    if (poster) {
+      const img = document.createElement("img");
+      img.src = poster;
+      img.alt = "";
+      img.draggable = false;
+      stage.appendChild(img);
+    }
+    const play = document.createElement("button");
+    play.type = "button";
+    play.className = "ss-play";
+    play.setAttribute("data-ss-open-player", "");
+    play.setAttribute("aria-label", `Play ${row.title || "recording"}`);
+    play.innerHTML = PLAY_ICON;
+    play.addEventListener("click", e => {
+      e.preventDefault();
+      e.stopPropagation();
+      openWatchPopup(row, { aspect, opener: play });
+    });
+    stage.appendChild(play);
+    return;
+  }
+  if (row.posterUrl) {
+    const img = document.createElement("img");
+    img.src = row.posterUrl;
+    img.alt = row.title || "";
+    stage.appendChild(img);
+    return;
+  }
+  stage.innerHTML =
+    '<div style="padding:24px;color:#BFE3FA;font-size:13px;text-align:center">' +
+    "This item has no playable YouTube source yet.</div>";
 }
 
 /** Compact switcher when a session has more than one landscape recording. */
@@ -358,35 +483,10 @@ function applyReelsChrome(root = document) {
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
       ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-    function mountYt(stage, row) {
-      if (!stage) return;
-      if (row.source === LEARNING_SOURCE.YOUTUBE && row.youtubeId) {
-        const iframe = document.createElement("iframe");
-        iframe.src = youtubeEmbedSrc(row.youtubeId);
-        iframe.title = row.title || "Learning";
-        iframe.setAttribute(
-          "allow",
-          "accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture"
-        );
-        iframe.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
-        // No top-navigation / popups — keep playback in-portal; no Open on YouTube CTA.
-        iframe.setAttribute(
-          "sandbox",
-          "allow-scripts allow-same-origin allow-presentation allow-forms"
-        );
-        stage.appendChild(iframe);
-        return;
-      }
-      if (row.posterUrl) {
-        const img = document.createElement("img");
-        img.src = row.posterUrl;
-        img.alt = row.title || "";
-        stage.appendChild(img);
-        return;
-      }
-      stage.innerHTML =
-        '<div style="padding:24px;color:#BFE3FA;font-size:13px;text-align:center">' +
-        "This item has no playable YouTube source yet.</div>";
+    function mountYt(stage, row, aspect) {
+      // Poster + play only. A live iframe in the card exposes YouTube's share
+      // chain, Watch on YouTube, and Copy video URL. Playback is the popup.
+      mountPlayStage(stage, row, { aspect });
     }
 
     function renderSessions(rows) {
@@ -414,7 +514,7 @@ function applyReelsChrome(root = document) {
         el.setAttribute("data-learn-id", row.id);
         const stage = document.createElement("div");
         stage.className = "stage";
-        mountYt(stage, row);
+        mountYt(stage, row, "16:9");
         const meta = document.createElement("div");
         meta.innerHTML =
           `<b>${esc(row.title || "Untitled")}</b>` +
@@ -456,7 +556,7 @@ function applyReelsChrome(root = document) {
         card.setAttribute("data-learn-id", row.id);
         const stage = document.createElement("div");
         stage.className = "stage";
-        mountYt(stage, row);
+        mountYt(stage, row, "9:16");
         const cap = document.createElement("div");
         cap.className = "cap";
         cap.textContent = row.title || "Micro";

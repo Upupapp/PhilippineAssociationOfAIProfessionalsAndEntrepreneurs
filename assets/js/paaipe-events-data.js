@@ -33,6 +33,11 @@ export const COL = {
   log:           "paaipe_activity_log",
   partners:      "paaipe_partner_applications",
   registrations: "paaipe_event_registrations",
+  // Clarence, locked. Questions are one doc each; responses are one doc per
+  // registration. Neither is embedded on the event, and neither is
+  // questionsEnabled (that toggle is the registration form).
+  feedbackQuestions: "paaipe_event_feedback_questions",
+  feedbackResponses: "paaipe_event_feedback_responses",
 };
 
 /* LINKING A REGISTRATION TO ITS EVENT.
@@ -371,9 +376,76 @@ export function groupSponsors(rows) {
 export const eventDateLong = ev => {
   const d = toDate(ev?.date) || (ev?.date ? new Date(`${ev.date}T00:00:00+08:00`) : null);
   return d && !isNaN(d)
-    ? d.toLocaleDateString("en-PH", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    ? d.toLocaleDateString("en-PH", {
+        weekday: "long", day: "numeric", month: "long", year: "numeric",
+        timeZone: "Asia/Manila",
+      })
     : "";
 };
+
+/** "8:00 PM" from a stored "20:00". Empty when the event has no time — never
+ *  filled in from a neighbouring edition. */
+export function formatTime12(raw) {
+  const s = String(raw || "").trim();
+  if (!s) return "";
+  const m = /^(\d{1,2}):(\d{2})/.exec(s);
+  if (!m) return "";
+  let h = Number(m[1]);
+  const min = Number(m[2]);
+  if (!Number.isFinite(h) || h < 0 || h > 23 || !Number.isFinite(min)) return "";
+  const ampm = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  return `${h}:${String(min).padStart(2, "0")} ${ampm}`;
+}
+
+/** "8:00–9:30 PM" when both ends share AM/PM; otherwise both meridians.
+ *  Empty when neither time is on the record. */
+export function eventTimeRange(ev) {
+  const a = formatTime12(ev?.startTime), b = formatTime12(ev?.endTime);
+  if (a && b) {
+    const [aClock, aMer] = a.split(" ");
+    const [bClock, bMer] = b.split(" ");
+    if (aMer && aMer === bMer) return `${aClock}–${bClock} ${aMer}`;
+    return `${a}–${b}`;
+  }
+  return a || b || "";
+}
+
+/** "Tuesday, October 13, 2026 · 8:00–9:30 PM PHT" from the event record.
+ *  Drops any part the record does not have. Returns "" rather than a stand-in. */
+export function eventDateTimeLine(ev) {
+  const day = eventDateLong(ev);
+  const time = eventTimeRange(ev);
+  if (day && time) return `${day} · ${time} PHT`;
+  if (day) return `${day} PHT`;
+  if (time) return `${time} PHT`;
+  return "";
+}
+
+/** Instant the feedback form opens: that event's start datetime in PHT.
+ *  Null when the record has no date, so a missing date cannot look like "now". */
+export function eventStartAt(ev) {
+  const date = String(ev?.date || "").trim();
+  const time = String(ev?.startTime || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  if (!/^\d{1,2}:\d{2}/.test(time)) return null;
+  const clock = time.length >= 5 ? time.slice(0, 5) : time;
+  const d = new Date(`${date}T${clock}:00+08:00`);
+  return isNaN(d) ? null : d;
+}
+
+export const EVENT_STATUS_SHORT = {
+  [EVENT_STATUS.DRAFT]:               "Draft",
+  [EVENT_STATUS.PUBLISHED]:           "Published",
+  [EVENT_STATUS.REGISTRATION_OPEN]:   "Registration open",
+  [EVENT_STATUS.REGISTRATION_CLOSED]: "Registration closed",
+  [EVENT_STATUS.HELD]:                "Held",
+  [EVENT_STATUS.CANCELLED]:           "Cancelled",
+};
+
+export function eventStatusShort(ev) {
+  return EVENT_STATUS_SHORT[ev?.status] || (ev?.status ? String(ev.status) : "");
+}
 
 export { toDate };
 

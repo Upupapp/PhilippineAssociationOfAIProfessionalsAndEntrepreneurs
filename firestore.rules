@@ -432,6 +432,73 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // --- PAAIPE: event feedback (Clarence, locked) -----------------
+    //
+    // Two collections. Do not fold questions into the event, into
+    // questionsEnabled, or into sessions/micros.
+    //
+    //   paaipe_event_feedback_questions/{eventId}_{questionKey}
+    //   paaipe_event_feedback_responses/{eventId}_{registrationId}
+    //
+    // Remove a question by active:false so old answers still resolve.
+    // A response is created once; create on an existing id is an update and
+    // is refused. Public may get/create a response only by that known id —
+    // listing the responses collection is administrator-only. Registrations
+    // stay unreadable to the submitter (RA 10173); join is decided client-side
+    // from a registrationId the new form kept, not by widening those reads.
+
+    function isWellFormedFeedbackQuestion(d) {
+      return d.keys().hasAll(['eventId','questionKey','order','prompt','type','required','active'])
+          && d.eventId is string && d.eventId.size() > 0 && d.eventId.size() <= 120
+          && d.questionKey is string && d.questionKey.size() > 0 && d.questionKey.size() <= 80
+          && d.questionKey.matches('^[A-Za-z][A-Za-z0-9_-]{0,79}$')
+          && d.prompt is string && d.prompt.size() > 0 && d.prompt.size() <= 200
+          && d.type in ['1-5', 'yes-no', 'short']
+          && d.required is bool
+          && d.active is bool
+          && (d.order is int || d.order is float);
+    }
+
+    match /paaipe_event_feedback_questions/{id} {
+      allow read: if true;
+      allow create: if isAdmin()
+                    && isWellFormedFeedbackQuestion(request.resource.data)
+                    && id == request.resource.data.eventId + '_'
+                              + request.resource.data.questionKey;
+      allow update: if isAdmin()
+                    && isWellFormedFeedbackQuestion(request.resource.data)
+                    && request.resource.data.eventId == resource.data.eventId
+                    && request.resource.data.questionKey == resource.data.questionKey
+                    && id == request.resource.data.eventId + '_'
+                              + request.resource.data.questionKey;
+      allow delete: if false;
+    }
+
+    function isWellFormedFeedbackResponse(d) {
+      return d.keys().hasOnly(['eventId','registrationId','submittedAt','answers'])
+          && d.eventId is string && d.eventId.size() > 0 && d.eventId.size() <= 120
+          && d.registrationId is string && d.registrationId.size() > 0
+          && d.registrationId.size() <= 128
+          && d.answers is map
+          && d.answers.keys().size() <= 20;
+    }
+
+    match /paaipe_event_feedback_responses/{id} {
+      allow get: if isAdmin() || request.auth != null;
+      allow list: if isAdmin();
+      allow create: if request.auth != null
+                    && isWellFormedFeedbackResponse(request.resource.data)
+                    && request.resource.data.submittedAt == request.time
+                    && id == request.resource.data.eventId + '_'
+                              + request.resource.data.registrationId;
+      allow update: if isAdmin()
+                    && isWellFormedFeedbackResponse(request.resource.data)
+                    && request.resource.data.submittedAt == resource.data.submittedAt
+                    && request.resource.data.eventId == resource.data.eventId
+                    && request.resource.data.registrationId == resource.data.registrationId;
+      allow delete: if false;
+    }
+
     match /paaipe_activity_log/{id} {
       // Who changed what. Append-only: an audit trail that can be edited is not
       // one, so nothing may rewrite or remove an entry, administrators included.

@@ -1,0 +1,55 @@
+<!doctype html><html lang="en" data-page="admin-reports"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Reports — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-reports>
+<div class="ashell">
+
+  <aside class="aside">
+    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu" data-admin-nav></ul>
+  </aside>
+
+  <div class="amain">
+    <header class="top" data-admin-top></header>
+
+    <div class="wrap">
+      <header class="ework-head" data-ework-head hidden>
+        <div>
+          <h1 data-ework-title></h1>
+          <p class="ework-date" data-ework-date></p>
+        </div>
+        <div class="ework-right">
+          <button type="button" class="btn btn-navy" data-export-report>Export</button>
+        </div>
+      </header>
+      <nav class="crumbs" data-crumbs></nav>
+      <div class="flash" data-flash hidden></div>
+
+      <section data-reports-list>
+        <div class="page-head">
+          <div>
+            <h1>Reports</h1>
+            <p class="sub">One row per event. Open a row for the full dashboard.</p>
+          </div>
+        </div>
+        <div class="tbl" style="margin-top:8px"><table class="card" style="padding:8px 12px">
+          <thead><tr>
+            <th>Event</th><th>When</th><th>Status</th><th>Registrations</th><th>Feedback</th><th></th>
+          </tr></thead>
+          <tbody data-report-rows><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+        <p class="note">When and status come from the event record. Attendance, watch %, and revenue
+          are not columns — they have no source. A row with no eventId on a registration is excluded
+          from that event’s counts, not shown as zero.</p>
+      </section>
+
+      <div data-reports-event hidden>
+        <nav class="etabs rtabs" data-report-tabs role="tablist">
+          <button type="button" role="tab" data-rtab="dashboard" aria-selected="true">Dashboard</button>
+          <button type="button" role="tab" data-rtab="feedback" aria-selected="false">Feedback</button>
+        </nav>
+        <div data-rpanel="dashboard"></div>
+        <div data-rpanel="feedback" hidden></div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="assets/js/paaipe-admin-reports.js"></script>
+</body></html>

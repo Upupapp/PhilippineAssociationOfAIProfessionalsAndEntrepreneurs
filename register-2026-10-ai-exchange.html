@@ -144,13 +144,15 @@
       const fb=await import('/assets/js/paaipe-firebase.js');
       if(!fb.isConfigured())throw new Error('not-configured');
       const d=new FormData(form),g=k=>(d.get(k)||'').toString().trim();
-      await fb.submitRegistration({
+      const id = await fb.submitRegistration({
         event:g('event'),eventId:g('event_id'),full_name:g('full_name'),email:g('email'),
         position:g('position'),organization:g('organization'),
         profile:g('profile'),profile_other:g('profile_other'),
         learn:g('learn'),speaker_question:g('speaker_question'),source:g('source'),
         updates:d.get('updates')==='yes',consent:d.get('consent')==='yes'
       });
+      const { rememberRegistrationReceipt } = await import('/assets/js/paaipe-feedback.js');
+      rememberRegistrationReceipt(g('event_id'), id, g('email'));
       location.href='register-success.html';
     }catch(ex){
       btn.disabled=false;btn.textContent=label;

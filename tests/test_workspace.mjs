@@ -46,10 +46,10 @@ async function open(opts={}){
   return p;
 }
 
-await T('the workspace has the seven tabs the brief names, in order',async()=>{
+await T('the workspace has the nine tabs the brief names, in order',async()=>{
   const p=await open();
   const keys=await p.$$eval('[data-event-tabs] button',b=>b.map(x=>x.dataset.tab));
-  eq(keys,['details','media','sponsors','applications','registrations','email','settings'],'tab order');
+  eq(keys,['details','media','sponsors','applications','registrations','email','feedback','reports','settings'],'tab order');
   const sponsorTab=(await p.locator('[data-tab="sponsors"]').innerText()).trim();
   ok(/Partners/.test(sponsorTab),`tab label should be Partners: ${sponsorTab}`);
   ok(!/Sponsors/.test(sponsorTab),`tab label must not still say Sponsors: ${sponsorTab}`);
@@ -72,12 +72,16 @@ await T('the tab is in the URL, so a link to one is a link you can send',async()
   await p.close();
 });
 
-await T('the Publish panel stays put on every tab',async()=>{
+await T('the Publish panel stays put on Details through Settings, except Email, Feedback and Event reports',async()=>{
   const p=await open();
   for(const t of ['details','media','sponsors','applications','registrations','settings']){
     await p.click(`[data-tab="${t}"]`);
     ok(await p.locator('[data-publish-rail] [data-save-event]').isVisible(),`Save missing on ${t}`);
     ok(await p.locator('[data-publish-rail] [data-ics]').isVisible(),`calendar missing on ${t}`);
+  }
+  for(const t of ['email','feedback','reports']){
+    await p.click(`[data-tab="${t}"]`);
+    ok(!(await p.locator('[data-publish-rail]').isVisible()),`Publish rail should hide on ${t}`);
   }
   await p.close();
 });

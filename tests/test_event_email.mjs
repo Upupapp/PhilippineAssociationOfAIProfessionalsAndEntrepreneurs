@@ -77,10 +77,10 @@ await T('the shell keeps the official brand colours',async()=>{
   await p.close();
 });
 
-await T('Email sits after Registrations and before Settings',async()=>{
+await T('Email sits after Registrations and before Feedback',async()=>{
   const p=await open();
   const keys=await p.$$eval('[data-event-tabs] button',b=>b.map(x=>x.dataset.tab));
-  eq(keys,['details','media','sponsors','applications','registrations','email','settings'],'order');
+  eq(keys,['details','media','sponsors','applications','registrations','email','feedback','reports','settings'],'order');
   await p.close();
 });
 

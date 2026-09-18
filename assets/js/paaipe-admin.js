@@ -84,6 +84,7 @@ export const ADMIN_NAV = [
   { href: "admin.html",               label: "Dashboard",         icon: "home",   built: true },
   { sec: "EVENTS" },
   { href: "admin-events.html",        label: "Events",            icon: "cal",    built: true },
+  { href: "admin-reports.html",       label: "Reports",           icon: "chart",  built: true },
   { href: "admin-registrations.html", label: "Registrations",     icon: "check",  built: true, badge: "registrations" },
   { href: "admin-partners.html",      label: "Partner applications", icon: "hand", built: true, badge: "partners" },
   { href: "admin-speaker-brief.html", label: "Speaker brief",     icon: "doc",    built: true },
@@ -118,6 +119,7 @@ const ICONS = {
   mail:   '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
   hand:   '<path d="M7 11V6.5a1.5 1.5 0 0 1 3 0V11"/><path d="M10 10.5V5a1.5 1.5 0 0 1 3 0v5.5"/><path d="M13 10.5V7a1.5 1.5 0 0 1 3 0v6"/><path d="M16 11.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1a7 7 0 0 1-7-7v-2.5a1.5 1.5 0 0 1 3 0"/>',
   cog:    '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  chart:  '<path d="M4 19V5M4 19h16"/><path d="M8 16v-5M12 16V8M16 16v-8"/>',
 };
 const svg = k => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[k] || ICONS.doc}</svg>`;
 

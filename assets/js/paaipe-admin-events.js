@@ -25,9 +25,15 @@ import {
   SUPPORT_TYPES, GALLERY_MAX, galleryOf, listEvents, listEventSponsors,
   listOrganizations, matchOrganization, registrationMatchesEvent, isUnlinked,
   listPartnerApplicationsFor, listAllRegistrations,
-  registrationState, eventDateLong, groupSponsors,
+  registrationState, eventDateLong, eventDateTimeLine, eventStatusShort, groupSponsors,
 } from "/assets/js/paaipe-events-data.js";
 import { mountEventEmail } from "/assets/js/paaipe-event-email.js";
+import {
+  STARTER_QUESTIONS, questionRowHtml, bindQuestionList, readQuestionsFrom,
+  listFeedbackQuestions, listFeedbackResponses, writeFeedbackQuestions,
+  citedQuestionIds, newQuestionKey, whoSeesCopy, Q_TYPE,
+} from "/assets/js/paaipe-feedback.js";
+import { loadReportBundle, leanReportHtml, exportReport } from "/assets/js/paaipe-event-reports.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const $  = (s, r = document) => r.querySelector(s);
@@ -206,6 +212,32 @@ function renderRail(e) {
     </section>`;
 }
 
+function paintEventHead(e) {
+  document.body.classList.add("is-editing-event");
+  const head = $("[data-ework-head]");
+  if (head) head.hidden = false;
+  const t = $("[data-ework-title]"); if (t) t.textContent = e.title || "(untitled)";
+  const d = $("[data-ework-date]"); if (d) d.textContent = eventDateTimeLine(e) || "";
+  const st = $("[data-ework-status]");
+  if (st) {
+    const label = eventStatusShort(e);
+    st.hidden = !label;
+    st.textContent = label;
+    const kind = e.status === EVENT_STATUS.DRAFT ? "warn"
+      : e.status === EVENT_STATUS.CANCELLED ? "err"
+      : e.status === EVENT_STATUS.REGISTRATION_OPEN ? "ok" : "info";
+    st.className = `pill ${kind}`;
+  }
+  const exp = $("[data-export-report]");
+  if (exp) exp.hidden = TAB !== "reports";
+}
+
+function clearEventHead() {
+  document.body.classList.remove("is-editing-event");
+  const head = $("[data-ework-head]"); if (head) head.hidden = true;
+  const exp = $("[data-export-report]"); if (exp) exp.hidden = true;
+}
+
 const ROLES = ["Speaker", "Host", "Opening remarks", "Closing remarks"];
 
 /** One speaker row. The avatar shows the stored photo, or the word "photo" when
@@ -270,31 +302,24 @@ function openEditor(id) {
   cols.hidden = false;
   $("[data-event-list]").hidden = true;
 
-  renderAdminTop({ title: "Edit event", subtitle: e.title || "(untitled)", email: ME });
-  renderCrumbs([["Events", "admin-events.html"], e.title || "(untitled)", "Edit"]);
-  const st = registrationState(e);
-  renderStateChip(
-    e.status === EVENT_STATUS.DRAFT
-      ? `Draft · ${consequence(e)}`
-      : `${STATUS_LABEL[e.status]} · ${consequence(e)}`,
-    e.status === EVENT_STATUS.DRAFT ? "warn"
-      : e.status === EVENT_STATUS.CANCELLED ? "err"
-      : st.open ? "ok" : "info");
+  renderAdminTop({ title: e.title || "Edit event", subtitle: eventDateTimeLine(e), email: ME });
+  renderCrumbs([["Events", "admin-events.html"], e.title || "(untitled)"]);
+  paintEventHead(e);
+  const chip = $("[data-state-chip]"); if (chip) chip.hidden = true;
 
   const speakers = Array.isArray(e.speakers) && e.speakers.length ? e.speakers : [{}];
   const program  = Array.isArray(e.program)  && e.program.length  ? e.program  : [{}];
 
   d.innerHTML = `
     <section class="card">
-      <div class="hd"><h2>Basics</h2></div>
+      <div class="hd"><h2>Event</h2></div>
       ${field("Title", "title", e.title, 'maxlength="200"')}
-      ${field("Page address (slug)", "slug", e.slug, 'maxlength="80"', "lower-case, hyphens")}
       <div class="frow">
-        ${field("Series", "series", e.series, 'maxlength="80"')}
         <div class="f"><label>Format</label><select data-e="format">
           ${[["zoom","Online · Zoom"],["in_person","In person"],["hybrid","Hybrid"]]
             .map(([v,l]) => `<option value="${v}"${e.format === v ? " selected" : ""}>${l}</option>`).join("")}
         </select></div>
+        ${field("Series", "series", e.series, 'maxlength="80"')}
       </div>
       <div class="frow">
         ${field("Date", "date", e.date, 'type="date"')}
@@ -307,6 +332,7 @@ function openEditor(id) {
           <input data-zoom placeholder="${e.hasZoom ? "https://zoom.us/j/•••••••••" : "https://…"}" maxlength="500"></div>
         ${field("Capacity", "capacity", e.capacity ?? "", 'type="number" min="1"', "blank = no limit")}
       </div>
+      ${field("Page address (slug)", "slug", e.slug, 'maxlength="80"', "lower-case, hyphens")}
       <p class="note"><b>The link is stored separately and never shown back.</b> It lives in a record no
         client may read, because rules cannot hide one field of a document — so this box can write it
         and cannot display it. The dots mean one is stored. <b>Nothing sends it to registrants yet</b>:
@@ -314,7 +340,7 @@ function openEditor(id) {
     </section>
 
     <section class="card">
-      <div class="hd"><h2>Content</h2>
+      <div class="hd"><h2>Description</h2>
         <span class="hint">Shown on the public event page and the registration page</span></div>
       ${field("Topic", "topic", e.topic, 'maxlength="160" placeholder="Topic to be announced"')}
       <div class="f"><label>Description</label>
@@ -402,6 +428,8 @@ const TABS = [
   ["applications",  "Applications",  "applications"],
   ["registrations", "Registrations", "registrations"],
   ["email",         "Email",         null],
+  ["feedback",      "Feedback",      null],
+  ["reports",       "Event reports", null],
   ["settings",      "Settings",      null],
 ];
 const TAB_COUNTS = { sponsors: null, applications: null, registrations: null };
@@ -441,10 +469,16 @@ function selectTab(key, { push = true } = {}) {
   if (!TABS.some(([k]) => k === key)) key = "details";
   TAB = key;
   TABS.forEach(([k]) => { const el = panel(k); if (el) el.hidden = k !== key; });
+  const wide = key === "email" || key === "feedback" || key === "reports";
   const cols = $("[data-editor-cols]");
-  if (cols) cols.classList.toggle("email-open", key === "email");
+  if (cols) {
+    cols.classList.toggle("email-open", wide);
+    cols.classList.toggle("rail-hidden", wide);
+  }
   const rail = $("[data-publish-rail]");
-  if (rail) rail.hidden = key === "email";
+  if (rail) rail.hidden = wide;
+  const exp = $("[data-export-report]");
+  if (exp) exp.hidden = key !== "reports";
   renderTabs();
   if (push && CURRENT) {
     const h = `#event=${encodeURIComponent(CURRENT.id)}&tab=${key}`;
@@ -465,6 +499,8 @@ function loadTab(key) {
   if (key === "applications"  && once("applications"))  loadApplicationsTab(id);
   if (key === "registrations" && once("registrations")) loadRegistrationsTab(id);
   if (key === "email")                                  loadEmailTab(id);
+  if (key === "feedback"      && once("feedback"))      loadFeedbackTab(id);
+  if (key === "reports")                                loadReportsTab(id);
 }
 
 /** The counts the tab strip shows, fetched when an event opens rather than when
@@ -482,6 +518,95 @@ async function loadTabCounts(id) {
   setTabCount("applications", await countOf(COL.partners,
     F.where("eventId", "==", id), F.where("status", "==", PARTNER_STATUS.NEW)));
   setTabCount("registrations", await countOf(COL.registrations, F.where("event_id", "==", id)));
+}
+
+let EVENT_REPORT = null;
+
+async function loadFeedbackTab(eventId) {
+  const host = panel("feedback");
+  if (!host) return;
+  const sees = whoSeesCopy(CURRENT || {});
+  host.innerHTML = `<p class="note">Loading questions…</p>`;
+  const qs = await listFeedbackQuestions(eventId);
+  if (!qs.ok) {
+    host.innerHTML = `<div class="fb-layout">
+      <section class="card"><p class="note" style="margin-top:0">${esc(qs.reason)}</p></section>
+      ${whoSeesCard(sees)}
+    </div>`;
+    return;
+  }
+  const fb = await listFeedbackResponses(eventId);
+  const cited = fb.ok ? citedQuestionIds(fb.rows)
+    : new Set(qs.rows.map(q => q.id).filter(Boolean));
+  const active = qs.rows.filter(q => q.active);
+  // Seed the starter four only when this event has no question docs at all.
+  // If every existing doc is inactive, do not reuse those keys.
+  const seed = qs.rows.length === 0;
+  const rows = active.length
+    ? active
+    : (seed ? STARTER_QUESTIONS.map((q, i) => ({ ...q, id: "", eventId, order: i, active: true })) : []);
+  const list = rows.map(q => questionRowHtml(q, { typeLocked: Boolean(q.id && cited.has(q.id)) })).join("");
+  const emptyNote = seed
+    ? `<p class="note" data-fq-seed style="margin-top:0">Starter four — overall, recommend, mostUseful, improve. They are not stored until you Save. The public form stays empty until then.</p>`
+    : (active.length ? "" : `<p class="note" style="margin-top:0">Every question has been removed (kept inactive so old answers still resolve). Add a new question with a new key — do not reuse one.</p>`);
+  host.innerHTML = `<div class="fb-layout">
+    <section class="card">
+      <div class="hd"><h2>Questions</h2>
+        <span class="hint">Edit anytime, before or after start</span></div>
+      ${emptyNote}
+      <div class="fq-list" data-fq-list>${list}</div>
+      <div class="fq-actions">
+        <button type="button" class="btn btn-ghost" data-fq-add>Add question</button>
+        <button type="button" class="btn btn-gold" data-save-form>Save form</button>
+      </div>
+    </section>
+    ${whoSeesCard(sees)}
+  </div>`;
+  bindQuestionList($("[data-fq-list]", host));
+}
+
+function whoSeesCard(sees) {
+  return `<section class="card who-card">
+    <div class="hd"><h2>Who sees it</h2></div>
+    <p>${esc(sees.who)}</p>
+    <p>${esc(sees.when)}</p>
+    <p>${esc(sees.once)}</p>
+  </section>`;
+}
+
+async function saveFeedbackForm(eventId) {
+  const list = $("[data-fq-list]");
+  if (!list) return;
+  const next = readQuestionsFrom(list);
+  try {
+    const fb = await listFeedbackResponses(eventId);
+    // If responses cannot be listed, treat every current question id as cited
+    // so a type change archives rather than rewriting an answered document.
+    const cited = fb.ok ? citedQuestionIds(fb.rows)
+      : new Set(next.map(q => q.id).filter(Boolean));
+    await writeFeedbackQuestions(eventId, next, { citedIds: cited });
+    flash("Saved. The public form reads these question documents.", true);
+    LOADED.delete(`${eventId}:feedback`);
+    await loadFeedbackTab(eventId);
+  } catch (ex) {
+    flash(ex?.code === "permission-denied" || ex?.code === "unavailable"
+      ? (ex.message || "The questions collection is not available yet. Nothing was stored.")
+      : `Could not save the form: ${ex?.message || ex}`);
+  }
+}
+
+async function loadReportsTab(eventId) {
+  const host = panel("reports");
+  if (!host) return;
+  EVENT_REPORT = null;
+  host.innerHTML = `<p class="note">Loading live counts…</p>`;
+  try {
+    const { report } = await loadReportBundle(CURRENT);
+    EVENT_REPORT = report;
+    host.innerHTML = leanReportHtml(report);
+  } catch (ex) {
+    host.innerHTML = `<div class="banner">Event reports could not be loaded: ${esc(ex?.message || ex)}</div>`;
+  }
 }
 
 /* Who has offered to support THIS event, and how many are still unanswered.
@@ -826,13 +951,29 @@ async function duplicateEvent(id) {
     if (linkReg) return linkRegistration(linkReg.dataset.linkReg);
     if (e.target.closest("[data-reg-csv]")) return exportEventRegistrations();
 
+    if (e.target.closest("[data-fq-add]")) {
+      const list = $("[data-fq-list]");
+      if (!list || !CURRENT) return;
+      const used = [...list.querySelectorAll("[data-fq-key]")].map(el => el.dataset.fqKey);
+      const key = newQuestionKey(used);
+      list.insertAdjacentHTML("beforeend", questionRowHtml({
+        id: "", questionKey: key, prompt: "New question",
+        type: Q_TYPE.SHORT, required: false, active: true, order: used.length,
+      }));
+      return;
+    }
+    if (e.target.closest("[data-save-form]") && CURRENT) return saveFeedbackForm(CURRENT.id);
+    if (e.target.closest("[data-export-report]") && CURRENT && EVENT_REPORT)
+      return exportReport(CURRENT, EVENT_REPORT, "Event report");
+
     if (e.target.closest("[data-back]")) {
       const cols = $("[data-editor-cols]");
       cols.hidden = true;
-      cols.classList.remove("email-open");
+      cols.classList.remove("email-open", "rail-hidden");
       const rail = $("[data-publish-rail]"); if (rail) rail.hidden = false;
       $("[data-event-list]").hidden = false;
-      CURRENT = null; renderList();
+      CURRENT = null; EVENT_REPORT = null; renderList();
+      clearEventHead();
       renderAdminTop({ title: "Events", subtitle: "Every AI Exchange, and what the public sees of it", email: ME });
       renderCrumbs([["Dashboard", "admin.html"], "Events"]);
       const chip = $("[data-state-chip]"); if (chip) chip.hidden = true;

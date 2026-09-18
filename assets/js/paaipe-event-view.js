@@ -218,6 +218,8 @@ async function renderEventPage() {
     if (spon) { spon.innerHTML = ""; spon.hidden = true; }
     const gal = $("[data-gallery-mount]");
     if (gal) { gal.innerHTML = ""; gal.hidden = true; }
+    const fb = $("[data-event-feedback]");
+    if (fb) { fb.innerHTML = ""; fb.hidden = true; }
     document.documentElement.setAttribute("data-event-view", "not-found");
     return;
   }
@@ -231,6 +233,11 @@ async function renderEventPage() {
   try {
     renderSponsors($("[data-sponsors]"), await listEventSponsors(ev.id));
   } catch { /* leave whatever the page already showed */ }
+
+  try {
+    const { mountPublicFeedback } = await import("/assets/js/paaipe-feedback.js");
+    await mountPublicFeedback($("[data-event-feedback]"), ev);
+  } catch { /* a missing block must not blank the event page */ }
 
   document.documentElement.setAttribute("data-event-view", ev.status);
 }

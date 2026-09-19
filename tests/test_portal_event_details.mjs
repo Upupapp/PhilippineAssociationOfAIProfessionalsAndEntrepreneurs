@@ -163,10 +163,10 @@ await T("tabs update hash; Back restores the list", async () => {
   const { p, ctx } = await open("portal-events.html");
   await p.locator('a[data-event-open="2026-10-ai-exchange"]').first().click();
   await p.waitForSelector("[data-ed-root]");
-  await p.locator('[data-ed-tab="feedback"]').click();
+  await p.locator('button.ed-tab[data-ed-tab="feedback"]').click();
   await p.waitForFunction(() => /tab=feedback/.test(location.hash));
   ok(/tab=feedback/.test(p.url()), "feedback hash");
-  await p.locator('[data-ed-tab="certificate"]').click();
+  await p.locator('button.ed-tab[data-ed-tab="certificate"]').click();
   await p.waitForFunction(() => /tab=certificate/.test(location.hash));
   ok(await p.locator("[data-cert-state]").count(), "certificate panel");
   await p.goBack();

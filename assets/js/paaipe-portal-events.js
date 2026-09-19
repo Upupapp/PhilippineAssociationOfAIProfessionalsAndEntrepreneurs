@@ -815,13 +815,18 @@ async function loadQuestionsInto(ev, receipt) {
   }
 }
 
+let detailsGen = 0;
+
 export async function showDetails(eventId, tab, { push = true } = {}) {
   const home = $("[data-events-home]");
   const mount = $("[data-event-details]");
   if (!mount) return false;
+  const gen = ++detailsGen;
+  const still = () => gen === detailsGen;
   const id = String(eventId || "").trim();
   const safeTab = PORTAL_EVENT_TABS.includes(tab) ? tab : "overview";
   const ev = await resolveLive(id);
+  if (!still()) return false;
   if (!ev) {
     if (home) home.hidden = true;
     mount.hidden = false;
@@ -841,6 +846,7 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
     loadMeCertificate(ev.id),
     loadFeedbackRow(ev.id),
   ]);
+  if (!still()) return false;
   const api = meCert.certificate;
   let win = winResolved;
   if (!win.live && api) win = windowFromCertificate(api, ev, win);
@@ -891,14 +897,16 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
   if (safeTab !== "overview") params.tab = safeTab;
   writeHash(params, { push });
 
+  if (!still()) return false;
   if (safeTab === "overview") await mountPartner(ev);
   if (safeTab === "feedback" && win.state === "open" && registered && fb.receipt?.registrationId && !fb.row) {
     await loadQuestionsInto(ev, fb.receipt);
   }
-  return true;
+  return still();
 }
 
 export function showList({ push = true } = {}) {
+  detailsGen += 1;
   const home = $("[data-events-home]");
   const mount = $("[data-event-details]");
   if (home) home.hidden = false;
@@ -917,12 +925,18 @@ function applyFromLocation({ push = false } = {}) {
   const v = readView();
   const id = String(v.event || "").trim();
   if (!id) {
+    detailsGen += 1;
     const home = $("[data-events-home]");
     const mount = $("[data-event-details]");
     if (home) home.hidden = false;
     if (mount) { mount.hidden = true; mount.innerHTML = ""; }
     restoreHeader();
     document.documentElement.removeAttribute("data-portal-event");
+    document.documentElement.removeAttribute("data-portal-event-tab");
+    document.documentElement.removeAttribute("data-portal-cert-state");
+    document.documentElement.removeAttribute("data-portal-feedback-window");
+    document.documentElement.removeAttribute("data-portal-feedback-window-source");
+    document.documentElement.removeAttribute("data-portal-cert-live");
     return;
   }
   showDetails(id, v.tab || "overview", { push });
@@ -938,7 +952,7 @@ function bind() {
       showList({ push: true });
       return;
     }
-    const tab = e.target.closest("[data-ed-tab]");
+    const tab = e.target.closest("button.ed-tab[data-ed-tab]");
     if (tab) {
       const id = $("[data-ed-root]")?.dataset.eventId;
       if (!id) return;

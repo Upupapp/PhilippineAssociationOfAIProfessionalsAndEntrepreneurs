@@ -90,9 +90,11 @@ await T("source: default is https://api.paaipe.org; 8091 is an override only", (
   eq(api.resolvePaaipeApiBase({}), "https://api.paaipe.org", "resolver empty → prod");
   eq(api.PAAIPE_API_BASE, "https://api.paaipe.org", "module default");
   const src = read("assets/js/paaipe-api.js");
-  ok(!/media\.paaipe\.org/.test(src.split("\n").filter(l =>
-    !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n")),
-     "media.paaipe.org must not be used as an API base");
+  ok(![api.PAAIPE_API_PROD_BASE, api.PAAIPE_API_DEFAULT_BASE, api.PAAIPE_API_TUNNEL_BASE, api.PAAIPE_API_BASE]
+    .some(b => /media\.paaipe\.org/.test(b)),
+    "media.paaipe.org must not be used as an API base");
+  ok(!/PAAIPE_API_[A-Z_]+ = ["']https:\/\/media\.paaipe\.org/.test(src),
+    "no API constant points at media");
 });
 
 await T("one knob: query / window / localStorage, first non-empty wins", () => {

@@ -132,6 +132,18 @@ await T("contract paths are exact — admin + public library", () => {
   eq(api.adminEventRegistrationsPath("e-oct", { status: "attended" }),
      "/v1/admin/events/e-oct/registrations?status=attended", "optional status");
   eq(api.adminRegistrationPath("r1"), "/v1/admin/registrations/r1", "reg id");
+  eq(api.eventFeedbackQuestionsPath("2026-10-ai-exchange"),
+     "/v1/events/2026-10-ai-exchange/feedback/questions", "public questions");
+  eq(api.eventFeedbackResponsesPath("2026-10-ai-exchange"),
+     "/v1/events/2026-10-ai-exchange/feedback/responses", "member responses POST");
+  eq(api.eventFeedbackResponsePath("2026-10-ai-exchange", "r1"),
+     "/v1/events/2026-10-ai-exchange/feedback/responses/r1", "member one response");
+  eq(api.adminEventFeedbackQuestionsPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/feedback/questions", "admin PUT questions");
+  eq(api.adminEventFeedbackResponsesPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/feedback/responses", "admin responses list");
+  eq(api.adminEventFeedbackResponsePath("2026-10-ai-exchange", "r1"),
+     "/v1/admin/events/2026-10-ai-exchange/feedback/responses/r1", "admin one response");
   eq(api.sessionsPath(), "/v1/sessions", "sessions list");
   eq(api.sessionPath("2026-09-presentation"), "/v1/sessions/2026-09-presentation", "session id");
   eq(api.microsPath(), "/v1/micros", "micros list");
@@ -550,6 +562,173 @@ await T("401 / 404 / missing token fail honestly and do not invent rows", async 
   catch (e) { eIcs = e; }
   ok(eIcs && eIcs.status === 401, "calendar 401");
   ok(/sign-in expired or missing/i.test(eIcs.message), "calendar 401 message");
+});
+
+await T("feedback helpers: public GET, admin PUT, member POST, no invented routes", async () => {
+  const Q = {
+    questions: [{
+      eventId: "2026-10-ai-exchange",
+      questionKey: "overall",
+      prompt: "Overall, how was this session?",
+      type: "1-5",
+      required: true,
+      active: true,
+      order: 0,
+    }],
+  };
+  const hits = [];
+  const fetchImpl = async (url, opts) => {
+    hits.push({ url, method: opts.method, headers: opts.headers || {}, body: opts.body });
+    if (url.endsWith("/v1/events/2026-10-ai-exchange/feedback/questions") && opts.method === "GET") {
+      return new Response(JSON.stringify(Q), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/v1/admin/events/2026-10-ai-exchange/feedback/questions") && opts.method === "PUT") {
+      return new Response(JSON.stringify(Q), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/v1/events/2026-10-ai-exchange/feedback/responses") && opts.method === "POST") {
+      return new Response(JSON.stringify({
+        eventId: "2026-10-ai-exchange", registrationId: "r1", answers: { "2026-10-ai-exchange_overall": 5 },
+      }), { status: 201, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/v1/events/2026-10-ai-exchange/feedback/responses/r1")) {
+      return new Response(JSON.stringify({
+        eventId: "2026-10-ai-exchange", registrationId: "r1",
+        answers: { "2026-10-ai-exchange_overall": 5 },
+        submittedAt: "2026-10-13T12:00:00.000Z",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/v1/admin/events/2026-10-ai-exchange/feedback/responses")) {
+      return new Response(JSON.stringify({
+        responses: [{
+          eventId: "2026-10-ai-exchange", registrationId: "r1",
+          answers: { "2026-10-ai-exchange_overall": 5 },
+          submittedAt: "2026-10-13T12:00:00.000Z",
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("missing", { status: 404 });
+  };
+
+  const qs = await api.listApiFeedbackQuestions("2026-10-ai-exchange", { fetchImpl });
+  eq(qs.length, 1, "one question");
+  eq(qs[0].id, "2026-10-ai-exchange_overall", "synthesized id");
+  eq(qs[0].questionKey, "overall", "key");
+  ok(!("Authorization" in hits[0].headers), "public questions GET has no Bearer");
+
+  const empty = await api.listApiFeedbackQuestions("2026-10-ai-exchange", {
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, method: opts.method, headers: opts.headers || {} });
+      return new Response(JSON.stringify({ questions: [] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  eq(empty.length, 0, "empty questions is honest empty");
+
+  await api.putAdminFeedbackQuestions("2026-10-ai-exchange", Q.questions, {
+    token: "tok-admin", fetchImpl,
+  });
+  const put = hits.find(h => h.method === "PUT");
+  eq(put.url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange/feedback/questions", "PUT admin path");
+  eq(put.headers.Authorization, "Bearer tok-admin", "PUT Bearer");
+  const putBody = JSON.parse(put.body);
+  eq(JSON.stringify(Object.keys(putBody.questions[0]).sort()),
+     JSON.stringify(["active","eventId","order","prompt","questionKey","required","type"]),
+     "PUT sends Clarence fields only");
+  ok(!("displayOrder" in putBody.questions[0]), "never displayOrder");
+  ok(!("id" in putBody.questions[0]), "id is derived, not sent");
+
+  await api.postEventFeedbackResponse("2026-10-ai-exchange", {
+    registrationId: "r1",
+    answers: { "2026-10-ai-exchange_overall": 5 },
+    submittedAt: "must-not-go",
+  }, { token: "tok-member", fetchImpl });
+  const post = hits.find(h => h.method === "POST");
+  eq(post.url, "https://api.paaipe.org/v1/events/2026-10-ai-exchange/feedback/responses", "POST member path");
+  eq(post.headers.Authorization, "Bearer tok-member", "POST Bearer");
+  eq(post.body, JSON.stringify({
+    registrationId: "r1", answers: { "2026-10-ai-exchange_overall": 5 },
+  }), "POST body is registrationId + answers");
+
+  const mine = await api.getApiFeedbackResponse("2026-10-ai-exchange", "r1", {
+    token: "tok-member", fetchImpl,
+  });
+  eq(mine.registrationId, "r1", "own response");
+  eq(mine.answers["2026-10-ai-exchange_overall"], 5, "answer keyed by question id");
+
+  const none = await api.getApiFeedbackResponse("2026-10-ai-exchange", "missing", {
+    token: "tok-member",
+    fetchImpl: async () => new Response("nope", { status: 404 }),
+  });
+  eq(none, null, "member 404 is no row, not a failure");
+
+  const listed = await api.listAdminFeedbackResponses("2026-10-ai-exchange", {
+    token: "tok-admin", fetchImpl,
+  });
+  eq(listed.length, 1, "admin list");
+  eq(listed[0].id, "2026-10-ai-exchange_r1", "response id");
+  ok(hits.some(h => h.url.endsWith("/v1/admin/events/2026-10-ai-exchange/feedback/responses")
+    && (h.method === "GET" || !h.method || h.method === "GET")), "admin list path");
+
+  ok(!hits.some(h => /\/v1\/admin\/events\/[^/]+\/feedback\/questions$/.test(h.url) && h.method === "GET"),
+     "never GET admin questions (404 on live)");
+  ok(!hits.some(h => /\/v1\/events\/[^/]+\/feedback\/responses$/.test(h.url) && (h.method === "GET" || !h.method)),
+     "never GET public responses list (404 on live)");
+  ok(!hits.some(h => h.method === "DELETE"), "never DELETE");
+
+  const body = api.feedbackQuestionWritePayload({
+    questionKey: "overall", prompt: "Overall?", type: "1-5", required: true,
+    displayOrder: 9, id: "must-not-go", extra: true,
+  }, "2026-10-ai-exchange", 0);
+  ok(!("displayOrder" in body) && !("id" in body) && !("extra" in body), "write payload strips extras");
+  eq(body.order, 0, "order not displayOrder");
+
+  let e409;
+  try {
+    await api.postEventFeedbackResponse("2026-10-ai-exchange", { registrationId: "r1", answers: {} }, {
+      token: "tok",
+      fetchImpl: async () => new Response("exists", { status: 409 }),
+    });
+  } catch (e) { e409 = e; }
+  eq(e409?.code, "already-exists", "409 create-once");
+  ok(/already exists/i.test(e409.message), "409 message");
+  ok(/nothing was changed/i.test(e409.message), "409 is a write");
+
+  let e401;
+  try {
+    await api.putAdminFeedbackQuestions("2026-10-ai-exchange", Q.questions, {
+      token: "x",
+      fetchImpl: async () => new Response("nope", { status: 401 }),
+    });
+  } catch (e) { e401 = e; }
+  eq(e401?.status, 401, "PUT 401");
+  ok(/sign-in expired or missing/i.test(e401.message), "PUT 401 message");
+});
+
+await T("feedback JS hard-cuts questions/responses off Firestore", () => {
+  const feed = read("assets/js/paaipe-feedback.js");
+  const ev = read("assets/js/paaipe-admin-events.js");
+  const reports = read("assets/js/paaipe-event-reports.js");
+  ok(/listApiFeedbackQuestions/.test(feed), "questions GET → API");
+  ok(/putAdminFeedbackQuestions/.test(feed), "questions PUT → admin API");
+  ok(/listAdminFeedbackResponses/.test(feed), "admin responses GET → API");
+  ok(/getApiFeedbackResponse/.test(feed), "member one response → API");
+  ok(/postEventFeedbackResponse/.test(feed), "member POST → API");
+  ok(!/firebase-firestore/.test(feed), "feedback.js has no Firestore");
+  ok(!/paaipe_event_feedback_questions/.test(feed), "no questions collection name");
+  ok(!/paaipe_event_feedback_responses/.test(feed), "no responses collection name");
+  ok(!/displayOrder/.test(feed), "order, never displayOrder");
+  const load = ev.slice(ev.indexOf("async function loadFeedbackTab"),
+                        ev.indexOf("function whoSeesCard"));
+  ok(/listFeedbackQuestions/.test(load) && /listFeedbackResponses/.test(load),
+     "Feedback tab still goes through the feedback helper");
+  const save = ev.slice(ev.indexOf("async function saveFeedbackForm"),
+                        ev.indexOf("async function loadReportsTab"));
+  ok(/writeFeedbackQuestions/.test(save), "Save form PUTs through writeFeedbackQuestions");
+  ok(/listFeedbackQuestions/.test(reports) && /listFeedbackResponses/.test(reports),
+     "Reports stay FE-computed from the feedback helper");
+  ok(!/\/v1\/admin\/events\/.*\/feedback\/reports/.test(feed + reports + ev),
+     "no invented reports table");
 });
 
 await T("admin JS hard-cuts Settings + Registrations off Firestore", () => {

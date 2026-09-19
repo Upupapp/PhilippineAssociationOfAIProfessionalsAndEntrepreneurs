@@ -16,9 +16,10 @@
  *   in a page, and a page is the thing we are keeping it out of.
  *
  * Event create / content / settings / duplicate / the admin list / the
- * calendar file go to api.paaipe.org. Sponsors, partners, orgs, activity
- * log, Zoom private, Feedback and Reports stay on Firestore until those
- * routes exist. Email drafts stay in this browser (never Firestore).
+ * calendar file go to api.paaipe.org. Feedback questions and responses
+ * go to the Feedback API. Reports stay FE-computed from that payload.
+ * Sponsors, partners, orgs, activity log, and Zoom private stay on
+ * Firestore. Email drafts stay in this browser (never Firestore).
  * Email send is still 501.
  */
 import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
@@ -562,7 +563,7 @@ async function loadFeedbackTab(eventId) {
   const cited = fb.ok ? citedQuestionIds(fb.rows)
     : new Set(qs.rows.map(q => q.id).filter(Boolean));
   const active = qs.rows.filter(q => q.active);
-  // Seed the starter four only when this event has no question docs at all.
+  // Seed the starter four only when this event has no published questions yet.
   // If every existing doc is inactive, do not reuse those keys.
   const seed = qs.rows.length === 0;
   const rows = active.length
@@ -608,12 +609,14 @@ async function saveFeedbackForm(eventId) {
     const cited = fb.ok ? citedQuestionIds(fb.rows)
       : new Set(next.map(q => q.id).filter(Boolean));
     await writeFeedbackQuestions(eventId, next, { citedIds: cited });
-    flash("Saved. The public form reads these question documents.", true);
+    flash("Saved. The public form reads these questions.", true);
     LOADED.delete(`${eventId}:feedback`);
     await loadFeedbackTab(eventId);
   } catch (ex) {
-    flash(ex?.code === "permission-denied" || ex?.code === "unavailable"
-      ? (ex.message || "The questions collection is not available yet. Nothing was stored.")
+    const code = ex?.code || "";
+    flash(code === "permission-denied" || code === "unavailable"
+      || code === "api/unauthorized" || code === "api/forbidden" || code === "not-signed-in"
+      ? (ex.message || "The questions API is not available yet. Nothing was stored.")
       : `Could not save the form: ${ex?.message || ex}`);
   }
 }

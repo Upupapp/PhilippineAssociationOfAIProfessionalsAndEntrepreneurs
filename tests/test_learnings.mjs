@@ -737,14 +737,13 @@ async function measureWatch(p, injectInline) {
     const layout = document.querySelector(".watch-layout");
     const player = document.querySelector(".player");
     const r = player.getBoundingClientRect();
-    const content = document.querySelector(".content");
-    const cw = content ? content.getBoundingClientRect().width : 0;
+    const layoutW = layout ? layout.getBoundingClientRect().width : 0;
     const hit = document.querySelector(".player .pl span") || player;
     const hb = hit.getBoundingClientRect();
     return {
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       playerW: r.width,
-      contentW: cw,
+      layoutW,
       cols: getComputedStyle(layout).gridTemplateColumns,
       hitW: hb.width,
       hitH: hb.height,
@@ -756,7 +755,7 @@ await T("watch page at 320 has no overflow and a full-width player (R-02)", asyn
   const { p, ctx } = await openWatch({ width: 320, height: 568 });
   const m = await measureWatch(p, false);
   ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
-  ok(m.playerW + 1 >= m.contentW * 0.9, `player ≈ content column (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
+  ok(m.playerW + 1 >= m.layoutW * 0.95, `player ≈ layout column (${m.playerW.toFixed(1)} vs ${m.layoutW.toFixed(1)})`);
   ok(m.cols.trim().split(/\s+/).length === 1, `single column at 320, got ${m.cols}`);
   ok(m.hitW >= 44 && m.hitH >= 44, `hit ${m.hitW.toFixed(1)}×${m.hitH.toFixed(1)} ≥ 44`);
   await ctx.close();
@@ -767,7 +766,7 @@ await T("watch page at 390 has no overflow and a full-width player (R-02)", asyn
   const m = await measureWatch(p, false);
   ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
   ok(m.playerW >= 320, `player ${m.playerW.toFixed(1)}px ≥ 320`);
-  ok(m.playerW + 1 >= m.contentW * 0.9, `player ≈ content column (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
+  ok(m.playerW + 1 >= m.layoutW * 0.95, `player ≈ layout column (${m.playerW.toFixed(1)} vs ${m.layoutW.toFixed(1)})`);
   ok(m.cols.trim().split(/\s+/).length === 1, `single column at 390, got ${m.cols}`);
   ok(m.hitW >= 44 && m.hitH >= 44, `hit ${m.hitW.toFixed(1)}×${m.hitH.toFixed(1)} ≥ 44`);
   await ctx.close();
@@ -779,8 +778,8 @@ await T("injected inline 1.55/.65 still stacks at 320 and 390 (R-02)", async () 
     const m = await measureWatch(p, true);
     ok(m.overflow <= 0, `${vp.width}: overflow ${m.overflow} ≤ 0 after inline inject`);
     ok(m.cols.trim().split(/\s+/).length === 1, `${vp.width}: still one column, got ${m.cols}`);
-    ok(m.playerW + 1 >= m.contentW * 0.9,
-      `${vp.width}: player ≈ content (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
+    ok(m.playerW + 1 >= m.layoutW * 0.95,
+      `${vp.width}: player ≈ layout (${m.playerW.toFixed(1)} vs ${m.layoutW.toFixed(1)})`);
     await ctx.close();
   }
 });

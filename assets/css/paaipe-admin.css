@@ -627,3 +627,19 @@ body[data-admin-reports] table.card{background:#fff;border:1px solid var(--line)
 body[data-admin-reports] table.card th,
 body[data-admin-reports] table.card td{padding:14px 16px}
 
+/* ============================================================ contacts === */
+body[data-admin-contacts] .top .search{display:none}
+body[data-admin-contacts] .inbox-bar{display:flex;flex-direction:column;gap:8px;margin-bottom:8px}
+body[data-admin-contacts] .chips{margin-bottom:0}
+body[data-admin-contacts] .type-stack{display:flex;flex-direction:column;align-items:flex-start;gap:4px}
+body[data-admin-contacts] .type-row{display:inline-flex;flex-wrap:wrap;align-items:center;gap:6px}
+body[data-admin-contacts] .cell-stack{display:flex;flex-direction:column;align-items:flex-start;gap:2px}
+body[data-admin-contacts] .cell-stack span{display:block}
+body[data-admin-contacts] tr[data-email]{cursor:pointer}
+body[data-admin-contacts] .papp-title{display:flex;align-items:center;gap:10px;flex-wrap:wrap;min-width:0}
+body[data-admin-contacts] .detail .dhead{align-items:center}
+body[data-admin-contacts] .detail .dhead b{display:inline;font-size:17px;color:var(--navy)}
+body[data-admin-contacts] .papp-band + .papp-band{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+body[data-admin-contacts] .tally-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+body[data-admin-contacts] .tally-line .chips{flex:1;margin:0}
+body[data-admin-contacts] .tally-line .count{margin-left:auto;white-space:nowrap}

@@ -391,7 +391,7 @@ await T('Reports nav sits under Events, after Events, before Registrations',()=>
   const nav=js.slice(js.indexOf('export const ADMIN_NAV'), js.indexOf('const ICONS'));
   const events=nav.indexOf('admin-events.html');
   const reports=nav.indexOf('admin-reports.html');
-  const regs=nav.indexOf('admin-registrations.html');
+  const regs=nav.indexOf('label: "Registrations"');
   ok(events>=0&&reports>events&&regs>reports,`order events=${events} reports=${reports} regs=${regs}`);
 });
 

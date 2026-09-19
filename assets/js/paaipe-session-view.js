@@ -5,11 +5,12 @@
  * position, a watched percentage and an "Attended" badge - all invented. A play
  * button that cannot play is the same defect as a claim that cannot be true.
  *
- * Playback is in-portal only: youtube-nocookie embed. Learnings cards open a
- * centered 16:9 popup (same lock as Watch). No "Open on YouTube", no copyable
- * URL field, no new-tab handoff. The video id still appears in the iframe src /
- * network traffic; unlisted ≠ DRM. This does not stop someone reading the
- * iframe src in devtools.
+ * Playback is in-portal only. YouTube uses a nocookie embed + grab shield.
+ * source=upload uses a native <video> whose src is the row's storagePath on
+ * media.paaipe.org (never invented). Learnings cards open a centered popup
+ * (16:9 sessions, 9:16 micros). No "Open on YouTube", no copyable URL field,
+ * no new-tab handoff. The YouTube id still appears in the iframe src /
+ * network traffic; unlisted ≠ DRM.
  */
 import {
   PAST_SESSIONS,
@@ -136,15 +137,74 @@ function mountYtGrabShield(player) {
   player.appendChild(grab);
 }
 
+/** Playback URL for an upload row. Uses storagePath as-is when it already
+ *  starts with http; otherwise prefixes https://media.paaipe.org/. */
+function mediaPlaybackUrl(storagePath) {
+  const raw = String(storagePath ?? "").trim();
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return `https://media.paaipe.org/${raw.replace(/^\/+/, "")}`;
+}
+
+function isUploadPlayable(row) {
+  return row?.source === LEARNING_SOURCE.UPLOAD && !!mediaPlaybackUrl(row.storagePath);
+}
+
 function destroyEmbed(player) {
   if (!player) return;
   try { player._ytPlayer?.destroy?.(); } catch { /* already gone */ }
   player._ytPlayer = null;
+  player.querySelectorAll("video").forEach(v => {
+    try { v.pause(); v.removeAttribute("src"); v.load(); } catch { /* ignore */ }
+  });
   player.innerHTML = "";
 }
 
+function fillPlayerBox(el) {
+  Object.assign(el.style, {
+    position: "absolute",
+    inset: "0",
+    width: "100%",
+    height: "100%",
+    border: "0",
+  });
+}
+
+function mountUploadVideo(player, rec, { autoplay = false } = {}) {
+  const url = mediaPlaybackUrl(rec?.storagePath);
+  if (!player || !url) return;
+  destroyEmbed(player);
+  player.classList.add("is-embed");
+  player.style.background = "#0a1c3e";
+  if (getComputedStyle(player).position === "static") {
+    player.style.position = "relative";
+  }
+  const video = document.createElement("video");
+  video.src = url;
+  video.controls = true;
+  video.playsInline = true;
+  video.setAttribute("playsinline", "");
+  video.setAttribute("controls", "");
+  video.preload = "metadata";
+  if (rec.posterUrl) video.poster = rec.posterUrl;
+  video.title = rec.title || "Session recording";
+  fillPlayerBox(video);
+  video.style.objectFit = "contain";
+  video.style.background = "#0a1c3e";
+  player.appendChild(video);
+  if (autoplay) {
+    video.autoplay = true;
+    video.play().catch(() => { /* browser may block autoplay until a gesture */ });
+  }
+}
+
 function mountEmbed(player, rec, { autoplay = false } = {}) {
-  if (!player || !rec?.youtubeId) return;
+  if (!player || !rec) return;
+  if (isUploadPlayable(rec)) {
+    mountUploadVideo(player, rec, { autoplay });
+    return;
+  }
+  if (!rec.youtubeId) return;
   destroyEmbed(player);
   player.classList.add("is-embed");
   player.style.background = "#0a1c3e";
@@ -254,7 +314,7 @@ function ensureWatchPopup() {
 }
 
 function openWatchPopup(row, { aspect = "16:9", opener = null, syncUrl = true } = {}) {
-  if (!row?.youtubeId) return;
+  if (!isUploadPlayable(row) && !row?.youtubeId) return;
   const pop = ensureWatchPopup();
   const panel = pop.querySelector("[data-ss-watch-panel]");
   const stage = pop.querySelector("[data-ss-popup-player]");
@@ -275,7 +335,9 @@ function openWatchPopup(row, { aspect = "16:9", opener = null, syncUrl = true } 
 function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
   if (!stage) return;
   stage.innerHTML = "";
-  if (row.source === LEARNING_SOURCE.YOUTUBE && row.youtubeId) {
+  const uploadUrl = isUploadPlayable(row) ? mediaPlaybackUrl(row.storagePath) : "";
+  const youtubePlayable = row.source === LEARNING_SOURCE.YOUTUBE && row.youtubeId;
+  if (youtubePlayable || uploadUrl) {
     const poster = posterUrlFor(row);
     if (poster) {
       const img = document.createElement("img");
@@ -283,6 +345,22 @@ function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
       img.alt = "";
       img.draggable = false;
       stage.appendChild(img);
+    } else if (uploadUrl) {
+      const preview = document.createElement("video");
+      preview.src = uploadUrl;
+      preview.muted = true;
+      preview.playsInline = true;
+      preview.setAttribute("playsinline", "");
+      preview.preload = "metadata";
+      preview.setAttribute("aria-hidden", "true");
+      preview.draggable = false;
+      Object.assign(preview.style, {
+        width: "100%",
+        height: "100%",
+        objectFit: "cover",
+        display: "block",
+      });
+      stage.appendChild(preview);
     }
     const play = document.createElement("button");
     play.type = "button";

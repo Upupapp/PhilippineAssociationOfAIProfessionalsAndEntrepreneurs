@@ -1,6 +1,7 @@
 /* PAAIPE — Agent Portal Event Details (Overview / Feedback / Certificate).
  *
- * URL scheme (locked, URL-sweep — keep the hash, do not add portal-event.html):
+ * URL scheme lives in paaipe-portal-event-url.js (locked hash, URL-sweep —
+ * do not add portal-event.html unless that page is actually shipped):
  *   portal-events.html#event=<id>
  *   portal-events.html#event=<id>&tab=feedback
  *   portal-events.html#event=<id>&tab=certificate
@@ -341,23 +342,6 @@ export function programRows(ev) {
   return Array.isArray(ev?.program)
     ? ev.program.filter(r => r && (r.time || r.item))
     : [];
-}
-
-/** Register form URL that can send the Agent back to Event Details.
- *  ?from=portal is the hint the form trusts; ?event= names the #event= hash. */
-export function registerFromPortalHref(href, eventId) {
-  const path = String(href || "").trim();
-  if (!path) return "";
-  const id = String(eventId || "").trim();
-  try {
-    const u = new URL(path, "https://paaipe.org/");
-    u.searchParams.set("from", "portal");
-    if (id) u.searchParams.set("event", id);
-    return `${u.pathname.replace(/^\//, "")}${u.search}`;
-  } catch {
-    const q = id ? `from=portal&event=${encodeURIComponent(id)}` : "from=portal";
-    return path.includes("?") ? `${path}&${q}` : `${path}?${q}`;
-  }
 }
 
 /** Test hook: ?paaipe_now=ISO or window.PAAIPE_NOW. Production uses the clock. */

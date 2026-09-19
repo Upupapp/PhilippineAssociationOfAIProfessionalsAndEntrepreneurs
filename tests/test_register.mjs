@@ -408,11 +408,6 @@ await T('helpers map the portal hint onto Event Details and leave the public bac
       back: m.portalBackHref('2026-12-ai-exchange'),
     };
   });
-  eq(r.hint,true,'from=portal');
-  eq(r.public,false,'no hint');
-  eq(r.id,'2026-12-ai-exchange','query event');
-  eq(r.formId,'2026-10-ai-exchange','form fallback');
-  eq(r.back,'portal-events.html#event=2026-12-ai-exchange','#37 Event Details');
   const url=await p.evaluate(async()=>{
     const u=await import('/assets/js/paaipe-portal-event-url.js');
     return {
@@ -423,6 +418,11 @@ await T('helpers map the portal hint onto Event Details and leave the public bac
       hrefFb: u.portalEventDetailHref('2026-09-ai-exchange','feedback'),
     };
   });
+  eq(r.hint,true,'from=portal');
+  eq(r.public,false,'no hint');
+  eq(r.id,'2026-12-ai-exchange','query event');
+  eq(r.formId,'2026-10-ai-exchange','form fallback');
+  eq(r.back,'portal-events.html#event=2026-12-ai-exchange','#37 Event Details');
   eq(url.page,'portal-events.html','PAGE is the live list');
   eq(url.idKey,'event','ID_KEY is #event=');
   eq(url.form,'hash','FORM is hash until Ericson lands query');

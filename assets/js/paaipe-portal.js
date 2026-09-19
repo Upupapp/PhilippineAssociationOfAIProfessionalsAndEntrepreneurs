@@ -25,7 +25,7 @@ function signInHref() {
   const page = samePage(location.pathname, "portal.html");
   const hash = String(location.hash || "");
   const play = /(?:^|[?#&])play=([\w-]+)/.exec(hash);
-  const tab = /(?:^|[?#&])tab=(sessions|micros)/.exec(hash);
+  const tab = /(?:^|[?#&])tab=(sessions|micros|playlists)/.exec(hash);
   if (page === "portal-sessions.html" && play) {
     const kind = tab ? tab[1] : "sessions";
     return `signin.html?next=${encodeURIComponent(`portal-sessions.html#tab=${kind}&play=${play[1]}`)}`;

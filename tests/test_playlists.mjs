@@ -1,4 +1,4 @@
-/* Playlists — Clarence lock, portal grouping, admin tab. */
+/* Playlists — Clarence lock, admin tab, portal chrome (Linode API hub reads). */
 import { readFileSync, existsSync } from "fs";
 import { chromium } from "playwright";
 
@@ -53,6 +53,12 @@ await T("linkage is only itemIds — no playlistId on Session/Micro docs", () =>
 await T("Clarence lock: collection and field names are exact", () => {
   const src = read("assets/js/paaipe-playlists-data.js");
   ok(src.includes('PLAYLISTS_COL = "paaipe_playlists"'), "collection constant");
+  ok(!/firebase-firestore/.test(src), "no Firestore playlist reads");
+  ok(src.includes("listApiPlaylists") && src.includes("listApiPlaylistItems"),
+    "public list/get/items go through paaipe-api");
+  ok(src.includes("listAdminPlaylists") && src.includes("postAdminPlaylist")
+    && src.includes("patchAdminPlaylist"),
+    "admin list/create/update go through paaipe-api");
   ok(!/PROVISIONAL_|pending_clarence|_awaiting/.test(src), "no provisional prefix");
   for (const field of ["title", "description", "kind", "itemIds", "status", "displayOrder", "publishedAt", "createdAt", "updatedAt", "updatedBy"]) {
     ok(src.includes(field), `field ${field}`);
@@ -74,7 +80,9 @@ await T("UI copy says Playlist, not collection/series/channel", () => {
   for (const p of files) {
     const s = read(p);
     ok(!/\b(collection|series|channel)s?\b/i.test(s.replace(/playlist/ig, "")), `no synonym in ${p}`);
-    if (p.includes("admin-learnings")) ok(/Playlists/.test(s), `${p} uses Playlists`);
+    if (p.includes("admin-learnings") || p.includes("portal-sessions")) {
+      ok(/Playlists/.test(s), `${p} uses Playlists`);
+    }
   }
 });
 
@@ -228,6 +236,10 @@ const plStub = (playlists) => `
   export * from '/assets/js/paaipe-playlists-data-real.js';
   export async function listPublishedPlaylists(){ return ${JSON.stringify(playlists)} }
   export async function listPlaylists(){ return ${JSON.stringify(playlists)} }
+  export async function getPlaylist(id){
+    return ${JSON.stringify(playlists)}.find(p => p.id === id) || null;
+  }
+  export async function listPlaylistItems(){ return [] }
 `;
 
 const fbAdmin = `
@@ -296,15 +308,12 @@ async function openHub({ sessions = [], micros = MICROS, playlists = [PLAYLIST],
   return { p, ctx };
 }
 
-await T("portal Micros groups the four clips inside From Signals to Strategy", async () => {
+await T("portal Micros lists four clips ungrouped, without Firestore playlist blocks", async () => {
   const { p, ctx } = await openHub();
   await p.locator('[data-ss-hub-tab="micros"]').click();
-  const block = p.locator('[data-playlist="pl-signals"]');
-  ok(await block.isVisible(), "playlist block");
-  eq(await block.locator("h3").innerText(), "From Signals to Strategy", "playlist title");
-  ok((await block.locator(".playlist-head p").innerText()).includes("Sven Bally"), "playlist description");
-  eq(await block.locator(".micro-card").count(), 4, "four cards in order");
-  const titles = await block.locator(".micro-card .cap").allInnerTexts();
+  eq(await p.locator('[data-ss-hub-panel="micros"] [data-playlist]').count(), 0, "no playlist blocks");
+  eq(await p.locator('[data-ss-hub-panel="micros"] .micro-card').count(), 4, "four cards");
+  const titles = await p.locator('[data-ss-hub-panel="micros"] .micro-card .cap').allInnerTexts();
   eq(titles[0], "Start with the question, not the dashboard", "card 1 title");
   eq(titles[1], "Signals vs noise", "card 2 title");
   eq(titles[2], "From insight to a next step", "card 3 title");
@@ -313,15 +322,15 @@ await T("portal Micros groups the four clips inside From Signals to Strategy", a
   await ctx.close();
 });
 
-await T("play chrome shows the Micro title and the Playlist description", async () => {
+await T("play chrome shows the Micro title and the Micro description", async () => {
   const { p, ctx } = await openHub();
   await p.locator('[data-ss-hub-tab="micros"]').click();
   await p.locator(".micro-card [data-ss-open-player]").first().click();
   await p.locator("[data-ss-watch-popup]").waitFor({ state: "visible" });
   eq(await p.locator("[data-ss-watch-title]").innerText(),
     "Start with the question, not the dashboard", "chrome title");
-  ok((await p.locator("[data-ss-watch-desc]").innerText()).includes("Watch in order"),
-    "playlist description in chrome");
+  ok((await p.locator("[data-ss-watch-desc]").innerText()).includes("name the decision"),
+    "micro description in chrome");
   eq(await p.locator("[data-ss-watch-panel]").getAttribute("data-aspect"), "9:16", "9:16");
   await ctx.close();
 });
@@ -382,13 +391,56 @@ await T("after sign-in, that same next URL opens the Micro on Micros", async () 
   await ctx.close();
 });
 
-await T("unpublished playlist is hidden; its items stay visible ungrouped", async () => {
+await T("draft playlists stay off the Playlists tab; published API rows show", async () => {
   const { p, ctx } = await openHub({
     playlists: [{ ...PLAYLIST, status: "draft" }],
   });
   await p.locator('[data-ss-hub-tab="micros"]').click();
-  eq(await p.locator("[data-playlist]").count(), 0, "no draft block");
+  eq(await p.locator("[data-playlist]").count(), 0, "no playlist grouping");
   eq(await p.locator(".micro-card").count(), 4, "items still listed");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  eq(await p.locator("[data-ss-live-playlists] [data-playlist]").count(), 0, "draft hidden");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "empty published playlists");
+  await ctx.close();
+});
+
+await T("Playlists tab after Micros lists the seeded micros playlist from the API", async () => {
+  const { p, ctx } = await openHub();
+  const tabs = p.locator("[data-ss-hub-tab]");
+  eq(await tabs.count(), 3, "three tabs");
+  eq(await tabs.nth(0).innerText(), "Sessions", "Sessions first");
+  eq(await tabs.nth(1).innerText(), "Micros", "Micros second");
+  eq(await tabs.nth(2).innerText(), "Playlists", "Playlists third");
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator("[data-ss-micro-count]").innerText(), "4 published · 9:16", "micro count matches list");
+  eq(await p.locator('[data-ss-hub-panel="micros"] .micro-card').count(), 4, "four micros");
+  eq(await p.locator('[data-ss-hub-panel="micros"] [data-playlist]').count(), 0,
+    "Micros stay ungrouped");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "1 published", "one published playlist");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 1,
+    "lists the API playlist");
+  ok((await p.locator("[data-ss-live-playlists]").innerText()).includes("From Signals to Strategy"),
+    "seeded title");
+  ok((await p.locator("[data-ss-live-playlists]").innerText()).includes("4 items"), "item count");
+  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");
+  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "no auto-play");
+  await ctx.close();
+});
+
+await T("Open playlist paints the four micros and keeps Sessions/Micros ungrouped", async () => {
+  const { p, ctx } = await openHub();
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.locator("[data-ss-open-playlist]").click();
+  await p.waitForFunction(() => /playlist=pl-signals/.test(location.hash), { timeout: 4000 });
+  await p.waitForSelector('[data-ss-hub-panel="playlists"] .micro-card', { timeout: 5000 });
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 4, "four items");
+  const titles = await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').allInnerTexts();
+  eq(titles[0], "Start with the question, not the dashboard", "item 1");
+  eq(titles[3], "Keep the story honest", "item 4");
+  await p.locator('[data-ss-hub-tab="sessions"]').click();
+  eq(await p.locator('[data-ss-hub-panel="sessions"] [data-playlist]').count(), 0, "sessions ungrouped");
   await ctx.close();
 });
 

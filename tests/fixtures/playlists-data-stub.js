@@ -16,3 +16,11 @@ export async function listPublishedPlaylists() {
 export async function listPlaylists() {
   return [];
 }
+
+export async function getPlaylist() {
+  return null;
+}
+
+export async function listPlaylistItems() {
+  return [];
+}

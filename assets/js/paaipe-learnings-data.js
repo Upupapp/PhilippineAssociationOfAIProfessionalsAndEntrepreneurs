@@ -1,28 +1,39 @@
 /* PAAIPE — Sessions and Micros (Learnings).
  *
- * Two collections, Clarence's schema, locked:
- *   paaipe_sessions  — landscape 16:9 recordings
- *   paaipe_micros    — vertical 9:16 clips
+ * Portal / public reads and admin writes are hard-cut to api.paaipe.org.
+ * Firebase is Auth/users (Bearer) only on this path.
  *
- * Do NOT extend paaipe_recordings. Portal reads published==true ordered by
- * displayOrder asc. Admin writes go through isAdmin() in firestore.rules.
+ * Public (no Bearer):
+ *   GET /v1/sessions          { sessions: [...] }
+ *   GET /v1/sessions/{id}
+ *   GET /v1/micros            { micros: [...] }
+ *   GET /v1/micros/{id}
+ *
+ * Admin (Bearer + allow-list). Live-confirmed:
+ *   POST  /v1/admin/sessions
+ *   PATCH /v1/admin/sessions/{id}
+ *   POST  /v1/admin/micros
+ *   PATCH /v1/admin/micros/{id}
+ * GET /v1/admin/sessions and GET /v1/admin/micros 404 — admin list uses
+ * the public GETs (published only). DELETE 404 — remove fails honestly.
+ *
+ * Wire camelCase fields as returned: itemIds, displayOrder, publishedAt,
+ * youtubeUrl, youtubeId, posterUrl, aspect, title, description, kind,
+ * status, source, published, storagePath, posterStoragePath.
  *
  * Upload POSTs to media.paaipe.org and stores the returned path as
  * storagePath / posterStoragePath. YouTube remains the other path.
  */
-import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
-
-const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
-let _db = null;
-
-async function db() {
-  if (_db) return _db;
-  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
-  const { getFirestore } = await import(`${SDK}/firebase-firestore.js`);
-  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
-  _db = getFirestore(app, DATABASE_ID);
-  return _db;
-}
+import {
+  listApiSessions,
+  getApiSession,
+  listApiMicros,
+  getApiMicro,
+  postAdminSession,
+  patchAdminSession,
+  postAdminMicro,
+  patchAdminMicro,
+} from "/assets/js/paaipe-api.js";
 
 export const LEARNINGS_COL = {
   sessions: "paaipe_sessions",
@@ -100,34 +111,44 @@ function row(doc) {
   return { id: doc.id, ...doc.data() };
 }
 
-/** Admin: every row, ordered by displayOrder then createdAt. */
-export async function listLearnings(kind, { asAdmin = false } = {}) {
-  const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const col = F.collection(await db(), colName);
-  let q;
-  if (asAdmin) {
-    q = F.query(col, F.orderBy("displayOrder", "asc"));
-  } else {
-    q = F.query(col, F.where("published", "==", true), F.orderBy("displayOrder", "asc"));
+function missingAsNull(err) {
+  if (err && (err.status === 404 || err.code === "api/not-found")) return null;
+  throw err;
+}
+
+async function bearerToken(opts = {}) {
+  if (opts.token) return opts.token;
+  const { idTokenForRequest } = await import("/assets/js/paaipe-firebase.js");
+  const token = await idTokenForRequest();
+  if (!token) {
+    throw Object.assign(new Error("You need to be signed in."), { code: "not-signed-in" });
   }
-  const snap = await F.getDocs(q);
-  return snap.docs.map(row);
+  return token;
+}
+
+/** Public published rows from the API. GET /v1/admin/sessions|micros 404,
+ *  so asAdmin cannot invent a draft list — same published set. */
+export async function listLearnings(kind, { asAdmin = false } = {}) {
+  void asAdmin;
+  return kind === "micros" ? listPublishedMicros() : listPublishedSessions();
 }
 
 export async function listPublishedSessions() {
-  return listLearnings("sessions", { asAdmin: false });
+  return listApiSessions();
 }
 
 export async function listPublishedMicros() {
-  return listLearnings("micros", { asAdmin: false });
+  return listApiMicros();
 }
 
 export async function getLearning(kind, id) {
-  const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const s = await F.getDoc(F.doc(await db(), colName, id));
-  return s.exists() ? row(s) : null;
+  const safe = String(id || "").trim();
+  if (!safe) return null;
+  try {
+    return kind === "micros" ? await getApiMicro(safe) : await getApiSession(safe);
+  } catch (err) {
+    return missingAsNull(err);
+  }
 }
 
 /**
@@ -196,63 +217,38 @@ export function buildLearningPayload(input, { actor, existing = null } = {}) {
   };
 }
 
-export async function saveLearning(kind, id, input, { actor } = {}) {
-  const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const firestore = await db();
-  let existing = null;
-  if (id) {
-    const s = await F.getDoc(F.doc(firestore, colName, id));
-    if (s.exists()) existing = row(s);
-  }
+export async function saveLearning(kind, id, input, { actor, token } = {}) {
+  const existing = id ? await getLearning(kind, id) : null;
   const payload = buildLearningPayload(input, { actor, existing });
-  const stampPublished = payload._stampPublishedAt;
   delete payload._stampPublishedAt;
-
-  const data = {
-    ...payload,
-    publishedAt: stampPublished ? F.serverTimestamp()
-      : (payload.publishedAt === null ? null : payload.publishedAt),
-    updatedAt: F.serverTimestamp(),
-    updatedBy: actor || null,
-  };
-  if (!id) {
-    data.createdAt = F.serverTimestamp();
-    const ref = await F.addDoc(F.collection(firestore, colName), data);
-    return ref.id;
+  const body = { ...payload, ...(id ? { id } : {}) };
+  const tok = await bearerToken({ token });
+  const opts = { token: tok };
+  if (kind === "micros") {
+    return id ? (await patchAdminMicro(id, body, opts), id) : postAdminMicro(body, opts);
   }
-  if (!existing) data.createdAt = F.serverTimestamp();
-  await F.setDoc(F.doc(firestore, colName, id), data, { merge: true });
-  return id;
+  return id ? (await patchAdminSession(id, body, opts), id) : postAdminSession(body, opts);
 }
 
-export async function deleteLearning(kind, id) {
-  const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  await F.deleteDoc(F.doc(await db(), colName, id));
+export async function deleteLearning(_kind, _id) {
+  void _kind;
+  void _id;
+  throw Object.assign(
+    new Error("Delete is not on api.paaipe.org yet (DELETE 404). Nothing was changed."),
+    { code: "api/not-wired" }
+  );
 }
 
-/** Persist a new displayOrder sequence after drag-reorder. Index 0 → order 1. */
-export async function reorderLearnings(kind, orderedIds, { actor } = {}) {
-  const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const firestore = await db();
-  const batch = F.writeBatch(firestore);
-  orderedIds.forEach((id, i) => {
-    batch.set(F.doc(firestore, colName, id), {
-      displayOrder: i + 1,
-      updatedAt: F.serverTimestamp(),
-      updatedBy: actor || null,
-    }, { merge: true });
-  });
-  await batch.commit();
+/** Persist a new displayOrder sequence after drag-reorder. Index 0 → order 1.
+ *  No reorder route — PATCH each row's displayOrder on the confirmed path. */
+export async function reorderLearnings(kind, orderedIds, { actor, token } = {}) {
+  const tok = await bearerToken({ token });
+  const patch = kind === "micros" ? patchAdminMicro : patchAdminSession;
+  for (let i = 0; i < orderedIds.length; i++) {
+    await patch(orderedIds[i], { displayOrder: i + 1, updatedBy: actor || null }, { token: tok });
+  }
 }
 
-export async function logLearningActivity(action, details, { actor, kind = null } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  try {
-    await F.addDoc(F.collection(await db(), LEARNINGS_COL.log), {
-      action, details, kind, actor: actor || null, at: F.serverTimestamp(),
-    });
-  } catch { /* activity log is best-effort */ }
+export async function logLearningActivity(_action, _details, _opts = {}) {
+  /* No activity-log route is documented. Best-effort no-op. */
 }

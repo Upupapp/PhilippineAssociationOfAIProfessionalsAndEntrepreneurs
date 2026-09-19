@@ -178,6 +178,7 @@ const plStub = `
   export * from '/assets/js/paaipe-playlists-data-real.js';
   export async function listPublishedPlaylists(){ return [] }
   export async function listPlaylists(){ return [] }
+  export async function listPlaylistItems(){ return [] }
 `;
 
 async function openHub(hash = "") {

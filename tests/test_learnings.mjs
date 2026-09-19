@@ -80,11 +80,36 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   const h = read("portal-sessions.html");
   ok(h.includes("data-ss-live-sessions"), "live sessions mount");
   ok(h.includes("data-ss-live-micros"), "live micros mount");
+  ok(h.includes('data-ss-hub-tab="playlists"'), "playlists tab");
+  ok(h.includes("data-ss-live-playlists"), "live playlists mount");
+  const tabSessions = h.indexOf('data-ss-hub-tab="sessions"');
+  const tabMicros = h.indexOf('data-ss-hub-tab="micros"');
+  const tabPlaylists = h.indexOf('data-ss-hub-tab="playlists"');
+  ok(tabSessions >= 0 && tabMicros > tabSessions && tabPlaylists > tabMicros,
+    "tab order Sessions → Micros → Playlists");
+  ok(h.includes('role="tab"') && h.includes('aria-controls="ss-panel-playlists"'),
+    "Playlists tab uses the same tab markup");
+  ok(/<div class="hd"><h2>Playlists<\/h2><small data-ss-playlist-count>/.test(h),
+    "Playlists hd is title + count");
+  ok(!h.includes("data-ss-playlists-all"), "no extra All playlists chrome in hd");
   ok(!h.includes("data-ss-continue"), "no continue/attendance chrome");
   ok(!h.includes("data-ss-lesson-list"), "no hardcoded library list");
   const view = read("assets/js/paaipe-session-view.js");
   ok(view.includes("listPublishedSessions"), "fetches sessions");
   ok(view.includes("listPublishedMicros"), "fetches micros");
+  ok(/from\s+["']\/assets\/js\/paaipe-playlists-data\.js["']/.test(view),
+    "hub imports playlists-data");
+  ok(/\bloadOne\s*\(\s*(?:\(\)\s*=>\s*)?listPublishedPlaylists/.test(view),
+    "hub fetches playlists via the API module");
+  ok(!/firebase-firestore/.test(read("assets/js/paaipe-playlists-data.js")),
+    "playlists-data has no Firestore reads");
+  ok(/listApiSessions|listPublishedSessions/.test(read("assets/js/paaipe-learnings-data.js")),
+    "sessions list is wired");
+  ok(read("assets/js/paaipe-learnings-data.js").includes("listApiSessions"),
+    "published sessions come from the API");
+  ok(read("assets/js/paaipe-learnings-data.js").includes("listApiMicros"),
+    "published micros come from the API");
+  ok(view.includes("function loadOne"), "isolates each hub fetch");
   ok(view.includes("youtubeEmbedSrc"), "in-portal embed");
   ok(view.includes("LEARNING_SOURCE"), "uses LEARNING_SOURCE");
   ok(/createElement\(\s*"video"\s*\)/.test(view), "native video for uploads");
@@ -197,23 +222,53 @@ const fbStub = `
     };
   }`;
 
-const learnStub = (sessions, micros) => `
+const learnStub = (sessions, micros, { failSessions = false, failMicros = false } = {}) => `
   export * from '/assets/js/paaipe-learnings-data-real.js';
-  export async function listPublishedSessions(){ return ${JSON.stringify(sessions)} }
-  export async function listPublishedMicros(){ return ${JSON.stringify(micros)} }
+  export async function listPublishedSessions(){
+    ${failSessions ? `const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e;` : `return ${JSON.stringify(sessions)}`}
+  }
+  export async function listPublishedMicros(){
+    ${failMicros ? `const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e;` : `return ${JSON.stringify(micros)}`}
+  }
 `;
 
 const REAL_PL = read("assets/js/paaipe-playlists-data.js");
-const plStub = `
+const plStub = (playlists = [], { fail = false } = {}) => fail
+  ? `
   export * from '/assets/js/paaipe-playlists-data-real.js';
-  export async function listPublishedPlaylists(){ return [] }
+  export async function listPublishedPlaylists(){
+    const e = new Error("Missing or insufficient permissions.");
+    e.code = "permission-denied";
+    throw e;
+  }
   export async function listPlaylists(){ return [] }
+  export async function listPlaylistItems(){ return [] }
+`
+  : `
+  export * from '/assets/js/paaipe-playlists-data-real.js';
+  export async function listPublishedPlaylists(){ return ${JSON.stringify(playlists)} }
+  export async function listPlaylists(){ return ${JSON.stringify(playlists)} }
+  export async function getPlaylist(id){
+    return ${JSON.stringify(playlists)}.find(p => p.id === id) || null;
+  }
+  export async function listPlaylistItems(id){
+    const pl = ${JSON.stringify(playlists)}.find(p => p.id === id);
+    return (pl && Array.isArray(pl.items)) ? pl.items : [];
+  }
 `;
 
 const br = await chromium.launch();
 const errs = [];
 
-async function openHub({ sessions = SESSIONS, micros = [] } = {}) {
+async function openHub({
+  sessions = SESSIONS,
+  micros = [],
+  playlists = [],
+  playlistError = false,
+  failSessions = false,
+  failMicros = false,
+  hash = "",
+} = {}) {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
   p.on("pageerror", e => errs.push(String(e)));
@@ -224,12 +279,18 @@ async function openHub({ sessions = SESSIONS, micros = [] } = {}) {
   await p.route("**/assets/js/paaipe-learnings-data-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
-    r.fulfill({ contentType: "text/javascript", body: learnStub(sessions, micros) }));
+    r.fulfill({
+      contentType: "text/javascript",
+      body: learnStub(sessions, micros, { failSessions, failMicros }),
+    }));
   await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
   await p.route("**/assets/js/paaipe-playlists-data.js", r =>
-    r.fulfill({ contentType: "text/javascript", body: plStub }));
-  await p.goto(`${BASE}/portal-sessions.html`, { waitUntil: "load" });
+    r.fulfill({
+      contentType: "text/javascript",
+      body: plStub(playlists, { fail: playlistError }),
+    }));
+  await p.goto(`${BASE}/portal-sessions.html${hash}`, { waitUntil: "load" });
   await p.waitForSelector("html[data-sessions-ready]", { timeout: 9000 });
   return { p, ctx };
 }
@@ -391,6 +452,153 @@ await T("uploaded session with poster uses poster on the card and video in the p
   eq(await video.getAttribute("src"), "https://media.paaipe.org/session/s-up.webm", "absolute storagePath kept");
   eq(await video.getAttribute("poster"), "https://media.paaipe.org/poster/s-up.jpg", "poster on player");
   eq(await p.locator("[data-ss-popup-player] iframe").count(), 0, "YouTube path unused");
+  await ctx.close();
+});
+
+await T("session fetch error does not blank published Micros", async () => {
+  const micro = {
+    id: "m1",
+    title: "30-second takeaway",
+    source: "youtube",
+    youtubeId: "ePw_wlPqYUk",
+    published: true,
+    displayOrder: 1,
+  };
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [micro],
+    failSessions: true,
+  });
+  ok((await p.locator("[data-ss-live-sessions]").innerText()).includes("could not be loaded"),
+    "honest sessions fault");
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator(".micro-card").count(), 1, "micros still render");
+  await ctx.close();
+});
+
+await T("playlist stub failure does not blank published Sessions or Micros", async () => {
+  const micro = {
+    id: "m1",
+    title: "30-second takeaway",
+    source: "youtube",
+    youtubeId: "ePw_wlPqYUk",
+    published: true,
+    displayOrder: 1,
+  };
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [micro],
+    playlistError: true,
+  });
+  eq(await p.locator(".live-session").count(), 2, "sessions still render");
+  ok(!(await p.locator("[data-ss-sessions-empty]").isVisible()), "not the empty sessions state");
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator(".micro-card").count(), 1, "micros still render");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  ok(await p.locator('[data-ss-hub-panel="playlists"]').isVisible(), "playlists panel");
+  ok((await p.locator("[data-ss-live-playlists]").innerText()).includes("could not be loaded"),
+    "honest playlist fault — not an empty library");
+  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "must not look like none published");
+  await ctx.close();
+});
+
+const HUB_PLAYLIST = {
+  id: "pl-signals",
+  title: "From Signals to Strategy",
+  description: "Short lessons from Sven Bally’s AI Exchange session.",
+  kind: "micros",
+  itemIds: ["m-hub"],
+  status: "published",
+  displayOrder: 1,
+};
+const HUB_MICRO = {
+  id: "m-hub",
+  title: "Start with the question, not the dashboard",
+  source: "upload",
+  storagePath: "micros/micro-1.mp4",
+  published: true,
+  displayOrder: 1,
+};
+
+await T("Playlists tab lists the API-published micros playlist", async () => {
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+  });
+  eq(await p.locator(".live-session").count(), 2, "sessions stay visible");
+  eq(await p.locator("[data-ss-session-count]").innerText(), "2 published · 16:9", "session count matches list");
+  eq(await p.locator('[data-ss-hub-panel="sessions"] [data-playlist]').count(), 0,
+    "Sessions stay ungrouped");
+  const tabs = p.locator("[data-ss-hub-tab]");
+  eq(await tabs.count(), 3, "three hub tabs");
+  eq(await tabs.nth(2).innerText(), "Playlists", "Playlists after Micros");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "1 published", "chrome count");
+  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 1,
+    "one API playlist row");
+  ok((await p.locator('[data-ss-hub-panel="playlists"]').innerText()).includes("From Signals to Strategy"),
+    "seeded title");
+  await ctx.close();
+});
+
+await T("#tab=playlists hash restores the Playlists tab with the seeded row", async () => {
+  const pasted = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+    hash: "#tab=playlists",
+  });
+  ok(await pasted.p.locator('[data-ss-hub-tab="playlists"]').evaluate(el => el.classList.contains("on")),
+    "playlists tab");
+  eq(await pasted.p.locator("[data-ss-playlist-count]").innerText(), "1 published", "count");
+  ok((await pasted.p.locator("[data-ss-live-playlists]").innerText()).includes("From Signals to Strategy"),
+    "row on paste");
+  await pasted.ctx.close();
+
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+  });
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
+  await p.goBack();
+  await p.waitForFunction(() => /tab=sessions/.test(location.hash) || !location.hash, { timeout: 4000 });
+  ok(await p.locator('[data-ss-hub-panel="sessions"]').isVisible(), "Back returns to Sessions");
+  await ctx.close();
+});
+
+await T("Playlists tab is honestly empty when the API returns no playlists", async () => {
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [],
+  });
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "empty count");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "honest empty");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 0, "no rows");
+  await ctx.close();
+});
+
+await T("Open on the seeded playlist paints items and writes #playlist=", async () => {
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+  });
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.locator("[data-ss-open-playlist]").click();
+  await p.waitForFunction(() => /playlist=pl-signals/.test(location.hash), { timeout: 4000 });
+  await p.waitForSelector('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"] .micro-card', {
+    timeout: 5000,
+  });
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1, "hydrated item");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').innerText(),
+    "Start with the question, not the dashboard", "item title");
+  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "no auto-play");
   await ctx.close();
 });
 

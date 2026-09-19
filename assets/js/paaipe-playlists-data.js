@@ -1,7 +1,8 @@
 /* PAAIPE — Playlists.
  *
- * Clarence's schema, locked. Collection `paaipe_playlists` (auto-id) on
- * database `paaipe`. Do not invent collection or field names.
+ * Clarence's schema, locked. Collection name `paaipe_playlists` is the
+ * historical lock; portal / public reads are hard-cut to api.paaipe.org.
+ * Do not invent field names.
  *
  *   title        string — kind is NOT written into the title
  *   description  string, optional, ≤2000
@@ -12,34 +13,39 @@
  *   publishedAt  timestamp | null
  *   createdAt / updatedAt / updatedBy
  *
- * Portal reads status==published only, then splits by kind onto Sessions or
- * Micros. Archived stays in admin for restore. Publish integrity is enforced
- * here: every itemIds entry must exist and be published==true of that kind
- * before status may become published. The portal still skips missing or
- * unpublished ids so a later unpublish cannot blank the block.
+ * Public reads (no Bearer):
+ *   GET /v1/playlists?kind=micros|sessions → { playlists: [...] }
+ *   GET /v1/playlists/{id}
+ *   GET /v1/playlists/{id}/items           → { items: [...] } hydrated
+ *   Bare GET /v1/playlists is 400 — always pass ?kind=
  *
- * Linkage is ONLY itemIds on this collection. Do not write playlistId (or
- * anything like it) onto Session/Micro docs — one Micro may sit in more than
- * one Playlist later without rewriting the item.
+ * Admin (Bearer + allow-list). Live-confirmed:
+ *   GET/POST /v1/admin/playlists
+ *   GET/PATCH /v1/admin/playlists/{id}
+ * DELETE / PUT 404 — do not invent them.
+ *
+ * Archived stays in admin for restore. Publish integrity is enforced
+ * here: every itemIds entry must exist and be published==true of that kind
+ * before status may become published. groupLearningsByPlaylist still skips
+ * missing or unpublished ids so a later unpublish cannot blank a block.
+ *
+ * Linkage is ONLY itemIds. Do not write playlistId (or anything like it)
+ * onto Session/Micro docs — one Micro may sit in more than one Playlist
+ * later without rewriting the item.
  *
  * Sessions and Micros keep their own publish and their own displayOrder
- * reorder. This module does not write paaipe_sessions or paaipe_micros except
- * to read them for the publish check.
+ * reorder.
  */
-import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
 import { getLearning } from "/assets/js/paaipe-learnings-data.js";
-
-const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
-let _db = null;
-
-async function db() {
-  if (_db) return _db;
-  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
-  const { getFirestore } = await import(`${SDK}/firebase-firestore.js`);
-  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
-  _db = getFirestore(app, DATABASE_ID);
-  return _db;
-}
+import {
+  listApiPlaylists,
+  getApiPlaylist,
+  listApiPlaylistItems,
+  listAdminPlaylists,
+  getAdminPlaylist,
+  postAdminPlaylist,
+  patchAdminPlaylist,
+} from "/assets/js/paaipe-api.js";
 
 /** Clarence lock. One constant — this is the collection name. */
 export const PLAYLISTS_COL = "paaipe_playlists";
@@ -54,10 +60,6 @@ export const PLAYLIST_STATUS = {
 const TITLE_MAX = 200;
 const DESC_MAX = 2000;
 const ITEMS_MAX = 80;
-
-function row(doc) {
-  return { id: doc.id, ...doc.data() };
-}
 
 function sortByOrder(rows) {
   return [...rows].sort((a, b) => {
@@ -121,14 +123,19 @@ export function playlistForItem(playlists, itemId) {
   ).find(p => normalizeItemIds(p.itemIds).includes(id)) || null;
 }
 
-export async function listPlaylists({ asAdmin = false, kind = null } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const col = F.collection(await db(), PLAYLISTS_COL);
-  const q = asAdmin
-    ? F.query(col, F.orderBy("displayOrder", "asc"))
-    : F.query(col, F.where("status", "==", PLAYLIST_STATUS.PUBLISHED));
-  const snap = await F.getDocs(q);
-  let rows = snap.docs.map(row);
+async function bearerToken(opts = {}) {
+  if (opts.token) return opts.token;
+  const { idTokenForRequest } = await import("/assets/js/paaipe-firebase.js");
+  const token = await idTokenForRequest();
+  if (!token) {
+    throw Object.assign(new Error("You need to be signed in."), { code: "not-signed-in" });
+  }
+  return token;
+}
+
+export async function listPlaylists({ asAdmin = false, kind = null, token } = {}) {
+  if (!asAdmin) return listPublishedPlaylists(kind);
+  let rows = await listAdminPlaylists({ token: await bearerToken({ token }) });
   if (kind === PLAYLIST_KIND.SESSIONS || kind === PLAYLIST_KIND.MICROS) {
     rows = rows.filter(r => r.kind === kind);
   }
@@ -136,13 +143,30 @@ export async function listPlaylists({ asAdmin = false, kind = null } = {}) {
 }
 
 export async function listPublishedPlaylists(kind) {
-  return listPlaylists({ asAdmin: false, kind });
+  const filter = kind === PLAYLIST_KIND.SESSIONS || kind === PLAYLIST_KIND.MICROS
+    ? kind
+    : null;
+  return sortByOrder(await listApiPlaylists(filter));
 }
 
-export async function getPlaylist(id) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const s = await F.getDoc(F.doc(await db(), PLAYLISTS_COL, id));
-  return s.exists() ? row(s) : null;
+export async function getPlaylist(id, { asAdmin = false, token } = {}) {
+  const safe = String(id || "").trim();
+  if (!safe) return null;
+  try {
+    if (asAdmin) {
+      return await getAdminPlaylist(safe, { token: await bearerToken({ token }) });
+    }
+    return await getApiPlaylist(safe);
+  } catch (err) {
+    if (err && (err.status === 404 || err.code === "api/not-found")) return null;
+    throw err;
+  }
+}
+
+export async function listPlaylistItems(id) {
+  const safe = String(id || "").trim();
+  if (!safe) return [];
+  return listApiPlaylistItems(safe);
 }
 
 /**
@@ -216,56 +240,34 @@ export function buildPlaylistPayload(input, { actor, existing = null } = {}) {
   };
 }
 
-export async function savePlaylist(id, input, { actor } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const firestore = await db();
-  let existing = null;
-  if (id) {
-    const s = await F.getDoc(F.doc(firestore, PLAYLISTS_COL, id));
-    if (s.exists()) existing = row(s);
-  }
+export async function savePlaylist(id, input, { actor, token } = {}) {
+  const existing = id ? await getPlaylist(id, { asAdmin: true, token }) : null;
   const payload = buildPlaylistPayload(input, { actor, existing });
   if (payload.status === PLAYLIST_STATUS.PUBLISHED) {
     await assertPlaylistItemsPublishable(payload.kind, payload.itemIds);
   }
-  const stampPublished = payload._stampPublishedAt;
   delete payload._stampPublishedAt;
-
-  const data = {
-    ...payload,
-    publishedAt: stampPublished ? F.serverTimestamp()
-      : (payload.publishedAt === null ? null : payload.publishedAt),
-    updatedAt: F.serverTimestamp(),
-    updatedBy: actor || null,
-  };
-  if (!id) {
-    data.createdAt = F.serverTimestamp();
-    const ref = await F.addDoc(F.collection(firestore, PLAYLISTS_COL), data);
-    return ref.id;
-  }
-  if (!existing) data.createdAt = F.serverTimestamp();
-  await F.setDoc(F.doc(firestore, PLAYLISTS_COL, id), data, { merge: true });
+  const tok = await bearerToken({ token });
+  const body = { ...payload, ...(id ? { id } : {}) };
+  if (!id) return postAdminPlaylist(body, { token: tok });
+  await patchAdminPlaylist(id, body, { token: tok });
   return id;
 }
 
-export async function setPlaylistStatus(id, status, { actor } = {}) {
-  const existing = await getPlaylist(id);
+export async function setPlaylistStatus(id, status, { actor, token } = {}) {
+  const existing = await getPlaylist(id, { asAdmin: true, token });
   if (!existing) {
     throw Object.assign(new Error("That Playlist was not found."), { code: "not-found" });
   }
-  return savePlaylist(id, { ...existing, status }, { actor });
+  return savePlaylist(id, { ...existing, status }, { actor, token });
 }
 
-export async function reorderPlaylists(orderedIds, { actor } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const firestore = await db();
-  const batch = F.writeBatch(firestore);
-  orderedIds.forEach((id, i) => {
-    batch.set(F.doc(firestore, PLAYLISTS_COL, id), {
+export async function reorderPlaylists(orderedIds, { actor, token } = {}) {
+  const tok = await bearerToken({ token });
+  for (let i = 0; i < orderedIds.length; i++) {
+    await patchAdminPlaylist(orderedIds[i], {
       displayOrder: i + 1,
-      updatedAt: F.serverTimestamp(),
       updatedBy: actor || null,
-    }, { merge: true });
-  });
-  await batch.commit();
+    }, { token: tok });
+  }
 }

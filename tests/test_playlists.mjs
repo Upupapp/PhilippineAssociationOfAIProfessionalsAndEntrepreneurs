@@ -1,4 +1,4 @@
-/* Playlists — Clarence lock, portal grouping, admin tab. */
+/* Playlists — Clarence lock, admin tab, portal chrome (no Firestore hub reads). */
 import { readFileSync, existsSync } from "fs";
 import { chromium } from "playwright";
 
@@ -298,15 +298,12 @@ async function openHub({ sessions = [], micros = MICROS, playlists = [PLAYLIST],
   return { p, ctx };
 }
 
-await T("portal Micros groups the four clips inside From Signals to Strategy", async () => {
+await T("portal Micros lists four clips ungrouped, without Firestore playlist blocks", async () => {
   const { p, ctx } = await openHub();
   await p.locator('[data-ss-hub-tab="micros"]').click();
-  const block = p.locator('[data-ss-hub-panel="micros"] [data-playlist="pl-signals"]');
-  ok(await block.isVisible(), "playlist block");
-  eq(await block.locator("h3").innerText(), "From Signals to Strategy", "playlist title");
-  ok((await block.locator(".playlist-head p").innerText()).includes("Sven Bally"), "playlist description");
-  eq(await block.locator(".micro-card").count(), 4, "four cards in order");
-  const titles = await block.locator(".micro-card .cap").allInnerTexts();
+  eq(await p.locator('[data-ss-hub-panel="micros"] [data-playlist]').count(), 0, "no playlist blocks");
+  eq(await p.locator('[data-ss-hub-panel="micros"] .micro-card').count(), 4, "four cards");
+  const titles = await p.locator('[data-ss-hub-panel="micros"] .micro-card .cap').allInnerTexts();
   eq(titles[0], "Start with the question, not the dashboard", "card 1 title");
   eq(titles[1], "Signals vs noise", "card 2 title");
   eq(titles[2], "From insight to a next step", "card 3 title");
@@ -315,15 +312,15 @@ await T("portal Micros groups the four clips inside From Signals to Strategy", a
   await ctx.close();
 });
 
-await T("play chrome shows the Micro title and the Playlist description", async () => {
+await T("play chrome shows the Micro title and the Micro description", async () => {
   const { p, ctx } = await openHub();
   await p.locator('[data-ss-hub-tab="micros"]').click();
   await p.locator(".micro-card [data-ss-open-player]").first().click();
   await p.locator("[data-ss-watch-popup]").waitFor({ state: "visible" });
   eq(await p.locator("[data-ss-watch-title]").innerText(),
     "Start with the question, not the dashboard", "chrome title");
-  ok((await p.locator("[data-ss-watch-desc]").innerText()).includes("Watch in order"),
-    "playlist description in chrome");
+  ok((await p.locator("[data-ss-watch-desc]").innerText()).includes("name the decision"),
+    "micro description in chrome");
   eq(await p.locator("[data-ss-watch-panel]").getAttribute("data-aspect"), "9:16", "9:16");
   await ctx.close();
 });
@@ -384,20 +381,20 @@ await T("after sign-in, that same next URL opens the Micro on Micros", async () 
   await ctx.close();
 });
 
-await T("unpublished playlist is hidden; its items stay visible ungrouped", async () => {
+await T("Playlists tab stays empty even when a published Firestore stub is supplied", async () => {
   const { p, ctx } = await openHub({
     playlists: [{ ...PLAYLIST, status: "draft" }],
   });
   await p.locator('[data-ss-hub-tab="micros"]').click();
-  eq(await p.locator("[data-playlist]").count(), 0, "no draft block");
+  eq(await p.locator("[data-playlist]").count(), 0, "no playlist grouping");
   eq(await p.locator(".micro-card").count(), 4, "items still listed");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
-  eq(await p.locator("[data-ss-live-playlists] [data-playlist]").count(), 0, "no draft on Playlists tab");
+  eq(await p.locator("[data-ss-live-playlists] [data-playlist]").count(), 0, "no rows on Playlists tab");
   ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "empty published playlists");
   await ctx.close();
 });
 
-await T("Playlists tab after Micros lists published playlists and Open shows items", async () => {
+await T("Playlists tab after Micros is chrome-only until the library API ships", async () => {
   const { p, ctx } = await openHub();
   const tabs = p.locator("[data-ss-hub-tab]");
   eq(await tabs.count(), 3, "three tabs");
@@ -408,17 +405,12 @@ await T("Playlists tab after Micros lists published playlists and Open shows ite
   eq(await p.locator("[data-ss-micro-count]").innerText(), "4 published · 9:16", "micro count matches list");
   eq(await p.locator('[data-ss-hub-panel="micros"] .micro-card').count(), 4, "four micros");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
-  eq(await p.locator("[data-ss-playlist-count]").innerText(), "1 published", "playlist count matches list");
-  const row = p.locator('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"]');
-  ok(await row.isVisible(), "playlist listed");
-  eq(await row.locator("b").innerText(), "From Signals to Strategy", "title");
-  ok((await row.innerText()).includes("Sven Bally"), "description");
-  eq(await row.locator(".pill.info").innerText(), "Micros", "kind chip");
-  ok((await row.innerText()).includes("4 items"), "item count");
-  await row.locator("[data-ss-open-playlist]").click();
-  await p.waitForFunction(() => /#tab=playlists&playlist=pl-signals$/.test(location.hash), { timeout: 4000 });
-  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 4, "four items");
-  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "Open shows items, does not auto-play");
+  await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "empty chrome count");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 0,
+    "does not list Firestore playlists");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "honest empty");
+  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "no auto-play");
   await ctx.close();
 });
 

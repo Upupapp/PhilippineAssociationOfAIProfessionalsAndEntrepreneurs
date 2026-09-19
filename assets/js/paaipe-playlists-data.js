@@ -12,12 +12,16 @@
  *   publishedAt  timestamp | null
  *   createdAt / updatedAt / updatedBy
  *
- * Portal reads status==published only. The Learnings hub lists every
- * published Playlist on its own Playlists tab, and still groups cited
- * items on Sessions / Micros. Archived stays in admin for restore. Publish integrity is enforced
+ * Admin Learnings still reads and writes this collection. The member portal
+ * hub must not import this module: Paul 2026-09-19 — app data on Linode
+ * Postgres, Firebase Auth/users only. Portal Playlists chrome waits for
+ * Clarence's GET /v1/.../playlists (not live yet). Do not re-wire the hub
+ * to listPublishedPlaylists.
+ *
+ * Archived stays in admin for restore. Publish integrity is enforced
  * here: every itemIds entry must exist and be published==true of that kind
- * before status may become published. The portal still skips missing or
- * unpublished ids so a later unpublish cannot blank the block.
+ * before status may become published. groupLearningsByPlaylist still skips
+ * missing or unpublished ids so a later unpublish cannot blank a block.
  *
  * Linkage is ONLY itemIds on this collection. Do not write playlistId (or
  * anything like it) onto Session/Micro docs — one Micro may sit in more than

@@ -97,7 +97,8 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   const view = read("assets/js/paaipe-session-view.js");
   ok(view.includes("listPublishedSessions"), "fetches sessions");
   ok(view.includes("listPublishedMicros"), "fetches micros");
-  ok(view.includes("listPublishedPlaylists"), "fetches playlists");
+  ok(!view.includes("listPublishedPlaylists"), "hub does not fetch Firestore playlists");
+  ok(!view.includes("paaipe-playlists-data"), "hub does not import playlists-data");
   ok(view.includes("function loadOne"), "isolates each hub fetch");
   ok(view.includes("youtubeEmbedSrc"), "in-portal embed");
   ok(view.includes("LEARNING_SOURCE"), "uses LEARNING_SOURCE");
@@ -211,10 +212,14 @@ const fbStub = `
     };
   }`;
 
-const learnStub = (sessions, micros) => `
+const learnStub = (sessions, micros, { failSessions = false, failMicros = false } = {}) => `
   export * from '/assets/js/paaipe-learnings-data-real.js';
-  export async function listPublishedSessions(){ return ${JSON.stringify(sessions)} }
-  export async function listPublishedMicros(){ return ${JSON.stringify(micros)} }
+  export async function listPublishedSessions(){
+    ${failSessions ? `const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e;` : `return ${JSON.stringify(sessions)}`}
+  }
+  export async function listPublishedMicros(){
+    ${failMicros ? `const e = new Error("Missing or insufficient permissions."); e.code = "permission-denied"; throw e;` : `return ${JSON.stringify(micros)}`}
+  }
 `;
 
 const REAL_PL = read("assets/js/paaipe-playlists-data.js");
@@ -242,6 +247,8 @@ async function openHub({
   micros = [],
   playlists = [],
   playlistError = false,
+  failSessions = false,
+  failMicros = false,
   hash = "",
 } = {}) {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
@@ -254,7 +261,10 @@ async function openHub({
   await p.route("**/assets/js/paaipe-learnings-data-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
-    r.fulfill({ contentType: "text/javascript", body: learnStub(sessions, micros) }));
+    r.fulfill({
+      contentType: "text/javascript",
+      body: learnStub(sessions, micros, { failSessions, failMicros }),
+    }));
   await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
   await p.route("**/assets/js/paaipe-playlists-data.js", r =>
@@ -427,7 +437,28 @@ await T("uploaded session with poster uses poster on the card and video in the p
   await ctx.close();
 });
 
-await T("playlist permission error does not blank published Sessions or Micros", async () => {
+await T("session fetch error does not blank published Micros", async () => {
+  const micro = {
+    id: "m1",
+    title: "30-second takeaway",
+    source: "youtube",
+    youtubeId: "ePw_wlPqYUk",
+    published: true,
+    displayOrder: 1,
+  };
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [micro],
+    failSessions: true,
+  });
+  ok((await p.locator("[data-ss-live-sessions]").innerText()).includes("could not be loaded"),
+    "honest sessions fault");
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator(".micro-card").count(), 1, "micros still render");
+  await ctx.close();
+});
+
+await T("playlist stub failure does not blank published Sessions or Micros", async () => {
   const micro = {
     id: "m1",
     title: "30-second takeaway",
@@ -447,8 +478,10 @@ await T("playlist permission error does not blank published Sessions or Micros",
   eq(await p.locator(".micro-card").count(), 1, "micros still render");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
   ok(await p.locator('[data-ss-hub-panel="playlists"]').isVisible(), "playlists panel");
-  ok((await p.locator("[data-ss-live-playlists]").innerText()).includes("could not be loaded"),
-    "honest playlist fault");
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "chrome count");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "soft-fail empty, no Firestore fault");
+  ok(!(await p.locator("[data-ss-live-playlists]").innerText()).includes("could not be loaded"),
+    "no Firestore playlist error path");
   await ctx.close();
 });
 
@@ -470,63 +503,51 @@ const HUB_MICRO = {
   displayOrder: 1,
 };
 
-await T("Playlists tab lists published playlists and Open shows items", async () => {
+await T("Playlists tab is chrome-only: empty even when a Firestore stub returns rows", async () => {
   const { p, ctx } = await openHub({
     sessions: SESSIONS,
     micros: [HUB_MICRO],
     playlists: [HUB_PLAYLIST],
   });
-  eq(await p.locator(".live-session").count(), 2, "sessions stay visible with playlist data");
+  eq(await p.locator(".live-session").count(), 2, "sessions stay visible");
   eq(await p.locator("[data-ss-session-count]").innerText(), "2 published · 16:9", "session count matches list");
   const tabs = p.locator("[data-ss-hub-tab]");
   eq(await tabs.count(), 3, "three hub tabs");
   eq(await tabs.nth(2).innerText(), "Playlists", "Playlists after Micros");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
-  eq(await p.locator("[data-ss-playlist-count]").innerText(), "1 published", "playlist count matches list");
-  const row = p.locator('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"]');
-  ok(await row.isVisible(), "playlist row");
-  eq(await row.locator("b").innerText(), "From Signals to Strategy", "playlist title");
-  ok((await row.innerText()).includes("Short lessons"), "muted description");
-  ok((await row.locator(".pill.info").innerText()).includes("Micros"), "kind chip");
-  ok((await row.innerText()).includes("1 item"), "item count");
-  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");
-  await row.locator("[data-ss-open-playlist]").click();
-  await p.waitForFunction(() => /#tab=playlists&playlist=pl-signals$/.test(location.hash), { timeout: 4000 });
-  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1, "item cards");
-  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').innerText(),
-    "Start with the question, not the dashboard", "item title");
-  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "Open shows items, does not auto-play");
+  await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "chrome count is empty");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "honest empty");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 0,
+    "does not render Firestore playlist rows");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .row').count(), 0, "no playlist rows");
+  ok((await p.locator("[data-ss-playlists-empty]").innerText()).includes("No playlists published yet"),
+    "empty copy");
   await ctx.close();
 });
 
-await T("playlist hash restores on paste and Back returns to the list", async () => {
+await T("#tab=playlists hash restores the Playlists tab chrome", async () => {
   const pasted = await openHub({
     sessions: SESSIONS,
     micros: [HUB_MICRO],
     playlists: [HUB_PLAYLIST],
-    hash: "#tab=playlists&playlist=pl-signals",
+    hash: "#tab=playlists",
   });
   ok(await pasted.p.locator('[data-ss-hub-tab="playlists"]').evaluate(el => el.classList.contains("on")),
     "playlists tab");
-  eq(await pasted.p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1,
-    "paste/refresh restores items");
+  ok(await pasted.p.locator("[data-ss-playlists-empty]").isVisible(), "empty chrome on paste");
+  eq(await pasted.p.locator("[data-ss-playlist-count]").innerText(), "0 published", "count");
   await pasted.ctx.close();
 
   const { p, ctx } = await openHub({
     sessions: SESSIONS,
     micros: [HUB_MICRO],
-    playlists: [HUB_PLAYLIST],
   });
   await p.locator('[data-ss-hub-tab="playlists"]').click();
-  await p.locator('[data-ss-hub-panel="playlists"] [data-ss-open-playlist]').click();
-  await p.waitForFunction(() => /#tab=playlists&playlist=pl-signals$/.test(location.hash), { timeout: 4000 });
+  await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
   await p.goBack();
-  await p.waitForFunction(() => {
-    const h = location.hash;
-    return /tab=playlists/.test(h) && !/playlist=/.test(h);
-  }, { timeout: 4000 });
-  ok(await p.locator('[data-ss-hub-panel="playlists"] .row[data-playlist="pl-signals"]').isVisible(),
-    "Back returns to the published list");
+  await p.waitForFunction(() => /tab=sessions/.test(location.hash) || !location.hash, { timeout: 4000 });
+  ok(await p.locator('[data-ss-hub-panel="sessions"]').isVisible(), "Back returns to Sessions");
   await ctx.close();
 });
 

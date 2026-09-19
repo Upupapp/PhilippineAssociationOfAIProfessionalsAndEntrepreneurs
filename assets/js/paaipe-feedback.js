@@ -6,8 +6,8 @@
  *   GET  /v1/events/{eventId}/feedback/responses/{registrationId}
  *   GET  /v1/admin/events/{eventId}/feedback/responses[+/{id}]
  *
- * Schema fields stay Clarence-locked: eventId, questionKey, order (never
- * displayOrder), prompt, type 1-5|yes-no|short, required, active. Answers
+ * Schema fields stay Clarence-locked: eventId, questionKey, order,
+ * prompt, type 1-5|yes-no|short, required, active. Answers
  * keys are question ids (`{eventId}_{questionKey}`). Reports stay
  * FE-computed from the responses payload — there is no reports table.
  *

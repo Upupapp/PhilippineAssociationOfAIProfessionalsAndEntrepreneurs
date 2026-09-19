@@ -151,8 +151,8 @@ await T("desktop ≥861 keeps the sticky rail and hides the hamburger", async ()
   await p.close();
 });
 
-await T("Home and Organization use the same drawer at 390", async () => {
-  for (const file of ["portal.html", "portal-organization.html"]) {
+await T("Home, Organization, and My Certificates use the same drawer at 390", async () => {
+  for (const file of ["portal.html", "portal-organization.html", "portal-my-certificates.html"]) {
     const p = await open(file, { width: 390, height: 844 });
     const m = await p.evaluate(metrics);
     eq(m.position, "fixed", `${file} side fixed`);

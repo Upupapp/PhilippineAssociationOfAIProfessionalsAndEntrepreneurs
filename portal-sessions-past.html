@@ -105,6 +105,25 @@
   .qa{padding:12px 0;border-top:1px solid var(--line)}.qa:first-child{border-top:0;padding-top:0}.qa b{display:block;color:var(--navy);font-size:14px}.qa p{font-size:14px;margin-top:4px}
   .notice2{display:flex;gap:10px;align-items:flex-start;background:var(--amber-bg);border:1px solid #f0d9a8;border-radius:12px;padding:12px 14px;font-size:13px;color:#5c4108}.notice2 svg{width:16px;height:16px;stroke:var(--amber-ink);fill:none;stroke-width:2;flex:none;margin-top:2px}
   @media (max-width:1100px){.rec{grid-template-columns:1fr}}
+
+  /* The portal stopped at an 860px breakpoint, so phone overflow showed up
+     where 560 was never backported (R-04). Additive only: ≥561 unchanged. */
+  @media (max-width:560px){
+    .hd{flex-wrap:wrap}
+    .tabs{flex-wrap:wrap}
+    .acts{justify-content:flex-start}
+    [class*="grid"]{grid-template-columns:1fr}
+    [class*="grid"]>*,.hd>*,.acts>*,.next>*{min-width:0}
+    .next{grid-template-columns:1fr;gap:12px}
+    .count{flex-wrap:wrap}
+    .card,.hd,.main,.acts{min-width:0}
+    .card{overflow-wrap:anywhere}
+    .row,.rec{grid-template-columns:1fr}
+    .row>*,.rec>*{min-width:0}
+    .list li{flex-wrap:wrap;align-items:center}
+    .tbar{min-width:0}
+    .tbar input{min-width:0;max-width:100%;width:100%}
+  }
 </style>
 <link rel="stylesheet" href="assets/css/paaipe-motion.css"></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">

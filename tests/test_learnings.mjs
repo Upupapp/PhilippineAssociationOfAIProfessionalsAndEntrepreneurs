@@ -134,6 +134,26 @@ await T("mediaPlaybackUrl prefixes relative storagePath only", async () => {
   eq(fn("   "), "", "blank");
 });
 
+await T("Paul rule: portal/player copy is never YouTube-only", async () => {
+  const files = [
+    "assets/js/paaipe-session-view.js",
+    "portal-sessions.html",
+    "portal-session-watch.html",
+    "portal-sessions-past.html",
+  ];
+  for (const p of files) {
+    const s = read(p);
+    ok(!/no playable YouTube source/i.test(s), `${p}: no YouTube-only empty copy`);
+    ok(!/YouTube source yet/i.test(s), `${p}: no YouTube-only “source yet”`);
+    ok(!/has no playable YouTube/i.test(s), `${p}: no YouTube-only unplayable`);
+  }
+  const view = read("assets/js/paaipe-session-view.js");
+  ok(view.includes("This item has no playable source yet."), "honest empty copy");
+  ok(view.includes("function isUploadPlayable") && view.includes("function isYoutubePlayable"),
+    "both upload and YouTube playability helpers");
+  ok(view.includes("https://media.paaipe.org/"), "upload path stays media.paaipe.org");
+});
+
 await T("isUploadPlayable needs a real storagePath; empty copy is source-agnostic", async () => {
   const src = read("assets/js/paaipe-session-view.js");
   ok(src.includes("This item has no playable source yet."), "honest empty copy");

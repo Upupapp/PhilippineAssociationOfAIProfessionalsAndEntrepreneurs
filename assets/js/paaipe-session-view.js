@@ -11,6 +11,11 @@
  * (16:9 sessions, 9:16 micros). No "Open on YouTube", no copyable URL field,
  * no new-tab handoff. The YouTube id still appears in the iframe src /
  * network traffic; unlisted ≠ DRM.
+ *
+ * Paul rule (permanent): Sessions + Micros are YouTube OR upload. Never
+ * YouTube-only assumptions in portal / player / error copy. An upload needs
+ * a real storagePath; if it is null, say "no playable source yet" — do not
+ * invent a media.paaipe.org URL.
  */
 import {
   PAST_SESSIONS,
@@ -205,8 +210,8 @@ function mediaPlaybackUrl(storagePath) {
 }
 
 function isUploadPlayable(row) {
-  // Field-based: a real storagePath or already-absolute media URL. Never invent
-  // a path from id/source when the API left storagePath null.
+  // source=upload requires a real storagePath (or already-absolute media URL).
+  // Never invent a path from id/source when the API left storagePath null.
   return !!mediaPlaybackUrl(row?.storagePath);
 }
 
@@ -507,7 +512,7 @@ function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
   }
   stage.innerHTML =
     '<div style="padding:24px;color:#BFE3FA;font-size:13px;text-align:center">' +
-    "This item has no playable source yet.</div>";
+    "This item has no playable source yet.</div>"; // not “YouTube source” — both paths exist
 }
 
 /** Compact switcher when a session has more than one landscape recording. */

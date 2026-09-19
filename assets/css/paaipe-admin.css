@@ -140,6 +140,9 @@ code{background:var(--pale);padding:2px 6px;border-radius:5px;font-size:12px}
 .btn-ghost{background:#fff;border-color:var(--line);color:var(--navy)}
 .btn-ghost:hover{border-color:var(--faint)}
 .btn-sm{padding:8px 14px;font-size:13px;border-radius:10px}
+@media (max-width:560px){
+  .btn, .btn-sm{min-height:44px}
+}
 .btn-block{width:100%}
 .btn.danger{color:var(--err-ink);border-color:#F0C8C0}
 .dacts{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}

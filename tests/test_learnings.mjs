@@ -84,7 +84,27 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   ok(view.includes("listPublishedSessions"), "fetches sessions");
   ok(view.includes("listPublishedMicros"), "fetches micros");
   ok(view.includes("youtubeEmbedSrc"), "in-portal embed");
+  ok(view.includes("LEARNING_SOURCE"), "uses LEARNING_SOURCE");
+  ok(/createElement\(\s*"video"\s*\)/.test(view), "native video for uploads");
+  ok(/playsinline/i.test(view), "playsinline on upload video");
+  ok(view.includes("https://media.paaipe.org/"), "media host prefix");
   ok(!/Open on YouTube/i.test(h), "no Open on YouTube in markup");
+});
+
+await T("mediaPlaybackUrl prefixes relative storagePath only", async () => {
+  const src = read("assets/js/paaipe-session-view.js");
+  const start = src.indexOf("function mediaPlaybackUrl");
+  const end = src.indexOf("function isUploadPlayable");
+  ok(start >= 0 && end > start, "found mediaPlaybackUrl");
+  const fnSrc = src.slice(start, end);
+  // eslint-disable-next-line no-new-func
+  const fn = new Function(`${fnSrc}; return mediaPlaybackUrl;`)();
+  eq(fn("micro/m1.mp4"), "https://media.paaipe.org/micro/m1.mp4", "relative");
+  eq(fn("/session/s1.webm"), "https://media.paaipe.org/session/s1.webm", "leading slash");
+  eq(fn("https://media.paaipe.org/micro/abs.mp4"), "https://media.paaipe.org/micro/abs.mp4", "absolute kept");
+  eq(fn("https://cdn.example.com/x.mp4"), "https://cdn.example.com/x.mp4", "http prefix kept as-is");
+  eq(fn(""), "", "empty");
+  eq(fn("   "), "", "blank");
 });
 
 await T("youtubeEmbedSrc locks member chrome (no share, no kb, no fs)", async () => {
@@ -298,6 +318,66 @@ await T("Micros stay empty when none are published, and use the same lock when o
   const src = await p.locator("[data-ss-popup-player] iframe").getAttribute("src");
   ok(/controls=0/.test(src) && /fs=0/.test(src), "same locked embed");
   ok(await p.locator('[data-yt-shield="grab"]').isVisible(), "same grab shield");
+  await ctx.close();
+});
+
+await T("uploaded micro plays via native video on media.paaipe.org", async () => {
+  const micro = {
+    id: "m-up",
+    title: "Uploaded takeaway",
+    source: "upload",
+    storagePath: "micro/m-up.mp4",
+    published: true,
+    displayOrder: 1,
+  };
+  const { p, ctx } = await openHub({ micros: [micro] });
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator(".micro-card").count(), 1, "published upload micro");
+  eq(await p.locator(".micro-card iframe").count(), 0, "no YouTube iframe on card");
+  eq(await p.locator(".micro-card [data-ss-open-player]").count(), 1, "play affordance");
+  const cardVideo = p.locator(".micro-card .stage video");
+  eq(await cardVideo.count(), 1, "first-frame video on card when no poster");
+  eq(await cardVideo.getAttribute("src"), "https://media.paaipe.org/micro/m-up.mp4", "card preview src");
+  await p.locator(".micro-card [data-ss-open-player]").click();
+  await p.locator("[data-ss-watch-popup]").waitFor({ state: "visible" });
+  eq(await p.locator("[data-ss-watch-panel]").getAttribute("data-aspect"), "9:16", "vertical panel");
+  eq(await p.locator("[data-ss-popup-player] iframe").count(), 0, "popup is not YouTube");
+  eq(await p.locator('[data-yt-shield="grab"]').count(), 0, "no YouTube grab shield on upload");
+  const video = p.locator("[data-ss-popup-player] video");
+  await video.waitFor({ timeout: 5000 });
+  eq(await video.getAttribute("src"), "https://media.paaipe.org/micro/m-up.mp4", "popup video src");
+  ok(await video.evaluate(el => el.hasAttribute("controls")), "controls");
+  ok(await video.evaluate(el => el.hasAttribute("playsinline") || el.playsInline), "playsinline");
+  await ctx.close();
+});
+
+await T("uploaded session with poster uses poster on the card and video in the popup", async () => {
+  const session = {
+    id: "s-up",
+    title: "Uploaded session",
+    description: "A self-hosted recording.",
+    source: "upload",
+    storagePath: "https://media.paaipe.org/session/s-up.webm",
+    posterUrl: "https://media.paaipe.org/poster/s-up.jpg",
+    published: true,
+    displayOrder: 3,
+  };
+  const { p, ctx } = await openHub({ sessions: [...SESSIONS, session] });
+  const card = p.locator('[data-learn-id="s-up"]');
+  ok(await card.isVisible(), "upload session card");
+  eq(await card.locator("iframe").count(), 0, "no iframe on upload card");
+  eq(await card.locator(".stage img").getAttribute("src"),
+    "https://media.paaipe.org/poster/s-up.jpg", "poster on card");
+  eq(await card.locator(".stage video").count(), 0, "no preview video when poster exists");
+  eq(await card.locator("[data-ss-open-player]").count(), 1, "play affordance");
+  await card.locator("[data-ss-open-player]").click();
+  await p.locator("[data-ss-watch-popup]").waitFor({ state: "visible" });
+  eq(await p.locator("[data-ss-watch-panel]").getAttribute("data-aspect"), "16:9", "landscape panel");
+  const video = p.locator("[data-ss-popup-player] video");
+  await video.waitFor({ timeout: 5000 });
+  eq(await video.getAttribute("src"), "https://media.paaipe.org/session/s-up.webm", "absolute storagePath kept");
+  eq(await video.getAttribute("poster"), "https://media.paaipe.org/poster/s-up.jpg", "poster on player");
+  eq(await p.locator("[data-ss-popup-player] iframe").count(), 0, "YouTube path unused");
   await ctx.close();
 });
 

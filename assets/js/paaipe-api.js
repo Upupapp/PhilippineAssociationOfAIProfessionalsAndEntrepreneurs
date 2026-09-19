@@ -116,6 +116,8 @@
  *        Query: q, year, sort=date_desc|date_asc|title_asc|title_desc
  *        Card: eventTitle, eventDate, year, series (nullable),
  *              pdfUrl, pngUrl, issuedAt, emailedAt, id?, eventId?
+ *        Email-only issued rows (Sept 15 backfill: eventId + emailedAt,
+ *        no pdf/png yet) are kept. Empty / series-only junk is dropped.
  *        Prod is 404 until Paul deploys — probe; 404 is honest empty, not a list.
  *        200/401 → route deployed. bindMeCertificateList copies only those fields.
  *        Local smoke: ?paaipe_api=http://127.0.0.1:8080 (same paths).
@@ -427,7 +429,9 @@ export function meCertificatesPath({ q, year, sort } = {}) {
 }
 
 /**
- * One list card. Copies only Clarence’s fields. Does not invent a row
+ * One list card. Copies only Clarence’s fields. Keeps email-only issued
+ * rows identified by eventId and/or emailedAt (Sept 15 backfill) even
+ * when pdf/png/title/issuedAt are still missing. Does not invent a row
  * from an empty object, and does not invent pdf/png/eventId.
  */
 export function bindMeCertificateCard(row) {
@@ -444,7 +448,9 @@ export function bindMeCertificateCard(row) {
   const series = row.series == null || String(row.series).trim() === ""
     ? null
     : String(row.series).trim();
-  if (!eventTitle && !id && !eventDate && !issuedAt && !pdfUrl && !pngUrl) return null;
+  if (!eventTitle && !id && !eventId && !eventDate && !issuedAt && !emailedAt && !pdfUrl && !pngUrl) {
+    return null;
+  }
   return {
     id,
     eventId,

@@ -11,6 +11,11 @@
  * (16:9 sessions, 9:16 micros). No "Open on YouTube", no copyable URL field,
  * no new-tab handoff. The YouTube id still appears in the iframe src /
  * network traffic; unlisted ≠ DRM.
+ *
+ * Paul rule (permanent): Sessions + Micros are YouTube OR upload. Never
+ * YouTube-only assumptions in portal / player / error copy. An upload needs
+ * a real storagePath; if it is null, say "no playable source yet" — do not
+ * invent a media.paaipe.org URL.
  */
 import {
   PAST_SESSIONS,
@@ -25,6 +30,7 @@ import {
   listPublishedSessions,
   listPublishedMicros,
   youtubeEmbedSrc,
+  youtubeIdFromUrl,
   LEARNING_SOURCE,
 } from "/assets/js/paaipe-learnings-data.js";
 import {
@@ -204,7 +210,19 @@ function mediaPlaybackUrl(storagePath) {
 }
 
 function isUploadPlayable(row) {
-  return row?.source === LEARNING_SOURCE.UPLOAD && !!mediaPlaybackUrl(row.storagePath);
+  // source=upload requires a real storagePath (or already-absolute media URL).
+  // Never invent a path from id/source when the API left storagePath null.
+  return !!mediaPlaybackUrl(row?.storagePath);
+}
+
+function youtubeIdOf(row) {
+  const id = String(row?.youtubeId || "").trim();
+  if (id) return id;
+  return youtubeIdFromUrl(row?.youtubeUrl);
+}
+
+function isYoutubePlayable(row) {
+  return !!youtubeIdOf(row);
 }
 
 function destroyEmbed(player) {
@@ -264,7 +282,8 @@ function mountEmbed(player, rec, { autoplay = false } = {}) {
     mountUploadVideo(player, rec, { autoplay });
     return;
   }
-  if (!rec.youtubeId) return;
+  const youtubeId = youtubeIdOf(rec);
+  if (!youtubeId) return;
   destroyEmbed(player);
   player.classList.add("is-embed");
   player.style.background = "#0a1c3e";
@@ -273,9 +292,9 @@ function mountEmbed(player, rec, { autoplay = false } = {}) {
   }
 
   const frame = document.createElement("iframe");
-  const frameId = "paaipe-yt-" + String(rec.id || rec.youtubeId).replace(/[^\w-]+/g, "");
+  const frameId = "paaipe-yt-" + String(rec.id || youtubeId).replace(/[^\w-]+/g, "");
   frame.id = frameId;
-  frame.src = embedSrc(rec.youtubeId, { autoplay });
+  frame.src = embedSrc(youtubeId, { autoplay });
   frame.title = rec.title || "Session recording";
   // No PiP / fullscreen / web-share — those reopen YouTube chrome.
   frame.setAttribute("allow", "accelerometer; autoplay; encrypted-media; gyroscope");
@@ -318,8 +337,9 @@ const PLAY_ICON =
 
 function posterUrlFor(row) {
   if (row?.posterUrl) return row.posterUrl;
-  if (row?.youtubeId) {
-    return `https://i.ytimg.com/vi/${encodeURIComponent(row.youtubeId)}/hqdefault.jpg`;
+  const youtubeId = youtubeIdOf(row);
+  if (youtubeId) {
+    return `https://i.ytimg.com/vi/${encodeURIComponent(youtubeId)}/hqdefault.jpg`;
   }
   return "";
 }
@@ -413,7 +433,7 @@ function paintWatchChrome(pop, row, playlist) {
 }
 
 function openWatchPopup(row, { aspect = "16:9", opener = null, syncUrl = true, playlist = null, kind = null } = {}) {
-  if (!isUploadPlayable(row) && !row?.youtubeId) return;
+  if (!isUploadPlayable(row) && !isYoutubePlayable(row)) return;
   const pop = ensureWatchPopup();
   const panel = pop.querySelector("[data-ss-watch-panel]");
   const stage = pop.querySelector("[data-ss-popup-player]");
@@ -438,7 +458,7 @@ function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
   if (!stage) return;
   stage.innerHTML = "";
   const uploadUrl = isUploadPlayable(row) ? mediaPlaybackUrl(row.storagePath) : "";
-  const youtubePlayable = row.source === LEARNING_SOURCE.YOUTUBE && row.youtubeId;
+  const youtubePlayable = isYoutubePlayable(row);
   if (youtubePlayable || uploadUrl) {
     const poster = posterUrlFor(row);
     if (poster) {
@@ -492,7 +512,7 @@ function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
   }
   stage.innerHTML =
     '<div style="padding:24px;color:#BFE3FA;font-size:13px;text-align:center">' +
-    "This item has no playable YouTube source yet.</div>";
+    "This item has no playable source yet.</div>"; // not “YouTube source” — both paths exist
 }
 
 /** Compact switcher when a session has more than one landscape recording. */
@@ -768,7 +788,7 @@ function applyReelsChrome(root = document) {
           ? `<p class="desc">${esc(row.description)}</p>`
           : "") +
         `<div class="src"><span class="pill info">${
-          row.source === "upload" ? "Upload" : "YouTube"
+          row.source === LEARNING_SOURCE.UPLOAD ? "Upload" : "YouTube"
         }</span></div>`;
       el.appendChild(stage);
       el.appendChild(meta);

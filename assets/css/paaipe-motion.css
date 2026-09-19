@@ -201,3 +201,9 @@ textarea:focus-visible{
     right: 12px;
   }
 }
+
+/* R-19: phone touch targets for portal + admin .btn / .btn-sm.
+   Desktop ≥861 density is unchanged (this query is ≤560 only). */
+@media (max-width:560px){
+  .btn, .btn-sm{min-height:44px}
+}

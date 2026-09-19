@@ -18,6 +18,34 @@ import { currentAgent, signOutNow, isConfigured, setDirectoryVisible,
 import { initProfilePhoto } from "/assets/js/paaipe-profile-photo.js";
 import { samePage } from "/assets/js/paaipe-samepage.js";
 
+const CERT_NAV_SVG = '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9h10M7 13h6"/><path d="M16 16.5 17.5 18 20 15"/></svg>';
+
+/** YOU → My Certificates, immediately below My Profile. */
+function ensureCertificatesNav() {
+  const menu = document.querySelector(".side ul.menu");
+  if (!menu) return;
+  const here = /portal-my-certificates/.test(location.pathname);
+  const existing = [...menu.querySelectorAll("a")].find(a =>
+    /portal-my-certificates/.test(a.getAttribute("href") || ""));
+  if (existing) {
+    existing.classList.toggle("on", here);
+    if (here) existing.setAttribute("aria-current", "page");
+    return;
+  }
+  const profile = [...menu.querySelectorAll("a")].find(a =>
+    /portal-profile/.test(a.getAttribute("href") || ""));
+  if (!profile) return;
+  const li = document.createElement("li");
+  const a = document.createElement("a");
+  a.href = "portal-my-certificates.html";
+  a.className = here ? "on" : "";
+  a.innerHTML = CERT_NAV_SVG + "My Certificates";
+  if (here) a.setAttribute("aria-current", "page");
+  li.appendChild(a);
+  (profile.closest("li") || profile.parentElement).after(li);
+}
+ensureCertificatesNav();
+
 /** Sign-in bounce that can return to a Learnings play deep link.
  *  next= stays a same-site page.html (optional #tab=&play=). Micro copy-link
  *  URLs are not anonymous — signed-out visitors sign in first. */

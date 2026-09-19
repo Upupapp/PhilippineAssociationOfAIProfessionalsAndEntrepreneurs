@@ -1,0 +1,24 @@
+/* Accordion tokens — My Certificates groupings and Event Details panels.
+ * Default: expanded (never start collapsed). Header click toggles.
+ * Motion uses the system tokens; no layout animation. */
+.paaipe-collapse-hd{
+  display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;margin:0;padding:0;border:0;background:transparent;
+  font:inherit;color:inherit;text-align:left;cursor:pointer;
+}
+.paaipe-collapse-hd:focus-visible{
+  outline:3px solid var(--motion-focus-color, var(--cyan, #15BBEA));
+  outline-offset:3px;border-radius:10px;
+}
+.paaipe-collapse-aside{
+  display:flex;align-items:center;gap:8px;flex:none;min-width:0;
+}
+.paaipe-chev{
+  width:18px;height:18px;stroke:var(--muted,#4a5a7a);fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;flex:none;
+  transition:transform var(--motion-snappy, 160ms) var(--motion-ease, cubic-bezier(0.4, 0, 0.2, 1));
+}
+.paaipe-collapse.is-collapsed .paaipe-chev{transform:rotate(-90deg)}
+.paaipe-collapse.is-collapsed .paaipe-collapse-body{display:none}
+.ed-card.paaipe-collapse .ed-card-hd.paaipe-collapse-hd{margin-bottom:12px}
+.ed-card.paaipe-collapse.is-collapsed .ed-card-hd.paaipe-collapse-hd{margin-bottom:0}

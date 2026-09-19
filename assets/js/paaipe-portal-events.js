@@ -343,6 +343,23 @@ export function programRows(ev) {
     : [];
 }
 
+/** Register form URL that can send the Agent back to Event Details.
+ *  ?from=portal is the hint the form trusts; ?event= names the #event= hash. */
+export function registerFromPortalHref(href, eventId) {
+  const path = String(href || "").trim();
+  if (!path) return "";
+  const id = String(eventId || "").trim();
+  try {
+    const u = new URL(path, "https://paaipe.org/");
+    u.searchParams.set("from", "portal");
+    if (id) u.searchParams.set("event", id);
+    return `${u.pathname.replace(/^\//, "")}${u.search}`;
+  } catch {
+    const q = id ? `from=portal&event=${encodeURIComponent(id)}` : "from=portal";
+    return path.includes("?") ? `${path}&${q}` : `${path}?${q}`;
+  }
+}
+
 /** Test hook: ?paaipe_now=ISO or window.PAAIPE_NOW. Production uses the clock. */
 export function portalNow() {
   try {

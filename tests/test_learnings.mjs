@@ -158,9 +158,11 @@ await T("portal-session-watch layout stacks without an inline grid (R-02)", asyn
   const h = read("portal-session-watch.html");
   ok(!/style="[^"]*grid-template-columns/.test(h), "no inline grid-template-columns");
   ok(/class="grid2 watch-layout"/.test(h), "watch-layout class on the player/rail grid");
-  ok(/\.watch-layout\{[^}]*1\.55fr \.65fr/.test(h), "desktop 1.55 / .65");
-  ok(/max-width:1100px\)\{\.watch-layout\{grid-template-columns:1fr\}/.test(h),
-    "stacks to 1fr at ≤1100");
+  ok(/min-width:1101px\)\{[^}]*1\.55fr/.test(h), "desktop 1.55 / .65 only at ≥1101");
+  ok(/max-width:1100px\)\{[^}]*!important/.test(h),
+    "≤1100 stack uses !important so inline columns cannot win");
+  ok(/\.watch-layout\{grid-template-columns:minmax\(0,1fr\)\}/.test(h),
+    "default watch-layout is a single column");
   ok(/@media \(max-width:560px\)/.test(h), "560 phone harden on this page");
 });
 
@@ -724,9 +726,14 @@ async function openWatch(viewport) {
   return { p, ctx };
 }
 
-await T("watch page at 390 has no overflow and a full-width player (R-02)", async () => {
-  const { p, ctx } = await openWatch({ width: 390, height: 844 });
-  const m = await p.evaluate(() => {
+async function measureWatch(p, injectInline) {
+  if (injectInline) {
+    await p.evaluate(() => {
+      const el = document.querySelector(".watch-layout");
+      if (el) el.style.gridTemplateColumns = "1.55fr .65fr";
+    });
+  }
+  return p.evaluate(() => {
     const layout = document.querySelector(".watch-layout");
     const player = document.querySelector(".player");
     const r = player.getBoundingClientRect();
@@ -743,6 +750,21 @@ await T("watch page at 390 has no overflow and a full-width player (R-02)", asyn
       hitH: hb.height,
     };
   });
+}
+
+await T("watch page at 320 has no overflow and a full-width player (R-02)", async () => {
+  const { p, ctx } = await openWatch({ width: 320, height: 568 });
+  const m = await measureWatch(p, false);
+  ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
+  ok(m.playerW + 1 >= m.contentW * 0.9, `player ≈ content column (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
+  ok(m.cols.trim().split(/\s+/).length === 1, `single column at 320, got ${m.cols}`);
+  ok(m.hitW >= 44 && m.hitH >= 44, `hit ${m.hitW.toFixed(1)}×${m.hitH.toFixed(1)} ≥ 44`);
+  await ctx.close();
+});
+
+await T("watch page at 390 has no overflow and a full-width player (R-02)", async () => {
+  const { p, ctx } = await openWatch({ width: 390, height: 844 });
+  const m = await measureWatch(p, false);
   ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
   ok(m.playerW >= 320, `player ${m.playerW.toFixed(1)}px ≥ 320`);
   ok(m.playerW + 1 >= m.contentW * 0.9, `player ≈ content column (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
@@ -751,10 +773,30 @@ await T("watch page at 390 has no overflow and a full-width player (R-02)", asyn
   await ctx.close();
 });
 
-await T("watch layout stays two-column on desktop (R-02)", async () => {
+await T("injected inline 1.55/.65 still stacks at 320 and 390 (R-02)", async () => {
+  for (const vp of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+    const { p, ctx } = await openWatch(vp);
+    const m = await measureWatch(p, true);
+    ok(m.overflow <= 0, `${vp.width}: overflow ${m.overflow} ≤ 0 after inline inject`);
+    ok(m.cols.trim().split(/\s+/).length === 1, `${vp.width}: still one column, got ${m.cols}`);
+    ok(m.playerW + 1 >= m.contentW * 0.9,
+      `${vp.width}: player ≈ content (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
+    await ctx.close();
+  }
+});
+
+await T("watch layout stacks at 768 and stays two-column on desktop (R-02)", async () => {
+  const t = await openWatch({ width: 768, height: 1024 });
+  const tablet = await measureWatch(t.p, false);
+  ok(tablet.overflow <= 0, `768 overflow ${tablet.overflow} ≤ 0`);
+  ok(tablet.cols.trim().split(/\s+/).length === 1, `768 single column, got ${tablet.cols}`);
+  await t.ctx.close();
+
   const { p, ctx } = await openWatch({ width: 1280, height: 900 });
   const cols = await p.evaluate(() => getComputedStyle(document.querySelector(".watch-layout")).gridTemplateColumns);
   ok(cols.trim().split(/\s+/).length === 2, `desktop two cols: ${cols}`);
+  const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  ok(overflow <= 0, `1280 overflow ${overflow} ≤ 0`);
   await ctx.close();
 });
 

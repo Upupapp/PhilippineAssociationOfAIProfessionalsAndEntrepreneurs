@@ -169,8 +169,13 @@ export function openFeedbackThanks(eventId, certificate) {
       if (!go) return;
       e.preventDefault();
       const id = thanksDlg.dataset.eventId;
+      const dest = go.getAttribute("href");
       thanksDlg.close();
-      if (id) showDetails(id, "certificate", { push: true });
+      if (id && $("[data-event-details]")) {
+        showDetails(id, "certificate", { push: true });
+        return;
+      }
+      if (dest) location.assign(dest);
     });
   }
   thanksDlg.dataset.eventId = eid;

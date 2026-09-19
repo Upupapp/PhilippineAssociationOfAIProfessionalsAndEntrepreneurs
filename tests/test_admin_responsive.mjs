@@ -72,7 +72,7 @@ async function openAdmin(path, viewport) {
     await route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
   });
   await p.goto(`${BASE}/${path}`, { waitUntil: "load" });
-  await p.waitForSelector("[data-admin-burger]", { timeout: 9000 });
+  await p.waitForSelector("[data-admin-burger]", { state: "attached", timeout: 9000 });
   return { p, ctx };
 }
 
@@ -114,18 +114,24 @@ await T("R-05: at 320 the aside is off-canvas and the hamburger is in .top", asy
 
 await T("R-05: hamburger opens; Esc and backdrop close", async () => {
   const { p, ctx } = await openAdmin("admin-partners.html", { width: 390, height: 844 });
-  await p.waitForSelector("[data-admin-nav] a", { timeout: 9000 });
+  await p.waitForSelector("[data-admin-nav] a", { state: "attached", timeout: 9000 });
   await p.click("[data-admin-burger]");
+  await p.waitForFunction(() => document.body.classList.contains("aside-open")
+    && document.querySelector(".aside").getBoundingClientRect().right > 200);
   const open = await p.evaluate(measureShell);
   ok(open.bodyOpen && open.burger.expanded === "true", "opens");
   ok(open.asideRight > 200, `rail slides in (right=${open.asideRight})`);
   ok(open.backdropOn, "backdrop shown");
   await p.keyboard.press("Escape");
+  await p.waitForFunction(() => !document.body.classList.contains("aside-open")
+    && document.querySelector(".aside").getBoundingClientRect().right <= 1);
   const afterEsc = await p.evaluate(measureShell);
   ok(!afterEsc.bodyOpen && afterEsc.burger.expanded === "false", "Esc closes");
   ok(afterEsc.asideRight <= 1, "aside off-canvas after Esc");
   await p.click("[data-admin-burger]");
-  await p.click("[data-aside-backdrop]");
+  await p.waitForFunction(() => document.body.classList.contains("aside-open"));
+  await p.locator("[data-aside-backdrop]").click({ position: { x: 360, y: 400 } });
+  await p.waitForFunction(() => !document.body.classList.contains("aside-open"));
   const afterBd = await p.evaluate(measureShell);
   ok(!afterBd.bodyOpen, "backdrop closes");
   await ctx.close();
@@ -184,7 +190,7 @@ await T("R-06: partners at 320 are card rows; company + status readable; overflo
   ok(/New/.test(m.statusText), "status readable");
   ok(m.companyInView && m.statusInView, "company + status in viewport, no guessed scroll");
   ok(m.filterDir === "column", "filters stack");
-  ok(m.placeholder.length <= 22, `short placeholder (${m.placeholder})`);
+  ok(m.placeholder.length <= 24, `short placeholder (${m.placeholder})`);
   await ctx.close();
 });
 

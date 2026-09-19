@@ -723,11 +723,6 @@ function applyReelsChrome(root = document) {
       renderPlaylists(HUB.playlists.all, { loadError: HUB.playlistsError });
       playFromLocation();
     }
-    document.querySelector("[data-ss-playlists-all]")?.addEventListener("click", e => {
-      e.preventDefault();
-      writeHash({ tab: "playlists" }, { push: true });
-      paintPlaylistView();
-    });
     onViewChange(() => {
       showHubTab(hubTabFromLocation());
       paintPlaylistView();
@@ -875,16 +870,11 @@ function applyReelsChrome(root = document) {
       return groups[0]?.items || [];
     }
 
-    function firstPlayable(items) {
-      return (items || []).find(row => isUploadPlayable(row) || row?.youtubeId) || null;
-    }
-
     function renderPlaylists(playlists, { loadError = false } = {}) {
       const host = document.querySelector("[data-ss-live-playlists]");
       const empty = document.querySelector("[data-ss-playlists-empty]");
       const loading = document.querySelector("[data-ss-playlists-loading]");
       const count = document.querySelector("[data-ss-playlist-count]");
-      const back = document.querySelector("[data-ss-playlists-all]");
       if (loading) loading.remove();
       if (!host) return;
 
@@ -897,7 +887,6 @@ function applyReelsChrome(root = document) {
 
       if (loadError) {
         if (empty) empty.hidden = true;
-        if (back) back.hidden = true;
         host.innerHTML =
           `<p class="note">Published playlists could not be loaded just now. ` +
           `This is not an empty library — try again shortly.</p>`;
@@ -907,14 +896,12 @@ function applyReelsChrome(root = document) {
       if (!published.length) {
         host.innerHTML = "";
         if (empty) empty.hidden = false;
-        if (back) back.hidden = true;
         return;
       }
       if (empty) empty.hidden = true;
 
       const openId = String(readView().playlist || "").trim();
       const open = published.find(p => p.id === openId) || null;
-      if (back) back.hidden = !open;
 
       if (open) {
         const items = itemsForPlaylist(open);
@@ -947,38 +934,34 @@ function applyReelsChrome(root = document) {
       published.forEach(pl => {
         const items = itemsForPlaylist(pl);
         const n = items.length;
-        const meta = n === 1 ? "1 item" : `${n} items`;
         const el = document.createElement("div");
         el.className = "row";
         el.setAttribute("data-playlist", pl.id);
-        const bits = [pl.description, meta].filter(Boolean);
         el.innerHTML =
           `<span class="pill info">${esc(playlistKindLabel(pl.kind))}</span>` +
           `<div><b>${esc(pl.title || "Playlist")}</b>` +
-            (bits.length ? `<small style="color:var(--muted)">${esc(bits.join(" · "))}</small>` : "") +
+            (pl.description
+              ? `<small style="color:var(--muted)">${esc(pl.description)}</small>`
+              : "") +
           `</div>` +
           `<div class="acts">` +
+            `<small style="color:var(--muted)">${esc(n === 1 ? "1 item" : `${n} items`)}</small>` +
             `<button type="button" class="btn btn-gold btn-sm" data-ss-open-playlist>Open</button>` +
           `</div>`;
-        const go = playFirst => {
-          const first = playFirst ? firstPlayable(items) : null;
-          writeHash({
-            tab: "playlists",
-            playlist: pl.id,
-            ...(first ? { play: first.id } : {}),
-          }, { push: true });
+        const go = () => {
+          writeHash({ tab: "playlists", playlist: pl.id }, { push: true });
           // pushState does not fire hashchange/popstate — paint the detail now.
           paintPlaylistView();
         };
         el.querySelector("[data-ss-open-playlist]").addEventListener("click", e => {
           e.preventDefault();
           e.stopPropagation();
-          go(true);
+          go();
         });
         el.addEventListener("click", e => {
           if (e.target.closest("[data-ss-open-playlist]")) return;
           e.preventDefault();
-          go(false);
+          go();
         });
         host.appendChild(el);
       });

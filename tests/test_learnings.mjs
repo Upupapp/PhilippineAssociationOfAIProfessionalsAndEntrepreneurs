@@ -87,6 +87,11 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   const tabPlaylists = h.indexOf('data-ss-hub-tab="playlists"');
   ok(tabSessions >= 0 && tabMicros > tabSessions && tabPlaylists > tabMicros,
     "tab order Sessions → Micros → Playlists");
+  ok(h.includes('role="tab"') && h.includes('aria-controls="ss-panel-playlists"'),
+    "Playlists tab uses the same tab markup");
+  ok(/<div class="hd"><h2>Playlists<\/h2><small data-ss-playlist-count>/.test(h),
+    "Playlists hd is title + count");
+  ok(!h.includes("data-ss-playlists-all"), "no extra All playlists chrome in hd");
   ok(!h.includes("data-ss-continue"), "no continue/attendance chrome");
   ok(!h.includes("data-ss-lesson-list"), "no hardcoded library list");
   const view = read("assets/js/paaipe-session-view.js");
@@ -237,6 +242,7 @@ async function openHub({
   micros = [],
   playlists = [],
   playlistError = false,
+  hash = "",
 } = {}) {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
@@ -256,7 +262,7 @@ async function openHub({
       contentType: "text/javascript",
       body: plStub(playlists, { fail: playlistError }),
     }));
-  await p.goto(`${BASE}/portal-sessions.html`, { waitUntil: "load" });
+  await p.goto(`${BASE}/portal-sessions.html${hash}`, { waitUntil: "load" });
   await p.waitForSelector("html[data-sessions-ready]", { timeout: 9000 });
   return { p, ctx };
 }
@@ -471,19 +477,56 @@ await T("Playlists tab lists published playlists and Open shows items", async ()
     playlists: [HUB_PLAYLIST],
   });
   eq(await p.locator(".live-session").count(), 2, "sessions stay visible with playlist data");
+  eq(await p.locator("[data-ss-session-count]").innerText(), "2 published · 16:9", "session count matches list");
   const tabs = p.locator("[data-ss-hub-tab]");
   eq(await tabs.count(), 3, "three hub tabs");
   eq(await tabs.nth(2).innerText(), "Playlists", "Playlists after Micros");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "1 published", "playlist count matches list");
   const row = p.locator('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"]');
   ok(await row.isVisible(), "playlist row");
   eq(await row.locator("b").innerText(), "From Signals to Strategy", "playlist title");
+  ok((await row.innerText()).includes("Short lessons"), "muted description");
+  ok((await row.locator(".pill.info").innerText()).includes("Micros"), "kind chip");
+  ok((await row.innerText()).includes("1 item"), "item count");
   ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");
-  await row.click();
-  await p.waitForFunction(() => /playlist=pl-signals/.test(location.hash), { timeout: 4000 });
+  await row.locator("[data-ss-open-playlist]").click();
+  await p.waitForFunction(() => /#tab=playlists&playlist=pl-signals$/.test(location.hash), { timeout: 4000 });
   eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1, "item cards");
   eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').innerText(),
     "Start with the question, not the dashboard", "item title");
+  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "Open shows items, does not auto-play");
+  await ctx.close();
+});
+
+await T("playlist hash restores on paste and Back returns to the list", async () => {
+  const pasted = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+    hash: "#tab=playlists&playlist=pl-signals",
+  });
+  ok(await pasted.p.locator('[data-ss-hub-tab="playlists"]').evaluate(el => el.classList.contains("on")),
+    "playlists tab");
+  eq(await pasted.p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1,
+    "paste/refresh restores items");
+  await pasted.ctx.close();
+
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+  });
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.locator('[data-ss-hub-panel="playlists"] [data-ss-open-playlist]').click();
+  await p.waitForFunction(() => /#tab=playlists&playlist=pl-signals$/.test(location.hash), { timeout: 4000 });
+  await p.goBack();
+  await p.waitForFunction(() => {
+    const h = location.hash;
+    return /tab=playlists/.test(h) && !/playlist=/.test(h);
+  }, { timeout: 4000 });
+  ok(await p.locator('[data-ss-hub-panel="playlists"] .row[data-playlist="pl-signals"]').isVisible(),
+    "Back returns to the published list");
   await ctx.close();
 });
 

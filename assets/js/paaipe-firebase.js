@@ -462,28 +462,40 @@ export async function listDirectory() {
 /* ---------------------------------------------------------------------------
  * ADMINISTRATORS
  *
- * Who is an administrator is stated in firestore.rules and NOWHERE ELSE - see
- * isAdmin() there. Deliberately, this file keeps no list of admin emails: a copy
- * here would be a second source of truth that can drift from the real one, and
- * it would protect nothing anyway, because anything this file says about the
- * person using it is something that person can edit in their own browser.
+ * Who is an administrator is stated on the API (ADMIN_EMAILS on the backend)
+ * and NOWHERE ELSE. Deliberately, this file keeps no list of admin emails: a
+ * copy here would be a second source of truth that can drift from the real
+ * one, and it would protect nothing anyway, because anything this file says
+ * about the person using it is something that person can edit in their own
+ * browser.
  *
- * So adminness is not asserted, it is MEASURED: we ask Firestore to do an
+ * So adminness is not asserted, it is MEASURED: we ask the API to do an
  * admin-only thing and see whether it is allowed. The answer comes from the
- * deployed rules, which is the only answer that means anything.
+ * backend allow-list, which is the only answer that means anything.
  * ------------------------------------------------------------------------- */
 
-/** True only if the DEPLOYED RULES let this account read registrations, which
- *  only an administrator may do. An empty collection still answers "yes" - an
- *  allowed query over nothing returns an empty result, while a refused one
- *  throws permission-denied. */
+/** 200 → admin; 401/403 → not admin. Any other status is not an answer. */
+export function isAdminFromApiStatus(status) {
+  if (status === 200) return true;
+  if (status === 401 || status === 403) return false;
+  throw Object.assign(new Error(`The admin check failed (${status}).`), {
+    status,
+    code: "api/request-failed",
+  });
+}
+
+/** True only if the API lets this account call GET /v1/admin/events, which
+ *  only an administrator may do. A 200 answers "yes" even when the list is
+ *  empty; 401/403 answers "no". A network or 5xx failure is NOT
+ *  "you are not an admin". */
 export async function isAdminNow() {
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    await F.getDocs(F.query(F.collection(await db(), COLLECTIONS.registrations), F.limit(1)));
-    return true;
+    const { listAdminEvents } = await import("/assets/js/paaipe-api.js");
+    const token = await idTokenForRequest();
+    await listAdminEvents({ token });
+    return isAdminFromApiStatus(200);
   } catch (e) {
-    if (e && e.code === "permission-denied") return false;
+    if (e && (e.status === 401 || e.status === 403)) return isAdminFromApiStatus(e.status);
     throw e;   // a network failure is NOT "you are not an admin"
   }
 }

@@ -160,6 +160,25 @@
   .ss-watch-chrome p{margin:5px 0 0;font-size:13px;color:var(--muted);line-height:1.45}
   .ss-watch-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:none}
   .ss-watch-toast{font-size:12.5px;font-weight:600;color:var(--green-ink)}
+
+  /* The portal stopped at an 860px breakpoint, so phone overflow showed up
+     where 560 was never backported (R-04). Additive only: ≥561 unchanged. */
+  @media (max-width:560px){
+    .hd{flex-wrap:wrap}
+    .tabs,.vtabs,.fchips{flex-wrap:wrap}
+    .acts{justify-content:flex-start}
+    [class*="grid"]{grid-template-columns:1fr}
+    [class*="grid"]>*,.hd>*,.acts>*,.next>*{min-width:0}
+    .next{grid-template-columns:1fr;gap:12px}
+    .count{flex-wrap:wrap}
+    .card,.hd,.main,.acts{min-width:0}
+    .card{overflow-wrap:anywhere}
+    /* Class names that do not contain "grid" still hold multi-col tracks. */
+    .row,.rec,.live-session{grid-template-columns:1fr}
+    .row>*,.rec>*,.live-session>*{min-width:0}
+    .list li{flex-wrap:wrap;align-items:center}
+    .ss-watch-chrome{flex-wrap:wrap}
+  }
 </style>
 <link rel="stylesheet" href="assets/css/paaipe-motion.css"><link rel="stylesheet" href="assets/css/paaipe-portal-shell.css"></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">

@@ -31,6 +31,21 @@
   .deck-card p{margin:0 auto 20px;color:var(--muted);font-size:14.5px;max-width:48ch}
   .note{padding:12px 28px;font-size:12.5px;color:var(--muted);background:#fff;border-top:1px solid var(--line)}
   @media (max-width:860px){.shell{grid-template-columns:1fr}}
+
+  /* Phone harden (R-04). Additive; ≥561 unchanged. Matches portal-events
+     grids / min-width:0 collapse for this thinner slides chrome. */
+  @media (max-width:560px){
+    .hd{flex-wrap:wrap}
+    .tabs{flex-wrap:wrap}
+    .acts{justify-content:flex-start}
+    [class*="grid"]{grid-template-columns:1fr}
+    [class*="grid"]>*,.hd>*,.acts>*,.next>*{min-width:0}
+    .next{grid-template-columns:1fr;gap:12px}
+    .main,.content,.frame-wrap,.deck-card,.top{min-width:0}
+    .deck-card{overflow-wrap:anywhere;padding:24px 16px 20px}
+    .top{padding:14px 16px}
+    .note{padding:12px 16px}
+  }
 </style>
 <link rel="stylesheet" href="assets/css/paaipe-motion.css"><link rel="stylesheet" href="assets/css/paaipe-portal-shell.css"></head><body>
 <div class="shell">

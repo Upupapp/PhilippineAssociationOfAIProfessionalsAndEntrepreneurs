@@ -181,6 +181,14 @@ await T("contract paths are exact — admin + public library", () => {
      "/v1/admin/partner-applications/a1", "admin application id");
   eq(api.adminContactsPath(), "/v1/admin/contacts", "admin contacts");
   eq(api.adminContactPath("c1"), "/v1/admin/contacts/c1", "admin contact id");
+  eq(api.eventFeedbackWindowPath("2026-10-ai-exchange"),
+     "/v1/events/2026-10-ai-exchange/feedback/window", "feedback window");
+  eq(api.meEventCertificatePath("2026-10-ai-exchange"),
+     "/v1/me/events/2026-10-ai-exchange/certificate", "me certificate");
+  eq(api.meEventCertificateEmailPath("2026-10-ai-exchange"),
+     "/v1/me/events/2026-10-ai-exchange/certificate/email", "me certificate email");
+  ok(api.isDraftRouteLive(200) && api.isDraftRouteLive(401), "200/401 are live");
+  ok(!api.isDraftRouteLive(404) && !api.isDraftRouteLive(403), "404/403 are not live");
   let threw = false;
   try { api.playlistsPath(); }
   catch (e) { threw = true; eq(e.code, "api/bad-kind", "kind required"); }
@@ -1454,6 +1462,106 @@ await T("admin-contacts 401 is an error, not an empty list", async () => {
   ok(/could not load/i.test(table), `table: ${table}`);
   ok(!/no one is here yet/i.test(table), "must not read as none");
   await ctx.close();
+});
+
+await T("draft window + certificate: 200/401 live, 404 not-wired, media URLs only", async () => {
+  const src = read("assets/js/paaipe-api.js");
+  ok(/\/v1\/me\/events\/\$\{encodeURIComponent\(eventId\)\}\/certificate/.test(src),
+    "documented me certificate GET");
+  ok(/\/certificate\/email/.test(src), "documented email POST");
+  ok(!/certificate\/issue/.test(src), "no POST issue");
+  ok(!/certificate\/download/.test(src), "no download API");
+  ok(!/\/v1\/admin\/events\/.+\/feedback/.test(src.split("\n").filter(l =>
+    !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n")),
+    "portal client does not call admin PUT questions");
+  eq(api.mediaFileUrl("https://media.paaipe.org/certificates/a.pdf"),
+    "https://media.paaipe.org/certificates/a.pdf", "media ok");
+  eq(api.mediaFileUrl("https://api.paaipe.org/v1/me/events/x/certificate/download"), "", "no api download");
+  eq(api.mediaFileUrl("http://media.paaipe.org/x.pdf"), "", "https only");
+  eq(api.certificateDownloadUrl({ pdfUrl: "https://evil.example/x.pdf", pngUrl: "https://media.paaipe.org/x.png" }),
+    "https://media.paaipe.org/x.png", "png fallback if pdf is foreign");
+
+  const readyIssued = api.normalizeMeCertificate({
+    state: "ready",
+    registered: true,
+    feedbackSubmitted: true,
+    feedbackWindow: { state: "closed", opensAt: "t1", closesAt: "t2", timezone: "Asia/Manila" },
+    certificate: { id: "c1", pdfUrl: "https://media.paaipe.org/c1.pdf", pngUrl: "", issuedAt: "t", emailedAt: null },
+  });
+  eq(readyIssued.state, "issued", "ready + cert → issued");
+  eq(readyIssued.certificate.id, "c1", "cert id");
+
+  const readyIssuing = api.normalizeMeCertificate({
+    state: "ready", registered: true, feedbackSubmitted: true,
+    feedbackWindow: { state: "open", opensAt: "t1", closesAt: "t2" },
+  });
+  eq(readyIssuing.state, "issuing", "ready without cert → issuing");
+
+  const badWin = api.normalizeFeedbackWindow({ state: "maybe" });
+  eq(badWin, null, "unknown window state is not invented");
+
+  const hits = [];
+  const fetchImpl = async (url, opts) => {
+    hits.push({ url, method: opts.method, headers: opts.headers || {}, body: opts.body });
+    if (url.endsWith("/feedback/window") && url.includes("missing")) {
+      return new Response("not found", { status: 404 });
+    }
+    if (url.endsWith("/feedback/window")) {
+      return new Response(JSON.stringify({
+        opensAt: "2026-09-15T13:00:00.000Z",
+        closesAt: "2026-09-16T04:00:00.000Z",
+        state: "open",
+        timezone: "Asia/Manila",
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    if (url.endsWith("/certificate/email")) {
+      return new Response(JSON.stringify({ emailedAt: "2026-09-16T05:00:00.000Z" }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/certificate") && url.includes("gone")) {
+      return new Response("not found", { status: 404 });
+    }
+    if (url.endsWith("/certificate") && url.includes("auth")) {
+      return new Response("missing bearer", { status: 401 });
+    }
+    if (url.endsWith("/certificate")) {
+      return new Response(JSON.stringify({
+        state: "issued",
+        registered: true,
+        feedbackSubmitted: true,
+        feedbackWindow: { state: "closed", opensAt: "a", closesAt: "b", timezone: "Asia/Manila" },
+        certificate: { id: "c1", pdfUrl: "https://media.paaipe.org/c1.pdf", pngUrl: "", issuedAt: "t", emailedAt: null },
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("missing", { status: 404 });
+  };
+
+  const liveWin = await api.getEventFeedbackWindow("2026-09-ai-exchange", { fetchImpl });
+  eq(liveWin.live, true, "window 200 live");
+  eq(liveWin.window.state, "open", "window state");
+  ok(!("Authorization" in hits[0].headers), "window GET is public");
+
+  const missingWin = await api.getEventFeedbackWindow("missing", { fetchImpl });
+  eq(missingWin.live, false, "window 404 not live");
+  eq(missingWin.window, null, "no invented window");
+
+  const liveCert = await api.getMeEventCertificate("2026-09-ai-exchange", { token: "tok", fetchImpl });
+  eq(liveCert.live, true, "cert 200 live");
+  eq(liveCert.certificate.state, "issued", "issued");
+  eq(hits.find(h => h.url.endsWith("/certificate")).headers.Authorization, "Bearer tok", "cert Bearer");
+
+  const gone = await api.getMeEventCertificate("gone", { token: "tok", fetchImpl });
+  eq(gone.live, false, "cert 404 not live");
+  eq(gone.certificate, null, "no invented cert");
+
+  const unauth = await api.getMeEventCertificate("auth", { token: "tok", fetchImpl });
+  eq(unauth.live, true, "401 means the route is deployed");
+  eq(unauth.certificate, null, "401 has no body state");
+
+  const emailed = await api.postMeEventCertificateEmail("2026-09-ai-exchange", { token: "tok", fetchImpl });
+  eq(emailed.emailedAt, "2026-09-16T05:00:00.000Z", "emailedAt from 200");
+  eq(hits.find(h => h.url.endsWith("/certificate/email")).method, "POST", "email POST");
 });
 
 await br.close();

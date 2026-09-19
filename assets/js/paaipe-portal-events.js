@@ -8,8 +8,10 @@
  * Back and refresh restore the same event. Past list deep-links here.
  *
  * Feedback talks to Clarence's live Slice 3 routes in paaipe-api.js.
- * Certificate issue / download / email are NOT wired — no invented endpoints,
- * no fake PDF success. The tab renders eligibility states only.
+ * Feedback window + certificate GET/email are OpenAPI draft: probe only, treat
+ * as live on HTTP 200/401, otherwise honest not-wired. No POST issue, no
+ * invented download API. Downloads use certificate.pdfUrl/pngUrl on
+ * media.paaipe.org when the GET is live and issued.
  *
  * Partner apply reuses mountPartnerCta / data-partner-cta. No second flow.
  */
@@ -21,6 +23,11 @@ import {
   listEventFeedbackQuestions,
   getEventFeedbackResponse,
   postEventFeedbackResponse,
+  getEventFeedbackWindow,
+  getMeEventCertificate,
+  postMeEventCertificateEmail,
+  certificateDownloadUrl,
+  mediaFileUrl,
 } from "/assets/js/paaipe-api.js";
 import { mountPartnerCta } from "/assets/js/paaipe-partner.js";
 import { readView, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
@@ -31,14 +38,16 @@ export const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 export const PORTAL_EVENT_TABS = ["overview", "feedback", "certificate"];
+/** Clarence certificate enum (no `ready`). Map Ericson B4 UI onto these. */
 export const CERT_STATES = {
   NOT_REGISTERED: "not_registered",
-  REGISTERED_LOCKED: "registered_locked",
-  REGISTERED_OPEN: "registered_open",
-  READY: "ready",
-  CLOSED_UNSUBMITTED: "closed_unsubmitted",
+  AWAITING_FEEDBACK_OPEN: "awaiting_feedback_open",
+  FEEDBACK_OPEN: "feedback_open",
+  ISSUING: "issuing",
   ISSUED: "issued",
+  CLOSED_NO_CERT: "closed_no_cert",
 };
+const CERT_STATE_SET = new Set(Object.values(CERT_STATES));
 
 const CERT_PREVIEW = "assets/img/paaipe-certificate-of-participation.png";
 
@@ -171,13 +180,60 @@ export function certificateUiState({
   submitted = false,
   windowState = "unknown",
   issued = false,
+  apiState = "",
 } = {}) {
+  let mapped = String(apiState || "").trim();
+  if (mapped === "ready") mapped = issued ? CERT_STATES.ISSUED : CERT_STATES.ISSUING;
+  if (CERT_STATE_SET.has(mapped)) return mapped;
   if (issued) return CERT_STATES.ISSUED;
-  if (submitted) return CERT_STATES.READY;
+  if (submitted) return CERT_STATES.ISSUING;
   if (!registered) return CERT_STATES.NOT_REGISTERED;
-  if (windowState === "open") return CERT_STATES.REGISTERED_OPEN;
-  if (windowState === "closed") return CERT_STATES.CLOSED_UNSUBMITTED;
-  return CERT_STATES.REGISTERED_LOCKED;
+  if (windowState === "open") return CERT_STATES.FEEDBACK_OPEN;
+  if (windowState === "closed") return CERT_STATES.CLOSED_NO_CERT;
+  return CERT_STATES.AWAITING_FEEDBACK_OPEN;
+}
+
+function datesFromWindow(win, ev) {
+  const opens = win?.opensAt ? new Date(win.opensAt) : feedbackWindowOpensAt(ev);
+  const closes = win?.closesAt ? new Date(win.closesAt) : feedbackWindowClosesAt(ev);
+  return {
+    opens: opens && !isNaN(opens) ? opens : null,
+    closes: closes && !isNaN(closes) ? closes : null,
+  };
+}
+
+/** Prefer GET /feedback/window when live; else cert.feedbackWindow; else client math. */
+export async function resolveFeedbackWindow(ev, now = portalNow(), opts) {
+  const client = { ...feedbackWindowState(ev, now), source: "client", live: false, timezone: "Asia/Manila" };
+  if (!ev?.id) return client;
+  try {
+    const probe = await getEventFeedbackWindow(ev.id, opts);
+    if (probe.live && probe.window) {
+      const { opens, closes } = datesFromWindow(probe.window, ev);
+      return {
+        state: probe.window.state,
+        opens: opens || client.opens,
+        closes: closes || client.closes,
+        source: "api",
+        live: true,
+        timezone: probe.window.timezone || "Asia/Manila",
+      };
+    }
+  } catch { /* network / unreadable — keep client math, do not invent */ }
+  return client;
+}
+
+function windowFromCertificate(api, ev, fallback) {
+  if (!api?.feedbackWindow) return fallback;
+  const { opens, closes } = datesFromWindow(api.feedbackWindow, ev);
+  return {
+    state: api.feedbackWindow.state,
+    opens: opens || fallback.opens,
+    closes: closes || fallback.closes,
+    source: fallback.live ? fallback.source : "certificate",
+    live: true,
+    timezone: api.feedbackWindow.timezone || "Asia/Manila",
+  };
 }
 
 export function normalizeApiQuestion(q, i = 0) {
@@ -349,7 +405,7 @@ function feedbackIntroCopy(ev, win) {
       pill: "ok",
       pillLabel: "Open",
       lede: `Opened one hour after the session started. Closes ${close}.`,
-      extra: "Submitting feedback (while registered) is required for the Certificate of Participation. Issue and email unlock when Clarence’s certificate APIs land.",
+      extra: "Submitting feedback (while registered) is required for the Certificate of Participation. The server issues the certificate on submit — this page does not POST issue.",
     };
   }
   if (win.state === "closed") {
@@ -370,7 +426,7 @@ function feedbackIntroCopy(ev, win) {
 
 function feedbackShell(ev, win, body) {
   const copy = feedbackIntroCopy(ev, win);
-  return `<section class="ed-card" data-ed-panel="feedback" data-feedback-window="${esc(win.state)}">
+  return `<section class="ed-card" data-ed-panel="feedback" data-feedback-window="${esc(win.state)}" data-feedback-window-source="${esc(win.source || "client")}">
     <div class="ed-card-hd">
       <h2>Feedback</h2>
       ${pill(copy.pill, ICO.clock, copy.pillLabel)}
@@ -404,64 +460,115 @@ function certificateChecklist({ registered, submitted, submittedLabel, ev, win }
   </ul>`;
 }
 
-function certActions({ ready, openFeedbackHref, registerHref }) {
-  const dlClass = ready ? "btn btn-gold btn-sm" : "btn btn-ghost btn-sm";
-  const dl = `<button type="button" class="${dlClass}" data-cert-download disabled
-    title="Certificate download is not wired yet. Clarence’s certificate APIs are upcoming.">Download PDF</button>`;
-  const em = `<button type="button" class="btn btn-ghost btn-sm" data-cert-email disabled
-    title="Certificate email is not wired yet. Clarence’s certificate APIs are upcoming.">Email me the certificate</button>`;
+function certActions({
+  issued,
+  downloadUrl,
+  emailLive,
+  openFeedbackHref,
+  registerHref,
+  notWired,
+}) {
+  const canDownload = Boolean(downloadUrl);
+  const dlLabel = canDownload && /\.png(\?|$)/i.test(downloadUrl) && !/\.pdf(\?|$)/i.test(downloadUrl)
+    ? "Download image"
+    : "Download PDF";
+  const dl = canDownload
+    ? `<a class="btn btn-gold btn-sm" data-cert-download href="${esc(downloadUrl)}" target="_blank" rel="noopener">${esc(dlLabel)}</a>`
+    : `<button type="button" class="btn btn-ghost btn-sm" data-cert-download disabled
+      title="${notWired
+        ? "Certificate download is not wired yet. Clarence’s certificate GET is not live on this host (no 200/401)."
+        : "No media.paaipe.org file URL was returned. Download stays disabled."}">${esc(dlLabel)}</button>`;
+  const em = emailLive
+    ? `<button type="button" class="btn btn-ghost btn-sm" data-cert-email>Email me the certificate</button>`
+    : `<button type="button" class="btn btn-ghost btn-sm" data-cert-email disabled
+      title="${notWired
+        ? "Certificate email is not wired yet. The re-send route is not live on this host (no 200/401)."
+        : "Email is available after the certificate is issued."}">Email me the certificate</button>`;
   const reg = registerHref
     ? `<a class="btn btn-gold btn-sm" href="${esc(registerHref)}">Register</a>`
     : "";
   const fb = openFeedbackHref
     ? `<a class="btn btn-gold btn-sm" href="${esc(openFeedbackHref)}">Open feedback</a>`
     : "";
-  if (ready) return `<div class="ed-acts">${dl}${em}</div>`;
+  if (issued) return `<div class="ed-acts">${dl}${em}</div>`;
   return `<div class="ed-acts">${reg}${fb}${dl}${em}</div>`;
 }
 
-function certificateHtml(ev, state, { registered, submitted, submittedLabel, win }) {
-  const ready = state === CERT_STATES.READY || state === CERT_STATES.ISSUED;
-  const openFb = (registered && !submitted && win.state !== "closed")
+function certificateHtml(ev, state, {
+  registered, submitted, submittedLabel, win, live = false, cert = null,
+}) {
+  const issued = state === CERT_STATES.ISSUED;
+  const issuing = state === CERT_STATES.ISSUING;
+  const downloadUrl = issued ? certificateDownloadUrl(cert) : "";
+  const previewSrc = issued ? (mediaFileUrl(cert?.pngUrl) || CERT_PREVIEW) : CERT_PREVIEW;
+  const emailLive = live && issued;
+  const openFb = (registered && !submitted && win.state !== "closed" && !issued && !issuing)
     ? portalEventHref(ev.id, "feedback")
     : "";
   const registerHref = (!registered && ev.registerHref) ? ev.registerHref : "";
   let statusLabel = "Not ready yet";
   let statusKind = "info";
-  let note = "When both are done, we email the certificate automatically and unlock download here — once Clarence’s certificate APIs land. Download and Email me are not wired yet.";
+  let note = live
+    ? "When both gates are done, the server issues the certificate on feedback submit. Download uses the media.paaipe.org file URL. This page does not POST issue."
+    : "Certificate GET is not live on this host yet (no 200/401). Download and Email me stay disabled — nothing was generated or sent.";
   let preview = "";
   if (state === CERT_STATES.NOT_REGISTERED) {
     note = "Register for this event first. Download and Email me stay disabled until you are registered and have submitted feedback in the window.";
-  } else if (state === CERT_STATES.CLOSED_UNSUBMITTED) {
+  } else if (state === CERT_STATES.CLOSED_NO_CERT) {
     statusLabel = "Not earned";
     note = "Feedback closed without a submission, so this event has no Certificate of Participation. Download and Email me stay disabled.";
-  } else if (ready) {
-    statusLabel = "Ready";
-    statusKind = "ok";
-    note = "Eligibility is complete (registered + feedback). Certificate issue, auto-email, Download, and Email me are not wired yet — Clarence’s certificate APIs are upcoming. Nothing was generated or sent.";
+  } else if (state === CERT_STATES.AWAITING_FEEDBACK_OPEN) {
+    note = "Feedback is still locked. Download and Email me stay disabled until you submit in the window.";
+  } else if (state === CERT_STATES.FEEDBACK_OPEN) {
+    note = "Open feedback and submit once. The server issues the certificate on submit — this page does not POST issue.";
+  } else if (issuing) {
+    statusLabel = "Issuing";
+    statusKind = "info";
+    note = live
+      ? "Feedback is in. The server is issuing your certificate. Download stays disabled until the file URL is present."
+      : "Eligibility is complete (registered + feedback). Issue is server-side. Certificate GET is not live on this host yet — Download and Email me stay disabled. Nothing was generated or sent.";
     preview = `<figure class="ed-cert">
-      <img src="${CERT_PREVIEW}" alt="Approved Certificate of Participation template. Recipient name, event name, and date are merge fields when the issue API lands.">
+      <img src="${CERT_PREVIEW}" alt="Approved Certificate of Participation template. Recipient name, event name, and date are merge fields when the certificate is issued.">
+    </figure>`;
+  } else if (issued) {
+    statusLabel = "Issued";
+    statusKind = "ok";
+    note = downloadUrl
+      ? (cert?.emailedAt
+        ? "Issued. A copy was emailed. Download uses the file on media.paaipe.org."
+        : "Issued. Download uses the file on media.paaipe.org. Email me re-sends that copy.")
+      : "Issued, but no media.paaipe.org file URL was returned. Download stays disabled.";
+    preview = `<figure class="ed-cert">
+      <img src="${esc(previewSrc)}" alt="Certificate of Participation${downloadUrl ? "" : " template"}.">
     </figure>`;
   }
   const closeLine = win.closes
     ? `Feedback open until ${formatCloseCopy(win.closes)}.`
     : "Feedback opens one hour after the session and closes at noon PHT the next day.";
-  return `<section class="ed-card" data-ed-panel="certificate" data-cert-state="${esc(state)}">
+  return `<section class="ed-card" data-ed-panel="certificate" data-cert-state="${esc(state)}" data-cert-live="${live ? "1" : "0"}">
     <div class="ed-card-hd">
       <h2>Certificate</h2>
-      ${pill(statusKind, ready ? ICO.check : ICO.clock, statusLabel)}
+      ${pill(statusKind, issued ? ICO.check : ICO.clock, statusLabel)}
     </div>
     <p class="ed-sub">${esc(closeLine)}</p>
     ${certificateChecklist({ registered, submitted, submittedLabel, ev, win })}
     ${preview}
-    ${certActions({ ready, openFeedbackHref: ready ? "" : openFb, registerHref })}
-    <p class="ed-note${ready ? " ok" : ""}">${esc(note)}</p>
+    ${certActions({
+      issued,
+      downloadUrl,
+      emailLive,
+      openFeedbackHref: openFb,
+      registerHref,
+      notWired: !live,
+    })}
+    <p class="ed-note${issued ? " ok" : ""}" data-cert-msg>${esc(note)}</p>
   </section>`;
 }
 
-function detailsChrome(ev, tab, registered, panel) {
+function detailsChrome(ev, tab, registered, panel, { windowSource = "client", certLive = false } = {}) {
   const status = headerStatus(ev, { registered, listedAttended: ev.listedAttended });
-  return `<div class="ed" data-ed-root data-event-id="${esc(ev.id)}" data-ed-tab="${esc(tab)}">
+  return `<div class="ed" data-ed-root data-event-id="${esc(ev.id)}" data-ed-tab="${esc(tab)}"
+    data-feedback-window-source="${esc(windowSource)}" data-cert-live="${certLive ? "1" : "0"}">
     <div class="ed-tabs" role="tablist">
       ${PORTAL_EVENT_TABS.map(t => tabBtn(ev.id, t, tab)).join("")}
     </div>
@@ -516,6 +623,46 @@ async function loadFeedbackRow(eventId) {
     return { receipt, row, error: "" };
   } catch (e) {
     return { receipt, row: null, error: e?.message || String(e) };
+  }
+}
+
+async function loadMeCertificate(eventId) {
+  try {
+    const token = await idTokenForRequest();
+    if (!token) return { live: false, status: 0, certificate: null, unauthorized: true };
+    return await getMeEventCertificate(eventId, { token });
+  } catch (e) {
+    if (e?.status === 401 || e?.code === "not-signed-in" || e?.code === "api/unauthorized") {
+      return { live: e?.status === 401, status: e?.status || 0, certificate: null, unauthorized: true };
+    }
+    return { live: false, status: e?.status || 0, certificate: null, error: e?.message || String(e) };
+  }
+}
+
+async function sendCertificateEmail(eventId) {
+  const note = $("[data-cert-msg]");
+  const btn = $("[data-cert-email]");
+  const show = m => { if (note) note.textContent = m; };
+  if (btn) btn.disabled = true;
+  try {
+    const token = await idTokenForRequest();
+    const result = await postMeEventCertificateEmail(eventId, { token });
+    const when = result?.emailedAt ? formatSubmittedAt({ submittedAt: result.emailedAt }) : "";
+    show(when
+      ? `Re-sent ${when}. The API confirmed emailedAt.`
+      : "Re-sent. The API confirmed emailedAt.");
+    if (note) note.classList.add("ok");
+  } catch (e) {
+    if (btn) btn.disabled = false;
+    if (e?.status === 409) {
+      show("This certificate is not issued yet. Nothing was emailed.");
+      return;
+    }
+    if (e?.status === 404) {
+      show("No certificate is available to email. The route may not be live, or none exists.");
+      return;
+    }
+    show(e?.message || "Could not email the certificate. Nothing was assumed sent.");
   }
 }
 
@@ -592,6 +739,10 @@ function paintFeedbackForm(host, ev, questions, receipt) {
       await showDetails(ev.id, "feedback", { push: false });
     } catch (ex) {
       if (btn) btn.disabled = false;
+      if (ex?.status === 403) {
+        show("The feedback window is not open. The API did not accept this response.");
+        return;
+      }
       if (ex?.status === 409 || /already/i.test(ex?.message || "")) {
         show("A response already exists for this registration. Nothing new was sent.");
         return;
@@ -682,15 +833,27 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
     return false;
   }
 
-  const registered = isPortalRegistered(ev);
-  const win = feedbackWindowState(ev);
-  const fb = await loadFeedbackRow(ev.id);
-  const submitted = Boolean(fb.row);
+  const registeredLocal = isPortalRegistered(ev);
+  const [winResolved, meCert, fb] = await Promise.all([
+    resolveFeedbackWindow(ev).catch(() => ({
+      ...feedbackWindowState(ev), source: "client", live: false, timezone: "Asia/Manila",
+    })),
+    loadMeCertificate(ev.id),
+    loadFeedbackRow(ev.id),
+  ]);
+  const api = meCert.certificate;
+  let win = winResolved;
+  if (!win.live && api) win = windowFromCertificate(api, ev, win);
+
+  const registered = api ? api.registered === true : registeredLocal;
+  const submitted = api ? api.feedbackSubmitted === true : Boolean(fb.row);
+  const issued = api?.state === CERT_STATES.ISSUED && Boolean(api.certificate);
   const certState = certificateUiState({
     registered,
     submitted,
     windowState: win.state,
-    issued: false,
+    issued,
+    apiState: api?.state || "",
   });
 
   let panel = "";
@@ -703,6 +866,8 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
       submitted,
       submittedLabel: formatSubmittedAt(fb.row),
       win,
+      live: meCert.live === true && meCert.status === 200,
+      cert: api?.certificate || null,
     });
   } else {
     panel = overviewHtml(ev, registered);
@@ -710,12 +875,17 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
 
   if (home) home.hidden = true;
   mount.hidden = false;
-  mount.innerHTML = detailsChrome(ev, safeTab, registered, panel);
+  mount.innerHTML = detailsChrome(ev, safeTab, registered, panel, {
+    windowSource: win.source || "client",
+    certLive: meCert.live === true && meCert.status === 200,
+  });
   applyHeader(ev, registered);
   document.documentElement.setAttribute("data-portal-event", ev.id);
   document.documentElement.setAttribute("data-portal-event-tab", safeTab);
   document.documentElement.setAttribute("data-portal-cert-state", certState);
   document.documentElement.setAttribute("data-portal-feedback-window", win.state);
+  document.documentElement.setAttribute("data-portal-feedback-window-source", win.source || "client");
+  document.documentElement.setAttribute("data-portal-cert-live", meCert.live && meCert.status === 200 ? "1" : "0");
 
   const params = { event: ev.id };
   if (safeTab !== "overview") params.tab = safeTab;
@@ -738,6 +908,8 @@ export function showList({ push = true } = {}) {
   document.documentElement.removeAttribute("data-portal-event-tab");
   document.documentElement.removeAttribute("data-portal-cert-state");
   document.documentElement.removeAttribute("data-portal-feedback-window");
+  document.documentElement.removeAttribute("data-portal-feedback-window-source");
+  document.documentElement.removeAttribute("data-portal-cert-live");
   writeHash({}, { push });
 }
 
@@ -772,6 +944,14 @@ function bind() {
       if (!id) return;
       e.preventDefault();
       showDetails(id, tab.dataset.edTab, { push: true });
+      return;
+    }
+    const emailBtn = e.target.closest("[data-cert-email]");
+    if (emailBtn && !emailBtn.disabled) {
+      const id = $("[data-ed-root]")?.dataset.eventId;
+      if (!id) return;
+      e.preventDefault();
+      sendCertificateEmail(id);
       return;
     }
     const open = e.target.closest("[data-event-open]");

@@ -1,4 +1,4 @@
-/* Portal Event Details: in-portal tabs, #event= URL, recap order, cert UI-only. */
+/* Portal Event Details: in-portal tabs, #event= URL, recap order, draft cert probe. */
 import { chromium } from "playwright";
 import { readFileSync, existsSync } from "fs";
 
@@ -34,7 +34,8 @@ await T("URL helper and recap markup order", () => {
   ok(html.includes('data-partner-cta'), "partner CTA reused");
   ok(existsSync(`${ROOT}/assets/img/paaipe-certificate-of-participation.png`), "approved template preview");
   const js = readFileSync(`${ROOT}/assets/js/paaipe-portal-events.js`, "utf8");
-  ok(!/\/v1\/.*certificat/.test(js), "no invented cert endpoints in portal module");
+  ok(!/\/v1\/.*certificat/.test(js), "portal module uses helpers, not path strings");
+  ok(!/certificate\/issue|certificate\/download/.test(js), "no issue or download API");
   ok(js.includes("not wired"), "honest disabled copy");
 });
 
@@ -70,8 +71,9 @@ async function open(path, { width = 1280, height = 900 } = {}) {
   await p.route("**/assets/js/paaipe-events-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: dataStub }));
   await p.route("https://api.paaipe.org/**", async route => {
-    apiHits.push(route.request().url());
     const url = route.request().url();
+    const method = route.request().method();
+    apiHits.push(`${method} ${url}`);
     if (/\/feedback\/questions/.test(url)) {
       await route.fulfill({
         status: 200, contentType: "application/json",
@@ -124,20 +126,24 @@ await T("certificate UI states — issued never inferred; both gates required", 
       notReg: m.certificateUiState({ registered: false, submitted: false, windowState: "open" }),
       wait: m.certificateUiState({ registered: true, submitted: false, windowState: "locked" }),
       open: m.certificateUiState({ registered: true, submitted: false, windowState: "open" }),
-      ready: m.certificateUiState({ registered: true, submitted: true, windowState: "closed" }),
+      issuing: m.certificateUiState({ registered: true, submitted: true, windowState: "closed" }),
       missed: m.certificateUiState({ registered: true, submitted: false, windowState: "closed" }),
       issued: m.certificateUiState({ registered: true, submitted: true, issued: true }),
       notIssued: m.certificateUiState({ registered: true, submitted: true, issued: false }),
+      apiIssued: m.certificateUiState({ apiState: "issued", issued: true }),
+      apiReady: m.certificateUiState({ apiState: "ready", issued: false }),
       S,
     };
   });
   eq(got.notReg, got.S.NOT_REGISTERED, "not registered");
-  eq(got.wait, got.S.REGISTERED_LOCKED, "wait");
-  eq(got.open, got.S.REGISTERED_OPEN, "open feedback");
-  eq(got.ready, got.S.READY, "eligible");
-  eq(got.missed, got.S.CLOSED_UNSUBMITTED, "missed window");
+  eq(got.wait, got.S.AWAITING_FEEDBACK_OPEN, "wait");
+  eq(got.open, got.S.FEEDBACK_OPEN, "open feedback");
+  eq(got.issuing, got.S.ISSUING, "submitted is issuing, not issued");
+  eq(got.missed, got.S.CLOSED_NO_CERT, "missed window");
   eq(got.issued, got.S.ISSUED, "issued only when told");
-  eq(got.notIssued, got.S.READY, "submitted is not issued");
+  eq(got.notIssued, got.S.ISSUING, "submitted is not issued");
+  eq(got.apiIssued, got.S.ISSUED, "API issued");
+  eq(got.apiReady, got.S.ISSUING, "ready alias without cert → issuing");
   await ctx.close();
 });
 
@@ -192,7 +198,9 @@ await T("October feedback locked; September feedback closed; cert actions disabl
   eq(await p.getAttribute("[data-feedback-window]", "data-feedback-window"), "closed", "Sep closed");
   await p.locator('[data-ed-tab="certificate"]').click();
   await p.waitForSelector("[data-cert-state]");
-  eq(await p.getAttribute("[data-cert-state]", "data-cert-state"), "closed_unsubmitted", "no cert without feedback");
+  eq(await p.getAttribute("[data-cert-state]", "data-cert-state"), "closed_no_cert", "no cert without feedback");
+  eq(await p.getAttribute("[data-ed-root]", "data-cert-live"), "0", "cert GET 404 is not live");
+  eq(await p.getAttribute("[data-ed-root]", "data-feedback-window-source"), "client", "window 404 → client math");
   ok(await p.locator("[data-cert-download]").isDisabled(), "Download disabled");
   ok(await p.locator("[data-cert-email]").isDisabled(), "Email disabled");
   await ctx.close();
@@ -218,8 +226,89 @@ await T("375px Events list + Details do not overflow horizontally", async () => 
   await ctx.close();
 });
 
-await T("no certificate API was called during portal details", () => {
-  ok(!apiHits.some(u => /certificat/i.test(u)), `cert API hits: ${apiHits.filter(u => /certificat/i.test(u))}`);
+await T("draft routes are probed; 404 is not-wired; no issue/download/email POST", () => {
+  ok(apiHits.some(u => /GET .*\/feedback\/window/.test(u)), "window GET probed");
+  ok(apiHits.some(u => /GET .*\/me\/events\/.+\/certificate/.test(u)), "me certificate GET probed");
+  ok(!apiHits.some(u => /POST .*\/certificate/.test(u)), "no email POST while 404");
+  ok(!apiHits.some(u => /certificate\/(issue|download)/.test(u)), "no invented issue/download");
+});
+
+await T("live certificate GET enables media.paaipe.org download; email POST only then", async () => {
+  const hits = [];
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+  await p.route("**/assets/js/paaipe-events-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
+  await p.route("**/assets/js/paaipe-events-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: dataStub }));
+  await p.route("https://api.paaipe.org/**", async route => {
+    const url = route.request().url();
+    const method = route.request().method();
+    hits.push(`${method} ${url}`);
+    if (/\/feedback\/window/.test(url)) {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({
+          opensAt: "2026-09-15T13:00:00.000Z",
+          closesAt: "2026-09-16T04:00:00.000Z",
+          state: "closed",
+          timezone: "Asia/Manila",
+        }),
+      });
+      return;
+    }
+    if (/\/certificate\/email/.test(url) && method === "POST") {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ emailedAt: "2026-09-16T05:00:00.000Z" }),
+      });
+      return;
+    }
+    if (/\/me\/events\/.+\/certificate/.test(url) && method === "GET") {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({
+          state: "issued",
+          registered: true,
+          feedbackSubmitted: true,
+          feedbackWindow: { state: "closed", opensAt: "2026-09-15T13:00:00.000Z", closesAt: "2026-09-16T04:00:00.000Z", timezone: "Asia/Manila" },
+          certificate: {
+            id: "cert-1",
+            issuedAt: "2026-09-16T04:05:00.000Z",
+            pdfUrl: "https://media.paaipe.org/certificates/cert-1.pdf",
+            pngUrl: "https://media.paaipe.org/certificates/cert-1.png",
+            emailedAt: "2026-09-16T04:06:00.000Z",
+          },
+        }),
+      });
+      return;
+    }
+    if (/\/feedback\/questions/.test(url)) {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ questions: [] }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, body: "not found" });
+  });
+  await p.goto(`${BASE}/portal-events.html#event=2026-09-ai-exchange&tab=certificate`, { waitUntil: "load" });
+  await p.waitForSelector("[data-cert-state]");
+  eq(await p.getAttribute("[data-cert-state]", "data-cert-state"), "issued", "issued from GET");
+  eq(await p.getAttribute("[data-ed-root]", "data-cert-live"), "1", "200 is live");
+  eq(await p.getAttribute("[data-ed-root]", "data-feedback-window-source"), "api", "window GET used");
+  const href = await p.getAttribute("[data-cert-download]", "href");
+  eq(href, "https://media.paaipe.org/certificates/cert-1.pdf", "download is media URL");
+  ok(!await p.locator("[data-cert-email]").isDisabled(), "email enabled when issued + live");
+  await p.locator("[data-cert-email]").click();
+  await p.waitForFunction(() => /^Re-sent/i.test(document.querySelector("[data-cert-msg]")?.textContent || ""));
+  ok(hits.some(u => /POST .*\/certificate\/email/.test(u)), "email POST only when live");
+  ok(!hits.some(u => /certificate\/(issue|download)/.test(u)), "still no issue/download API");
+  await ctx.close();
 });
 
 await br.close();

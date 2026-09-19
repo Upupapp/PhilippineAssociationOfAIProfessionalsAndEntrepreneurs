@@ -112,24 +112,35 @@
   .notice2{display:flex;gap:10px;align-items:flex-start;background:var(--amber-bg);border:1px solid #f0d9a8;border-radius:12px;padding:12px 14px;font-size:13px;color:#5c4108}.notice2 svg{width:16px;height:16px;stroke:var(--amber-ink);fill:none;stroke-width:2;flex:none;margin-top:2px}
   @media (max-width:1100px){.rec{grid-template-columns:1fr}}
 
-  /* Watch split lives on a class so @media can override it. An inline
-     grid-template-columns beat .grid2{1fr} at 1100 and left a ~147px player
-     plus +36px overflow at 390. */
-  .watch-layout{grid-template-columns:1.55fr .65fr}
-  .watch-layout > *,.watch-layout .player{min-width:0}
+  /* R-02 follow-up: stack first. #44 moved the 1.55/.65 split off an inline
+     style onto .watch-layout, but any later/inline grid-template-columns still
+     beat max-width:1100 {.watch-layout{1fr}} (same specificity, or inline).
+     Default is one column; desktop split is min-width:1101 only. !important
+     on the phone/tablet stack defeats leftover or injected inline grids. */
+  .watch-layout{grid-template-columns:minmax(0,1fr)}
+  .watch-layout > *,.watch-layout .player{min-width:0;max-width:100%}
   .watch-layout .player{width:100%}
-  @media (max-width:1100px){.watch-layout{grid-template-columns:1fr}}
+  @media (min-width:1101px){
+    .watch-layout{grid-template-columns:minmax(0,1.55fr) minmax(0,.65fr)}
+  }
+  @media (max-width:1100px){
+    .grid2,.watch-layout,.watch-layout.grid2{grid-template-columns:minmax(0,1fr) !important}
+    .watch-layout > *{max-width:100%;min-width:0}
+  }
 
   /* Phone harden for this page only (R-04 subset). Additive; ≥561 unchanged. */
   @media (max-width:560px){
     .hd{flex-wrap:wrap}
     .tabs{flex-wrap:wrap}
     .acts{justify-content:flex-start}
-    [class*="grid"]{grid-template-columns:1fr}
+    [class*="grid"]{grid-template-columns:minmax(0,1fr) !important}
     [class*="grid"]>*,.hd>*,.acts>*,.next>*{min-width:0}
-    .next{grid-template-columns:1fr;gap:12px}
+    .next{grid-template-columns:minmax(0,1fr) !important;gap:12px}
     .count{flex-wrap:wrap}
-    .card,.hd,.main,.acts,.watch-layout,.player{min-width:0}
+    .card,.hd,.main,.acts,.watch-layout,.player,.top,.ttl,.crumbs{min-width:0}
+    .top,.crumbs{flex-wrap:wrap}
+    .ttl{flex:1}
+    .ttl h1{overflow-wrap:anywhere}
     .card{overflow-wrap:anywhere}
     .list li{flex-wrap:wrap;align-items:center}
     .player .pl span{min-width:44px;min-height:44px}

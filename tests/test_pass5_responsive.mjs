@@ -74,33 +74,39 @@ function pageOverflow() {
 }
 
 await T("R-07 @390: journey scrollOverflow ≤0, last step reachable, no page overflow", async () => {
-  const { p, ctx } = await open("portal-programs.html", { width: 390, height: 844 });
+  // JS on matches Pass 5 / live (shell CSS is enough; main@320 js-off already +4).
+  const { p, ctx } = await open("portal-programs.html", { width: 390, height: 844 }, true);
   const m = await p.evaluate(() => {
     const j = document.querySelector(".journey");
     const last = j && j.lastElementChild;
-    const jr = j ? j.getBoundingClientRect() : null;
     return {
       pageOv: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       scrollOv: j ? j.scrollWidth - j.clientWidth : -1,
       display: j ? getComputedStyle(j).display : "",
       cols: j ? getComputedStyle(j).gridTemplateColumns : "",
       lastRight: last ? last.getBoundingClientRect().right : 0,
-      lastTop: last ? last.getBoundingClientRect().top : 0,
-      journeyRight: jr ? jr.right : 0,
-      connector: j ? getComputedStyle(j, "::before").display : "",
+      count: j ? j.children.length : 0,
     };
   });
   ok(m.pageOv <= 0, `page overflow ${m.pageOv} ≤ 0`);
   ok(m.scrollOv <= 0, `journey scrollOverflow ${m.scrollOv} ≤ 0`);
   ok(m.display === "grid", `journey display ${m.display}`);
   ok(m.cols.trim().split(/\s+/).length === 1, `1-col grid, got ${m.cols}`);
+  ok(m.count === 7, "seven steps");
   ok(m.lastRight <= 390 + 1, `last step right ${m.lastRight.toFixed(1)} ≤ 390`);
-  ok(m.lastTop < 844, `last step on-screen-ish top ${m.lastTop}`);
+  await p.locator(".journey li").last().scrollIntoViewIfNeeded();
+  const after = await p.evaluate(() => {
+    const last = document.querySelector(".journey li:last-child");
+    const r = last.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, vh: window.innerHeight };
+  });
+  ok(after.top >= 0 && after.bottom <= after.vh + 1,
+    `last step in view after scroll (${after.top}–${after.bottom} / ${after.vh})`);
   await ctx.close();
 });
 
 await T("R-07 @320: journey still stacked, no page overflow", async () => {
-  const { p, ctx } = await open("portal-programs.html", { width: 320, height: 568 });
+  const { p, ctx } = await open("portal-programs.html", { width: 320, height: 568 }, true);
   const m = await p.evaluate(() => {
     const j = document.querySelector(".journey");
     return {

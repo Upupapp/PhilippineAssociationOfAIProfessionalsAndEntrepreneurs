@@ -1,11 +1,12 @@
 /* PAAIPE admin API — Clarence's BE contract.
  *
- * Default:  https://api.paaipe.org  (HTTPS live; health/live + health/ready 200)
- * Offline smoke override: http://127.0.0.1:8091
- *   ?paaipe_api=tunnel | localStorage/window PAAIPE_API_BASE
+ * Draft default:  http://127.0.0.1:8091  (SSH tunnel)
  *   ssh -L 8091:127.0.0.1:8091 root@103.3.62.77
+ * Flip target:    https://api.paaipe.org
+ *   Change PAAIPE_API_DEFAULT_BASE to PAAIPE_API_PROD_BASE when Paul
+ *   authorizes nginx for api.paaipe.org. Do not default there yet.
  *
- * ONE override knob, first non-empty wins:
+ * ONE constant / env-style knob — flip without a rewrite:
  *   1. ?paaipe_api=   — "tunnel"/"local" → 8091; "prod"/"api" → api.paaipe.org;
  *                       otherwise an absolute base
  *   2. window.PAAIPE_API_BASE
@@ -16,10 +17,11 @@
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
- * Unauthenticated Settings PATCH and Registrations GET return 401 (routes exist).
+ * Settings PATCH is live on Linode. Registrations admin is still 404 until
+ * the BE deploy — the client is drafted; failures stay honest.
  *
- * CORS: https://paaipe.org is allowed. Other origins still need to be added
- * (www / localhost smoke ports if used).
+ * CORS: none yet. A browser on paaipe.org will block until origins are added
+ * (or use the tunnel / a local proxy while drafting).
  *
  * Paths (use exactly):
  *   PATCH /v1/admin/events/{id}
@@ -35,8 +37,8 @@
  */
 export const PAAIPE_API_PROD_BASE = "https://api.paaipe.org";
 export const PAAIPE_API_TUNNEL_BASE = "http://127.0.0.1:8091";
-/** Live default. Override to PAAIPE_API_TUNNEL_BASE for offline 8091 smoke only. */
-export const PAAIPE_API_DEFAULT_BASE = PAAIPE_API_PROD_BASE;
+/** Draft default. Flip to PAAIPE_API_PROD_BASE after Paul-authorized nginx. */
+export const PAAIPE_API_DEFAULT_BASE = PAAIPE_API_TUNNEL_BASE;
 export const PAAIPE_API_OVERRIDE_KEY = "PAAIPE_API_BASE";
 export const PAAIPE_API_QUERY_PARAM = "paaipe_api";
 

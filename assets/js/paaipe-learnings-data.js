@@ -1,16 +1,30 @@
 /* PAAIPE — Sessions and Micros (Learnings).
  *
- * Two collections, Clarence's schema, locked:
- *   paaipe_sessions  — landscape 16:9 recordings
- *   paaipe_micros    — vertical 9:16 clips
+ * Portal / public reads are hard-cut to Clarence's live Linode API
+ * (https://api.paaipe.org). Firebase is Auth/users only for this path.
  *
- * Do NOT extend paaipe_recordings. Portal reads published==true ordered by
- * displayOrder asc. Admin writes go through isAdmin() in firestore.rules.
+ *   GET /v1/sessions          { sessions: [...] }
+ *   GET /v1/sessions/{id}
+ *   GET /v1/micros            { micros: [...] }
+ *   GET /v1/micros/{id}
+ *
+ * Wire camelCase fields as returned: itemIds, displayOrder, publishedAt,
+ * youtubeUrl, youtubeId, posterUrl, aspect, title, description, kind,
+ * status, source, published, storagePath, posterStoragePath.
+ *
+ * Admin writes (save / delete / reorder) stay on Firestore until Clarence
+ * documents admin Learnings CRUD. Do not invent admin endpoints.
  *
  * Upload POSTs to media.paaipe.org and stores the returned path as
  * storagePath / posterStoragePath. YouTube remains the other path.
  */
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
+import {
+  listApiSessions,
+  getApiSession,
+  listApiMicros,
+  getApiMicro,
+} from "/assets/js/paaipe-api.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 let _db = null;
@@ -100,34 +114,41 @@ function row(doc) {
   return { id: doc.id, ...doc.data() };
 }
 
-/** Admin: every row, ordered by displayOrder then createdAt. */
+function missingAsNull(err) {
+  if (err && (err.status === 404 || err.code === "api/not-found")) return null;
+  throw err;
+}
+
+/** Admin: every row, ordered by displayOrder then createdAt.
+ *  Public (asAdmin: false) reads api.paaipe.org — no Firestore. */
 export async function listLearnings(kind, { asAdmin = false } = {}) {
+  if (!asAdmin) {
+    return kind === "micros" ? listPublishedMicros() : listPublishedSessions();
+  }
   const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
   const F = await import(`${SDK}/firebase-firestore.js`);
   const col = F.collection(await db(), colName);
-  let q;
-  if (asAdmin) {
-    q = F.query(col, F.orderBy("displayOrder", "asc"));
-  } else {
-    q = F.query(col, F.where("published", "==", true), F.orderBy("displayOrder", "asc"));
-  }
+  const q = F.query(col, F.orderBy("displayOrder", "asc"));
   const snap = await F.getDocs(q);
   return snap.docs.map(row);
 }
 
 export async function listPublishedSessions() {
-  return listLearnings("sessions", { asAdmin: false });
+  return listApiSessions();
 }
 
 export async function listPublishedMicros() {
-  return listLearnings("micros", { asAdmin: false });
+  return listApiMicros();
 }
 
 export async function getLearning(kind, id) {
-  const colName = kind === "micros" ? LEARNINGS_COL.micros : LEARNINGS_COL.sessions;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const s = await F.getDoc(F.doc(await db(), colName, id));
-  return s.exists() ? row(s) : null;
+  const safe = String(id || "").trim();
+  if (!safe) return null;
+  try {
+    return kind === "micros" ? await getApiMicro(safe) : await getApiSession(safe);
+  } catch (err) {
+    return missingAsNull(err);
+  }
 }
 
 /**

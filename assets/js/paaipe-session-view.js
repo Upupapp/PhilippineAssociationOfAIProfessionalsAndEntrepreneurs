@@ -27,6 +27,12 @@ import {
   youtubeEmbedSrc,
   LEARNING_SOURCE,
 } from "/assets/js/paaipe-learnings-data.js";
+import {
+  listPublishedPlaylists,
+  listPlaylistItems,
+  groupLearningsByPlaylist,
+  playlistForItem,
+} from "/assets/js/paaipe-playlists-data.js";
 import { currentAgent } from "/assets/js/paaipe-firebase.js";
 import { readHash, readView, patchHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
@@ -628,6 +634,8 @@ function applyReelsChrome(root = document) {
     const HUB = {
       sessions: [],
       micros: [],
+      playlists: { all: [], sessions: [], micros: [] },
+      playlistsError: false,
     };
     function hubTabFromLocation() {
       // Hash is the live contract (#tab=sessions|#tab=micros|#tab=playlists).
@@ -680,9 +688,16 @@ function applyReelsChrome(root = document) {
         showHubTab(tab === "playlists"
           ? "playlists"
           : (isMicro && !HUB.sessions.some(r => r.id === id) ? "micros" : tab));
+        const playlist = playlistForItem(
+          HUB.playlists.all.length
+            ? HUB.playlists.all
+            : HUB.playlists[isMicro ? "micros" : "sessions"],
+          row.id
+        );
         openWatchPopup(row, {
           aspect: isMicro ? "9:16" : "16:9",
           syncUrl: false,
+          playlist,
           kind: isMicro ? "micros" : "sessions",
         });
       } else {
@@ -705,9 +720,13 @@ function applyReelsChrome(root = document) {
       });
     });
     showHubTab(hubTabFromLocation());
+    function paintPlaylistView() {
+      renderPlaylists(HUB.playlists.all, { loadError: HUB.playlistsError });
+      playFromLocation();
+    }
     onViewChange(() => {
       showHubTab(hubTabFromLocation());
-      playFromLocation();
+      paintPlaylistView();
     });
 
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
@@ -719,17 +738,33 @@ function applyReelsChrome(root = document) {
       mountPlayStage(stage, row, { aspect });
     }
 
-    function sessionCard(row) {
+    function playlistHead(playlist) {
+      const head = document.createElement("header");
+      head.className = "playlist-head";
+      head.setAttribute("data-playlist-id", playlist.id);
+      const h = document.createElement("h3");
+      h.textContent = playlist.title || "Playlist";
+      head.appendChild(h);
+      if (playlist.description) {
+        const p = document.createElement("p");
+        p.textContent = playlist.description;
+        head.appendChild(p);
+      }
+      return head;
+    }
+
+    function sessionCard(row, { inPlaylist = false, playlist = null } = {}) {
       const el = document.createElement("article");
       el.className = "live-session";
       el.setAttribute("data-learn-id", row.id);
+      const withPl = { ...row, _playlist: playlist };
       const stage = document.createElement("div");
       stage.className = "stage";
-      mountYt(stage, row, "16:9");
+      mountYt(stage, withPl, "16:9");
       const meta = document.createElement("div");
       meta.innerHTML =
         `<b>${esc(row.title || "Untitled")}</b>` +
-        (row.description
+        (!inPlaylist && row.description
           ? `<p class="desc">${esc(row.description)}</p>`
           : "") +
         `<div class="src"><span class="pill info">${
@@ -740,13 +775,14 @@ function applyReelsChrome(root = document) {
       return el;
     }
 
-    function microCard(row) {
+    function microCard(row, playlist = null) {
       const card = document.createElement("div");
       card.className = "micro-card";
       card.setAttribute("data-learn-id", row.id);
+      const withPl = { ...row, _playlist: playlist };
       const stage = document.createElement("div");
       stage.className = "stage";
-      mountYt(stage, row, "9:16");
+      mountYt(stage, withPl, "9:16");
       const cap = document.createElement("div");
       cap.className = "cap";
       cap.textContent = row.title || "Micro";
@@ -802,17 +838,124 @@ function applyReelsChrome(root = document) {
       host.appendChild(grid);
     }
 
-    // Chrome only until Clarence ships GET /v1/.../playlists on api.paaipe.org.
-    // Soft-fail empty. Do not read Firestore playlists from this hub.
-    function renderPlaylists() {
+    function playlistKindLabel(kind) {
+      return kind === "micros" ? "Micros" : "Sessions";
+    }
+
+    function itemsForPlaylist(playlist) {
+      const pool = playlist?.kind === "micros" ? HUB.micros : HUB.sessions;
+      const { groups } = groupLearningsByPlaylist(pool, [playlist]);
+      return groups[0]?.items || [];
+    }
+
+    async function itemsForPlaylistAsync(playlist) {
+      const local = itemsForPlaylist(playlist);
+      if (local.length) return local;
+      try {
+        return await listPlaylistItems(playlist.id);
+      } catch {
+        return [];
+      }
+    }
+
+    function renderPlaylists(playlists, { loadError = false } = {}) {
       const host = document.querySelector("[data-ss-live-playlists]");
       const empty = document.querySelector("[data-ss-playlists-empty]");
       const loading = document.querySelector("[data-ss-playlists-loading]");
       const count = document.querySelector("[data-ss-playlist-count]");
       if (loading) loading.remove();
-      if (count) count.textContent = "0 published";
-      if (host) host.innerHTML = "";
-      if (empty) empty.hidden = false;
+      if (!host) return;
+
+      const published = (playlists || []).filter(p => p && p.status === "published");
+      if (count) {
+        count.textContent = published.length === 1
+          ? "1 published"
+          : `${published.length} published`;
+      }
+
+      if (loadError) {
+        if (empty) empty.hidden = true;
+        host.innerHTML =
+          `<p class="note">Published playlists could not be loaded just now. ` +
+          `This is not an empty library — try again shortly.</p>`;
+        return;
+      }
+
+      if (!published.length) {
+        host.innerHTML = "";
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+
+      const openId = String(readView().playlist || "").trim();
+      const open = published.find(p => p.id === openId) || null;
+
+      if (open) {
+        host.innerHTML = `<p class="note" data-ss-playlist-detail-loading>Loading playlist…</p>`;
+        const token = open.id;
+        itemsForPlaylistAsync(open).then(items => {
+          if (String(readView().playlist || "").trim() !== token) return;
+          host.innerHTML = "";
+          const block = document.createElement("section");
+          block.className = "playlist-block";
+          block.setAttribute("data-playlist", open.id);
+          block.appendChild(playlistHead(open));
+          if (!items.length) {
+            const note = document.createElement("p");
+            note.className = "note";
+            note.textContent = "This Playlist has no published items to show yet.";
+            block.appendChild(note);
+          } else if (open.kind === "micros") {
+            const grid = document.createElement("div");
+            grid.className = "micro-grid";
+            items.forEach(row => grid.appendChild(microCard(row, open)));
+            block.appendChild(grid);
+          } else {
+            items.forEach(row => block.appendChild(sessionCard(row, {
+              inPlaylist: true,
+              playlist: open,
+            })));
+          }
+          host.appendChild(block);
+        });
+        return;
+      }
+
+      host.innerHTML = "";
+      published.forEach(pl => {
+        const n = Array.isArray(pl.itemIds) ? pl.itemIds.length : itemsForPlaylist(pl).length;
+        const el = document.createElement("div");
+        el.className = "row";
+        el.setAttribute("data-playlist", pl.id);
+        el.innerHTML =
+          `<span class="pill info">${esc(playlistKindLabel(pl.kind))}</span>` +
+          `<div><b>${esc(pl.title || "Playlist")}</b>` +
+            (pl.description
+              ? `<small style="color:var(--muted)">${esc(pl.description)}</small>`
+              : "") +
+          `</div>` +
+          `<div class="acts">` +
+            `<small style="color:var(--muted)">${esc(n === 1 ? "1 item" : `${n} items`)}</small>` +
+            `<button type="button" class="btn btn-gold btn-sm" data-ss-open-playlist>Open</button>` +
+          `</div>`;
+        const go = () => {
+          writeHash({ tab: "playlists", playlist: pl.id }, { push: true });
+          // pushState does not fire hashchange/popstate — paint the detail now.
+          paintPlaylistView();
+        };
+        el.querySelector("[data-ss-open-playlist]").addEventListener("click", e => {
+          e.preventDefault();
+          e.stopPropagation();
+          go();
+        });
+        el.addEventListener("click", e => {
+          if (e.target.closest("[data-ss-open-playlist]")) return;
+          e.preventDefault();
+          go();
+        });
+        host.appendChild(el);
+      });
     }
 
     function loadOne(loader) {
@@ -822,15 +965,27 @@ function applyReelsChrome(root = document) {
       );
     }
 
+    function splitPlaylists(rows) {
+      const all = Array.isArray(rows) ? rows : [];
+      return {
+        all,
+        sessions: all.filter(p => p.kind === "sessions"),
+        micros: all.filter(p => p.kind === "micros"),
+      };
+    }
+
     (async () => {
-      // Isolate fetches: a session failure must not blank Micros, and vice versa.
-      // Playlists wait for Clarence's Linode contract — never Firestore here.
-      const [sessionRes, microRes] = await Promise.all([
+      // Isolate fetches: a session, micro, or playlist failure must not blank
+      // the other two. Sessions/Micros stay ungrouped; Playlists tab is API.
+      const [sessionRes, microRes, playlistRes] = await Promise.all([
         loadOne(listPublishedSessions),
         loadOne(listPublishedMicros),
+        loadOne(() => listPublishedPlaylists()),
       ]);
       HUB.sessions = sessionRes.value;
       HUB.micros = microRes.value;
+      HUB.playlists = splitPlaylists(playlistRes.value);
+      HUB.playlistsError = !playlistRes.ok;
       if (!sessionRes.ok) {
         const host = document.querySelector("[data-ss-live-sessions]");
         if (host) {
@@ -854,12 +1009,12 @@ function applyReelsChrome(root = document) {
       } else {
         renderMicros(HUB.micros);
       }
-      renderPlaylists();
+      renderPlaylists(HUB.playlists.all, { loadError: HUB.playlistsError });
       document.documentElement.setAttribute(
         "data-sessions-ready",
         (!sessionRes.ok && !microRes.ok)
           ? "error"
-          : `live:${HUB.sessions.length}:${HUB.micros.length}:0`
+          : `live:${HUB.sessions.length}:${HUB.micros.length}:${HUB.playlists.all.length}`
       );
       playFromLocation();
     })();

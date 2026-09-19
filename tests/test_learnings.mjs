@@ -97,10 +97,18 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   const view = read("assets/js/paaipe-session-view.js");
   ok(view.includes("listPublishedSessions"), "fetches sessions");
   ok(view.includes("listPublishedMicros"), "fetches micros");
-  ok(!/from\s+["']\/assets\/js\/paaipe-playlists-data\.js["']/.test(view),
-    "hub does not import playlists-data");
-  ok(!/\bloadOne\s*\(\s*(?:\(\)\s*=>\s*)?listPublishedPlaylists/.test(view),
-    "hub does not fetch Firestore playlists");
+  ok(/from\s+["']\/assets\/js\/paaipe-playlists-data\.js["']/.test(view),
+    "hub imports playlists-data");
+  ok(/\bloadOne\s*\(\s*(?:\(\)\s*=>\s*)?listPublishedPlaylists/.test(view),
+    "hub fetches playlists via the API module");
+  ok(!/firebase-firestore/.test(read("assets/js/paaipe-playlists-data.js")),
+    "playlists-data has no Firestore reads");
+  ok(/listApiSessions|listPublishedSessions/.test(read("assets/js/paaipe-learnings-data.js")),
+    "sessions list is wired");
+  ok(read("assets/js/paaipe-learnings-data.js").includes("listApiSessions"),
+    "published sessions come from the API");
+  ok(read("assets/js/paaipe-learnings-data.js").includes("listApiMicros"),
+    "published micros come from the API");
   ok(view.includes("function loadOne"), "isolates each hub fetch");
   ok(view.includes("youtubeEmbedSrc"), "in-portal embed");
   ok(view.includes("LEARNING_SOURCE"), "uses LEARNING_SOURCE");
@@ -234,11 +242,19 @@ const plStub = (playlists = [], { fail = false } = {}) => fail
     throw e;
   }
   export async function listPlaylists(){ return [] }
+  export async function listPlaylistItems(){ return [] }
 `
   : `
   export * from '/assets/js/paaipe-playlists-data-real.js';
   export async function listPublishedPlaylists(){ return ${JSON.stringify(playlists)} }
   export async function listPlaylists(){ return ${JSON.stringify(playlists)} }
+  export async function getPlaylist(id){
+    return ${JSON.stringify(playlists)}.find(p => p.id === id) || null;
+  }
+  export async function listPlaylistItems(id){
+    const pl = ${JSON.stringify(playlists)}.find(p => p.id === id);
+    return (pl && Array.isArray(pl.items)) ? pl.items : [];
+  }
 `;
 
 const br = await chromium.launch();
@@ -480,10 +496,9 @@ await T("playlist stub failure does not blank published Sessions or Micros", asy
   eq(await p.locator(".micro-card").count(), 1, "micros still render");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
   ok(await p.locator('[data-ss-hub-panel="playlists"]').isVisible(), "playlists panel");
-  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "chrome count");
-  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "soft-fail empty, no Firestore fault");
-  ok(!(await p.locator("[data-ss-live-playlists]").innerText()).includes("could not be loaded"),
-    "no Firestore playlist error path");
+  ok((await p.locator("[data-ss-live-playlists]").innerText()).includes("could not be loaded"),
+    "honest playlist fault — not an empty library");
+  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "must not look like none published");
   await ctx.close();
 });
 
@@ -505,7 +520,7 @@ const HUB_MICRO = {
   displayOrder: 1,
 };
 
-await T("Playlists tab is chrome-only: empty even when a Firestore stub returns rows", async () => {
+await T("Playlists tab lists the API-published micros playlist", async () => {
   const { p, ctx } = await openHub({
     sessions: SESSIONS,
     micros: [HUB_MICRO],
@@ -513,22 +528,23 @@ await T("Playlists tab is chrome-only: empty even when a Firestore stub returns 
   });
   eq(await p.locator(".live-session").count(), 2, "sessions stay visible");
   eq(await p.locator("[data-ss-session-count]").innerText(), "2 published · 16:9", "session count matches list");
+  eq(await p.locator('[data-ss-hub-panel="sessions"] [data-playlist]').count(), 0,
+    "Sessions stay ungrouped");
   const tabs = p.locator("[data-ss-hub-tab]");
   eq(await tabs.count(), 3, "three hub tabs");
   eq(await tabs.nth(2).innerText(), "Playlists", "Playlists after Micros");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
   await p.waitForFunction(() => /#tab=playlists/.test(location.hash), { timeout: 4000 });
-  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "chrome count is empty");
-  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "honest empty");
-  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 0,
-    "does not render Firestore playlist rows");
-  eq(await p.locator('[data-ss-hub-panel="playlists"] .row').count(), 0, "no playlist rows");
-  ok((await p.locator("[data-ss-playlists-empty]").innerText()).includes("No playlists published yet"),
-    "empty copy");
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "1 published", "chrome count");
+  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 1,
+    "one API playlist row");
+  ok((await p.locator('[data-ss-hub-panel="playlists"]').innerText()).includes("From Signals to Strategy"),
+    "seeded title");
   await ctx.close();
 });
 
-await T("#tab=playlists hash restores the Playlists tab chrome", async () => {
+await T("#tab=playlists hash restores the Playlists tab with the seeded row", async () => {
   const pasted = await openHub({
     sessions: SESSIONS,
     micros: [HUB_MICRO],
@@ -537,8 +553,9 @@ await T("#tab=playlists hash restores the Playlists tab chrome", async () => {
   });
   ok(await pasted.p.locator('[data-ss-hub-tab="playlists"]').evaluate(el => el.classList.contains("on")),
     "playlists tab");
-  ok(await pasted.p.locator("[data-ss-playlists-empty]").isVisible(), "empty chrome on paste");
-  eq(await pasted.p.locator("[data-ss-playlist-count]").innerText(), "0 published", "count");
+  eq(await pasted.p.locator("[data-ss-playlist-count]").innerText(), "1 published", "count");
+  ok((await pasted.p.locator("[data-ss-live-playlists]").innerText()).includes("From Signals to Strategy"),
+    "row on paste");
   await pasted.ctx.close();
 
   const { p, ctx } = await openHub({
@@ -550,6 +567,38 @@ await T("#tab=playlists hash restores the Playlists tab chrome", async () => {
   await p.goBack();
   await p.waitForFunction(() => /tab=sessions/.test(location.hash) || !location.hash, { timeout: 4000 });
   ok(await p.locator('[data-ss-hub-panel="sessions"]').isVisible(), "Back returns to Sessions");
+  await ctx.close();
+});
+
+await T("Playlists tab is honestly empty when the API returns no playlists", async () => {
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [],
+  });
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  eq(await p.locator("[data-ss-playlist-count]").innerText(), "0 published", "empty count");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "honest empty");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-playlist]').count(), 0, "no rows");
+  await ctx.close();
+});
+
+await T("Open on the seeded playlist paints items and writes #playlist=", async () => {
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+  });
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.locator("[data-ss-open-playlist]").click();
+  await p.waitForFunction(() => /playlist=pl-signals/.test(location.hash), { timeout: 4000 });
+  await p.waitForSelector('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"] .micro-card', {
+    timeout: 5000,
+  });
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1, "hydrated item");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').innerText(),
+    "Start with the question, not the dashboard", "item title");
+  ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "no auto-play");
   await ctx.close();
 });
 

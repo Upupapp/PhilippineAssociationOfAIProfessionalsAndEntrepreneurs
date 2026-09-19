@@ -27,3 +27,15 @@ export async function listPublishedPlaylists(kind) {
 export async function listPlaylists() {
   return [PLAYLIST];
 }
+
+export async function getPlaylist(id) {
+  return id === PLAYLIST.id ? PLAYLIST : null;
+}
+
+export async function listPlaylistItems(id) {
+  if (id !== PLAYLIST.id) return [];
+  const { listPublishedMicros } = await import("/assets/js/paaipe-learnings-data.js");
+  const micros = await listPublishedMicros();
+  const byId = new Map(micros.map(m => [m.id, m]));
+  return PLAYLIST.itemIds.map(itemId => byId.get(itemId)).filter(Boolean);
+}

@@ -162,6 +162,25 @@ await T("contract paths are exact — admin + public library", () => {
      "/v1/admin/sessions/2026-09-presentation", "admin session PATCH");
   eq(api.adminMicrosPath(), "/v1/admin/micros", "admin micros POST");
   eq(api.adminMicroPath("micro-1"), "/v1/admin/micros/micro-1", "admin micro PATCH");
+  eq(api.organizationsPath(), "/v1/organizations", "public orgs");
+  eq(api.organizationPath("dpdigital"), "/v1/organizations/dpdigital", "public org id");
+  eq(api.eventPartnersPath("2026-09-ai-exchange"),
+     "/v1/events/2026-09-ai-exchange/partners", "public event partners");
+  eq(api.partnerApplicationsPath(), "/v1/partner-applications", "public apply");
+  eq(api.meOrganizationsPath(), "/v1/me/organizations", "member orgs");
+  eq(api.meOrganizationPath("o1"), "/v1/me/organizations/o1", "member org patch");
+  eq(api.adminOrganizationsPath(), "/v1/admin/organizations", "admin orgs");
+  eq(api.adminOrganizationPath("dpdigital"),
+     "/v1/admin/organizations/dpdigital", "admin org id");
+  eq(api.adminPartnersPath(), "/v1/admin/partners", "admin partners");
+  eq(api.adminEventPartnersPath("2026-09-ai-exchange"),
+     "/v1/admin/events/2026-09-ai-exchange/partners", "admin event partners");
+  eq(api.adminPartnerApplicationsPath(),
+     "/v1/admin/partner-applications", "admin applications");
+  eq(api.adminPartnerApplicationPath("a1"),
+     "/v1/admin/partner-applications/a1", "admin application id");
+  eq(api.adminContactsPath(), "/v1/admin/contacts", "admin contacts");
+  eq(api.adminContactPath("c1"), "/v1/admin/contacts/c1", "admin contact id");
   let threw = false;
   try { api.playlistsPath(); }
   catch (e) { threw = true; eq(e.code, "api/bad-kind", "kind required"); }
@@ -847,6 +866,220 @@ await T("admin Learnings POST/PATCH send Bearer and camelCase only", async () =>
   eq(hits[3].opts.headers.Authorization, "Bearer tok", "admin list Bearer");
 });
 
+const LIVE_ORGS = {
+  organizations: [
+    {
+      id: "dpdigital",
+      name: "DP Digital Solutions",
+      logoUrl: "assets/img/partners/logo-dpdigital.png",
+      website: "https://www.facebook.com/DPDigitalSolutions/",
+      type: "sponsor",
+      status: "active",
+    },
+    {
+      id: "gethired",
+      name: "GetHired Online",
+      logoUrl: "assets/img/partners/logo-gethired.png",
+      website: "https://www.facebook.com/gethiredonline.com.ph/",
+      type: "sponsor",
+      status: "active",
+    },
+  ],
+};
+
+const LIVE_EVENT_PARTNERS = {
+  partners: [
+    {
+      id: "2026-09-gethired",
+      eventId: "2026-09-ai-exchange",
+      organizationId: "gethired",
+      tier: "community",
+      status: "confirmed",
+      displayOrder: 1,
+      note: null,
+    },
+  ],
+};
+
+const LIVE_APPLICATIONS = {
+  applications: [
+    {
+      id: "a1",
+      eventId: "2026-10-ai-exchange",
+      companyName: "Northwind Analytics",
+      contactName: "Rosa",
+      email: "rosa@example.com",
+      status: "new",
+      createdAt: "2026-09-18T14:55:37.858Z",
+    },
+  ],
+};
+
+const LIVE_CONTACTS = {
+  contacts: [
+    {
+      id: "c1",
+      email: "rosa@example.com",
+      name: "Rosa Villanueva",
+      companyName: "Northwind",
+      createdAt: "2026-09-18T14:55:37.858Z",
+    },
+  ],
+};
+
+await T("orgs / partners / contacts helpers use the live contract", async () => {
+  const hits = [];
+  const fetchImpl = async (url, opts = {}) => {
+    hits.push({ url, method: opts.method || "GET", headers: opts.headers || {}, body: opts.body });
+    if (url.endsWith("/v1/organizations")) {
+      return new Response(JSON.stringify(LIVE_ORGS), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/organizations/dpdigital")) {
+      return new Response(JSON.stringify(LIVE_ORGS.organizations[0]), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/events/2026-09-ai-exchange/partners")) {
+      return new Response(JSON.stringify(LIVE_EVENT_PARTNERS), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/partner-applications")) {
+      return new Response(JSON.stringify({ id: "new-app", reference: "PA-2026-NEW1" }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/me/organizations")) {
+      return new Response(JSON.stringify({ organizations: [LIVE_ORGS.organizations[0]] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/organizations")) {
+      return new Response(JSON.stringify({ organizations: LIVE_ORGS.organizations }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/partners")) {
+      return new Response(JSON.stringify(LIVE_EVENT_PARTNERS), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/events/2026-09-ai-exchange/partners")) {
+      return new Response(JSON.stringify(LIVE_EVENT_PARTNERS), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/partner-applications")) {
+      return new Response(JSON.stringify(LIVE_APPLICATIONS), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/partner-applications/a1")) {
+      return new Response(JSON.stringify(LIVE_APPLICATIONS.applications[0]), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/contacts")) {
+      return new Response(JSON.stringify(LIVE_CONTACTS), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/contacts/c1")) {
+      return new Response(JSON.stringify(LIVE_CONTACTS.contacts[0]), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (url.endsWith("/v1/admin/organizations/dpdigital")
+        || url.endsWith("/v1/admin/partner-applications/a1")) {
+      return new Response("{}", {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("missing", { status: 404 });
+  };
+
+  const orgs = await api.listApiOrganizations({ fetchImpl });
+  eq(orgs.length, 2, "two orgs");
+  eq(orgs[0].id, "dpdigital", "sorted by name");
+  ok(!("Authorization" in hits[0].headers), "public orgs have no Bearer");
+
+  const one = await api.getApiOrganization("dpdigital", { fetchImpl });
+  eq(one.name, "DP Digital Solutions", "org get");
+
+  const partners = await api.listApiEventPartners("2026-09-ai-exchange", { fetchImpl });
+  eq(partners[0].organizationId, "gethired", "event partner");
+  eq(partners[0].tier, "community", "tier");
+
+  let badApp = false;
+  try { api.partnerApplicationWritePayload({ companyName: "Acme" }); }
+  catch (e) { badApp = true; eq(e.code, "api/bad-application", "required fields"); }
+  ok(badApp, "POST payload refuses a missing eventId");
+
+  const posted = await api.postPartnerApplication({
+    eventId: "2026-10-ai-exchange",
+    companyName: "Northwind",
+    contactName: "Rosa",
+  }, { fetchImpl });
+  eq(posted.id, "new-app", "apply id");
+  eq(posted.reference, "PA-2026-NEW1", "apply reference");
+  const applyHit = hits.find(h => h.url.endsWith("/v1/partner-applications"));
+  eq(applyHit.method, "POST", "apply POST");
+  ok(!("Authorization" in applyHit.headers), "public apply has no Bearer");
+
+  const mine = await api.listMeOrganizations({ token: "tok-me", fetchImpl });
+  eq(mine[0].id, "dpdigital", "me orgs");
+  const meHit = hits.find(h => h.url.endsWith("/v1/me/organizations") && h.method === "GET");
+  eq(meHit.headers.Authorization, "Bearer tok-me", "me Bearer");
+
+  await api.postMeOrganization({ name: "Mine", website: "mine.example" }, {
+    token: "tok-me",
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, method: opts.method, headers: opts.headers, body: opts.body });
+      return new Response(JSON.stringify({ id: "mine-1" }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  const mePost = hits.find(h => h.url.endsWith("/v1/me/organizations") && h.method === "POST");
+  eq(JSON.parse(mePost.body).name, "Mine", "member create name");
+
+  const adminOrgs = await api.listAdminOrganizations({ token: "tok-admin", fetchImpl });
+  eq(adminOrgs.length, 2, "admin orgs");
+  const adminOrgHit = hits.find(h => h.url.endsWith("/v1/admin/organizations") && h.method === "GET");
+  eq(adminOrgHit.headers.Authorization, "Bearer tok-admin", "admin org Bearer");
+
+  await api.patchAdminOrganization("dpdigital", { name: "DP", status: "active" }, {
+    token: "tok-admin", fetchImpl,
+  });
+  const orgPatch = hits.find(h => h.url.endsWith("/v1/admin/organizations/dpdigital"));
+  eq(orgPatch.method, "PATCH", "org PATCH");
+  eq(JSON.parse(orgPatch.body).name, "DP", "org name sent");
+
+  const apps = await api.listAdminPartnerApplications({ token: "tok-admin", fetchImpl });
+  eq(apps[0].companyName, "Northwind Analytics", "application list");
+  await api.patchAdminPartnerApplication("a1", { status: "accepted", organizationId: "o1" }, {
+    token: "tok-admin", fetchImpl,
+  });
+  const appPatch = hits.find(h => h.url.endsWith("/v1/admin/partner-applications/a1"));
+  eq(appPatch.method, "PATCH", "accept PATCH");
+  eq(JSON.parse(appPatch.body).status, "accepted", "accept status");
+
+  const contacts = await api.listAdminContacts({ token: "tok-admin", fetchImpl });
+  eq(contacts[0].email, "rosa@example.com", "contact email");
+  eq(contacts[0].displayName, "Rosa Villanueva", "contact name");
+  const oneContact = await api.getAdminContact("c1", { token: "tok-admin", fetchImpl });
+  eq(oneContact.id, "c1", "contact get");
+
+  const src = read("assets/js/paaipe-api.js");
+  ok(!/\/v1\/admin\/partner-applications\/.+\/accept/.test(src), "no invented accept sub-route");
+  ok(!/POST.*admin\/partners/.test(src.split("\n").filter(l =>
+    !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n"))
+    || !/adminPartnersPath\(\),\s*\{\s*method:\s*"POST"/.test(src),
+     "no invented POST /v1/admin/partners");
+});
+
 await T("portal + admin data modules hard-cut off Firestore", () => {
   const learn = read("assets/js/paaipe-learnings-data.js");
   const pl = read("assets/js/paaipe-playlists-data.js");
@@ -869,6 +1102,61 @@ await T("portal + admin data modules hard-cut off Firestore", () => {
   ok(/function loadOne/.test(view), "hub isolates fetches");
   ok(/listLearnings|saveLearning|savePlaylist/.test(admin), "admin chrome still uses data modules");
   ok(!/firebase-firestore/.test(admin), "admin learnings JS has no Firestore");
+});
+
+await T("orgs / partners / contacts modules hard-cut off Firestore", () => {
+  const evData = read("assets/js/paaipe-events-data.js");
+  const orgs = read("assets/js/paaipe-admin-orgs.js");
+  const partners = read("assets/js/paaipe-admin-partners.js");
+  const contacts = read("assets/js/paaipe-admin-contacts.js");
+  const events = read("assets/js/paaipe-admin-events.js");
+  const saveOrg = evData.slice(
+    evData.indexOf("export async function saveMyOrganization"),
+    evData.indexOf("export async function listEventSponsors")
+  );
+  const listOrgs = evData.slice(
+    evData.indexOf("export async function listOrganizations"),
+    evData.indexOf("export async function listMyOrganizations")
+  );
+  const submit = evData.slice(
+    evData.indexOf("export async function submitPartnerApplication"),
+    evData.indexOf("export async function listPartnerApplicationsFor")
+  );
+  const listApps = evData.slice(
+    evData.indexOf("export async function listPartnerApplicationsFor"),
+    evData.indexOf("export async function listAllRegistrations")
+  );
+  ok(/listApiOrganizations|listAdminOrganizations/.test(listOrgs), "listOrganizations → API");
+  ok(!/getDocs|collection\(/.test(listOrgs), "org list must not query Firestore");
+  ok(/patchMeOrganization|postMeOrganization/.test(saveOrg), "member save → API");
+  ok(/postPartnerApplication/.test(submit), "apply POSTs the API");
+  ok(!/setDoc|COL\.partners/.test(submit), "apply must not write Firestore");
+  ok(/listAdminPartnerApplications/.test(listApps), "admin apps → API");
+  ok(/patchAdminOrganization/.test(orgs), "orgs page PATCHes the API");
+  ok(!/COL\.organizations/.test(orgs), "orgs page must not write the orgs collection");
+  ok(/listAdminPartnerApplications/.test(partners), "partners inbox lists via API");
+  ok(/patchAdminPartnerApplication/.test(partners), "partners inbox PATCHes via API");
+  ok(!/COL\.partners/.test(partners), "partners inbox must not write the applications collection");
+  ok(/listAdminContacts/.test(contacts), "contacts lists via API");
+  ok(!/firebase-firestore/.test(contacts), "contacts JS has no Firestore");
+  ok(!/listMembers|listRegistrations|listAll\(/.test(contacts), "contacts must not join Firestore collections");
+  const createOrg = events.slice(
+    events.indexOf("async function createOrgAndSponsor"),
+    events.indexOf("async function writeSponsor")
+  );
+  ok(/postAdminOrganization/.test(createOrg), "event org create uses API");
+  ok(!/COL\.organizations/.test(createOrg), "event org create must not write Firestore orgs");
+  const loadApps = events.slice(
+    events.indexOf("async function loadApplicationsTab"),
+    events.indexOf("async function loadRegistrationsTab")
+  );
+  ok(/listPartnerApplicationsFor/.test(loadApps), "applications tab uses the API helper");
+  const loadCounts = events.slice(
+    events.indexOf("async function loadTabCounts"),
+    events.indexOf("let EVENT_REPORT")
+  );
+  ok(/listAdminPartnerApplications/.test(loadCounts), "application badge uses API");
+  ok(!/COL\.partners/.test(loadCounts), "application badge must not count Firestore");
 });
 
 const REAL_FB = read("assets/js/paaipe-firebase.js");
@@ -965,6 +1253,127 @@ await T("admin-registrations lists rows from GET /v1/admin/events/{id}/registrat
   ok(/\/v1\/admin\/events\/e-oct\/registrations/.test(hit), `path: ${hit}`);
   eq(auth, "Bearer test-id-token", "Authorization Bearer");
   ok(/Ada Lovelace/.test(await p.locator("[data-rows]").innerText()), "row shown");
+  await ctx.close();
+});
+
+const orgDataStub = `
+  export * from '/assets/js/paaipe-events-data-real.js';
+  export async function listEvents(){ return [{id:'e-oct',title:'AI Exchange — October 2026',status:'registration_open'}] }
+  export async function listEventSponsors(){ return [] }
+  export async function listPartnerApplicationsFor(){ return [] }
+  export async function listAllRegistrations(){ throw new Error('Firestore registrations must not be read') }`;
+
+await T("admin-organizations lists rows from GET /v1/admin/organizations", async () => {
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  const hits = [];
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+  await p.route("**/assets/js/paaipe-events-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
+  await p.route("**/assets/js/paaipe-events-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: orgDataStub }));
+  await p.route("https://api.paaipe.org/**", async route => {
+    hits.push({
+      url: route.request().url(),
+      auth: route.request().headers().authorization || "",
+    });
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        organizations: [{
+          id: "dpdigital", name: "DP Digital Solutions",
+          website: "https://example.com", type: "sponsor", status: "active",
+        }],
+      }),
+    });
+  });
+  await p.goto(`${BASE}/admin-organizations.html`, { waitUntil: "load" });
+  await p.waitForSelector('html[data-admin-orgs="1"]', { timeout: 9000 });
+  ok(hits.some(h => /\/v1\/admin\/organizations$/.test(h.url)), `path: ${hits.map(h => h.url).join(",")}`);
+  ok(hits.every(h => h.auth === "Bearer test-id-token"), "Authorization Bearer");
+  ok(/DP Digital Solutions/.test(await p.locator("[data-orgs]").innerText()), "row shown");
+  await ctx.close();
+});
+
+await T("admin-organizations 401 is an error, not an empty list", async () => {
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+  await p.route("**/assets/js/paaipe-events-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
+  await p.route("**/assets/js/paaipe-events-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: orgDataStub }));
+  await p.route("https://api.paaipe.org/**", route =>
+    route.fulfill({ status: 401, contentType: "text/plain", body: "missing bearer" }));
+  await p.goto(`${BASE}/admin-organizations.html`, { waitUntil: "load" });
+  await p.waitForSelector('html[data-admin-orgs="error"]', { timeout: 9000 });
+  const flash = await p.locator("[data-flash]").innerText();
+  ok(/could not load/i.test(flash), `flash: ${flash}`);
+  const table = await p.locator("[data-orgs]").innerText();
+  ok(/could not be loaded/i.test(table), `table: ${table}`);
+  ok(!/no organization has been added yet/i.test(table), "must not read as none");
+  await ctx.close();
+});
+
+await T("admin-contacts lists rows from GET /v1/admin/contacts and stays read-only", async () => {
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  let hit = "";
+  let auth = "";
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+  await p.route("https://api.paaipe.org/**", async route => {
+    hit = route.request().url();
+    auth = route.request().headers().authorization || "";
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        contacts: [{
+          id: "c1", email: "rosa@example.com", name: "Rosa Villanueva",
+          companyName: "Northwind", createdAt: "2026-09-18T14:55:37.858Z",
+        }],
+      }),
+    });
+  });
+  await p.goto(`${BASE}/admin-contacts.html`, { waitUntil: "load" });
+  await p.waitForSelector('html[data-admin-contacts-state="1"]', { timeout: 9000 });
+  ok(/\/v1\/admin\/contacts$/.test(hit) || /\/v1\/admin\/contacts/.test(hit), `path: ${hit}`);
+  eq(auth, "Bearer test-id-token", "Authorization Bearer");
+  ok(/Rosa Villanueva/.test(await p.locator("[data-rows]").innerText()), "row shown");
+  await p.locator("tr[data-email]").first().click();
+  const detail = await p.locator("[data-detail]").innerText();
+  ok(/read-only/i.test(detail), `detail says read-only: ${detail}`);
+  ok(!(await p.locator("[data-confirm]").count()), "no confirm write");
+  ok(!(await p.locator("[data-mark]").count()), "no registration write");
+  await ctx.close();
+});
+
+await T("admin-contacts 401 is an error, not an empty list", async () => {
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+  await p.route("https://api.paaipe.org/**", route =>
+    route.fulfill({ status: 401, contentType: "text/plain", body: "missing bearer" }));
+  await p.goto(`${BASE}/admin-contacts.html`, { waitUntil: "load" });
+  await p.waitForSelector('html[data-admin-contacts-state="error"]', { timeout: 9000 });
+  const flash = await p.locator("[data-flash]").innerText();
+  ok(/could not load contacts/i.test(flash), `flash: ${flash}`);
+  const table = await p.locator("[data-rows]").innerText();
+  ok(/could not load/i.test(table), `table: ${table}`);
+  ok(!/no one is here yet/i.test(table), "must not read as none");
   await ctx.close();
 });
 

@@ -41,7 +41,8 @@ const fbStub=`
   export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {uid:'u1',email:'admin@upupapp.asia',full_name:'Admin',status:'agent'}}
   export async function isAdminNow(){return true}
-  export async function signOutNow(){}`;
+  export async function signOutNow(){}
+  export async function idTokenForRequest(){ return 'test-id-token' }`;
 const dataStub=`
   export * from '/assets/js/paaipe-events-data-real.js';
   export async function listEvents(){ return ${JSON.stringify(EVENTS)} }
@@ -79,6 +80,24 @@ async function openAdmin(viewport, path='admin-partners.html'){
   await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub}));
   await p.route('**/firebasejs/12.19.0/firebase-app.js',r=>r.fulfill({contentType:'text/javascript',body:appStub}));
   await p.route('**/firebasejs/12.19.0/firebase-firestore.js',r=>r.fulfill({contentType:'text/javascript',body:firestoreStub}));
+  await p.route('https://api.paaipe.org/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/v1/admin/partner-applications')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ applications: APPS }),
+      });
+    }
+    if (url.includes('/v1/admin/organizations')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ organizations: ORGS }),
+      });
+    }
+    await route.fulfill({ status: 404, body: 'missing' });
+  });
   await p.goto(`${BASE}/${path}`,{waitUntil:'load'});
   await p.waitForSelector('[data-open]',{timeout:9000});
   return p;
@@ -123,7 +142,7 @@ await T('opening a row shows a compact detail panel',async()=>{
   ok(/Northwind Analytics/.test(t),'company');
   ok(/PA-2026-ABCD/.test(t),'reference');
   ok(/Opens your mail app/.test(t),'short mail line');
-  ok(/Accept creates a proposed Partner/.test(t),'short decision line');
+  ok(/Accept activates the organization/.test(t),'short decision line');
   ok(/Check the match before accepting/.test(t),'short org line');
   ok(!/These open your own mail app/i.test(t),'old mail essay gone');
   ok(!/Accepting does not publish anything/i.test(t),'old decision essay gone');

@@ -49,8 +49,7 @@
  *   GET   /v1/admin/registrations/{id}
  *   PATCH /v1/admin/registrations/{id}              body { status } only
  *
- * Email send is still 501. Sponsors, partners, orgs, activity log, and Zoom
- * private stay off this module unless a later slice cuts them.
+ * Email send is still 501. Activity log and Zoom private stay off this module.
  *
  * Feedback (Clarence deploy feedback-20260919T043818Z, live-probed):
  *   GET  /v1/events/{eventId}/feedback/questions              → { questions }  public, no Bearer
@@ -63,6 +62,29 @@
  *   GET  /v1/admin/events/{eventId}/feedback/responses        admin list (401 without Bearer)
  *   GET  /v1/admin/events/{eventId}/feedback/responses/{registrationId}  admin one (401)
  *   DELETE and a reports table 404 — do not invent them. Reports stay FE-computed.
+ *
+ * Organizations / partners / contacts (deploy orgs-contacts-20260919T043103Z).
+ * Public (no Bearer):
+ *   GET  /v1/organizations              → { organizations } (active shown)
+ *   GET  /v1/organizations/{id}         404 if missing
+ *   GET  /v1/events/{eventId}/partners  → { partners }
+ *   POST /v1/partner-applications       400 without eventId + companyName
+ * Member (Bearer):
+ *   GET  /v1/me/organizations
+ *   POST /v1/me/organizations
+ *   PATCH /v1/me/organizations/{id}
+ *   DELETE is 405 — organizations are not deleted in v1.
+ * Admin (Bearer + ADMIN_EMAILS; 401 without):
+ *   GET/POST /v1/admin/organizations
+ *   GET/PATCH /v1/admin/organizations/{id}
+ *   GET  /v1/admin/partners
+ *   GET  /v1/admin/events/{eventId}/partners
+ *   GET/PATCH /v1/admin/partner-applications
+ *   GET/PATCH /v1/admin/partner-applications/{id}  (accept activates org)
+ *   GET  /v1/admin/contacts
+ *   GET  /v1/admin/contacts/{id}
+ * Contacts are read-only. POST/PATCH/DELETE contacts 404 — do not invent them.
+ * POST /v1/admin/partners and partner-application accept sub-routes 404.
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
@@ -279,6 +301,62 @@ export function adminMicroPath(id) {
   return `/v1/admin/micros/${encodeURIComponent(id)}`;
 }
 
+export function organizationsPath() {
+  return "/v1/organizations";
+}
+
+export function organizationPath(id) {
+  return `/v1/organizations/${encodeURIComponent(id)}`;
+}
+
+export function eventPartnersPath(eventId) {
+  return `/v1/events/${encodeURIComponent(eventId)}/partners`;
+}
+
+export function partnerApplicationsPath() {
+  return "/v1/partner-applications";
+}
+
+export function meOrganizationsPath() {
+  return "/v1/me/organizations";
+}
+
+export function meOrganizationPath(id) {
+  return `/v1/me/organizations/${encodeURIComponent(id)}`;
+}
+
+export function adminOrganizationsPath() {
+  return "/v1/admin/organizations";
+}
+
+export function adminOrganizationPath(id) {
+  return `/v1/admin/organizations/${encodeURIComponent(id)}`;
+}
+
+export function adminPartnersPath() {
+  return "/v1/admin/partners";
+}
+
+export function adminEventPartnersPath(eventId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/partners`;
+}
+
+export function adminPartnerApplicationsPath() {
+  return "/v1/admin/partner-applications";
+}
+
+export function adminPartnerApplicationPath(id) {
+  return `/v1/admin/partner-applications/${encodeURIComponent(id)}`;
+}
+
+export function adminContactsPath() {
+  return "/v1/admin/contacts";
+}
+
+export function adminContactPath(id) {
+  return `/v1/admin/contacts/${encodeURIComponent(id)}`;
+}
+
 export function eventSettingsPayload(src = {}) {
   const out = {};
   if ("registrationOpensAt" in src) out.registrationOpensAt = src.registrationOpensAt || null;
@@ -446,6 +524,11 @@ function asList(data, namedKey) {
   if (Array.isArray(data?.questions)) return data.questions;
   if (Array.isArray(data?.responses)) return data.responses;
   if (Array.isArray(data?.items)) return data.items;
+  if (Array.isArray(data?.organizations)) return data.organizations;
+  if (Array.isArray(data?.partners)) return data.partners;
+  if (Array.isArray(data?.applications)) return data.applications;
+  if (Array.isArray(data?.partnerApplications)) return data.partnerApplications;
+  if (Array.isArray(data?.contacts)) return data.contacts;
   if (Array.isArray(data?.data)) return data.data;
   return [];
 }
@@ -473,7 +556,7 @@ export async function paaipePublicGet(path, opts = {}) {
 function asResource(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   if (data.id) return data;
-  for (const key of ["session", "micro", "playlist", "item", "event"]) {
+  for (const key of ["session", "micro", "playlist", "item", "event", "organization", "partner", "application", "contact"]) {
     const inner = data[key];
     if (inner && typeof inner === "object" && !Array.isArray(inner) && inner.id) return inner;
   }
@@ -936,3 +1019,322 @@ export async function getAdminFeedbackResponse(eventId, registrationId, opts) {
     throw e;
   }
 }
+
+function asWhen(v) {
+  if (v == null || v === "") return null;
+  if (typeof v?.toDate === "function") {
+    const d = v.toDate();
+    return d instanceof Date && !isNaN(d) ? d : null;
+  }
+  if (v instanceof Date) return isNaN(v) ? null : v;
+  if (Number.isFinite(v?.seconds)) return new Date(v.seconds * 1000);
+  if (typeof v === "string" || typeof v === "number") {
+    const d = new Date(v);
+    return isNaN(d) ? null : d;
+  }
+  return null;
+}
+
+function sortByName(rows) {
+  return [...rows].sort((a, b) => String(a?.name || "").localeCompare(String(b?.name || "")));
+}
+
+function sortByCreatedDesc(rows) {
+  return [...rows].sort((a, b) => {
+    const am = asWhen(a?.createdAt)?.getTime() || 0;
+    const bm = asWhen(b?.createdAt)?.getTime() || 0;
+    return bm - am;
+  });
+}
+
+export function organizationWritePayload(src = {}) {
+  const out = {};
+  if (src.id) out.id = String(src.id);
+  if ("name" in src) out.name = src.name;
+  if ("website" in src) out.website = src.website || "";
+  if ("logoUrl" in src) out.logoUrl = src.logoUrl || "";
+  if ("status" in src && src.status) out.status = src.status;
+  if ("type" in src && src.type) out.type = src.type;
+  return out;
+}
+
+export function partnerApplicationWritePayload(src = {}) {
+  const eventId = String(src.eventId || "").trim();
+  const companyName = String(src.companyName || "").trim();
+  if (!eventId || !companyName) {
+    throw Object.assign(
+      new Error("eventId and companyName are required."),
+      { code: "api/bad-application" }
+    );
+  }
+  const out = { eventId, companyName };
+  if ("eventTitle" in src) out.eventTitle = src.eventTitle || "";
+  if ("contactName" in src) out.contactName = src.contactName || "";
+  if ("email" in src) out.email = src.email || "";
+  if ("phone" in src) out.phone = src.phone || "";
+  if ("website" in src) out.website = src.website || "";
+  if ("message" in src) out.message = src.message || "";
+  if ("supportTypes" in src) {
+    out.supportTypes = Array.isArray(src.supportTypes) ? src.supportTypes.slice(0, 5) : [];
+  }
+  if ("source" in src) out.source = src.source || "";
+  if ("organizationId" in src && src.organizationId) out.organizationId = src.organizationId;
+  return out;
+}
+
+export function partnerApplicationPatchPayload(src = {}) {
+  const out = {};
+  if ("status" in src && src.status) out.status = src.status;
+  if ("organizationId" in src) out.organizationId = src.organizationId || "";
+  if ("adminNote" in src) out.adminNote = src.adminNote || "";
+  if ("assignedTo" in src) out.assignedTo = src.assignedTo || "";
+  return out;
+}
+
+function normalizeOrganization(row) {
+  if (!row || typeof row !== "object") return null;
+  const id = row.id || row.organizationId;
+  if (!id) return null;
+  return {
+    ...row,
+    id: String(id),
+    name: row.name || "",
+    website: row.website || "",
+    logoUrl: row.logoUrl || row.logo_url || "",
+    type: row.type || "",
+    status: row.status || "",
+  };
+}
+
+function normalizeEventPartner(row, eventHint) {
+  if (!row || typeof row !== "object") return null;
+  const id = row.id || row.partnerId;
+  if (!id) return null;
+  return {
+    ...row,
+    id: String(id),
+    eventId: String(row.eventId || row.event_id || eventHint || ""),
+    organizationId: String(row.organizationId || row.organization_id || ""),
+    tier: row.tier || "",
+    status: row.status || "",
+    displayOrder: Number.isFinite(Number(row.displayOrder)) ? Number(row.displayOrder) : Number(row.order) || 0,
+    note: row.note ?? null,
+  };
+}
+
+function normalizeApplication(row) {
+  if (!row || typeof row !== "object") return null;
+  const id = row.id || row.applicationId;
+  if (!id) return null;
+  return {
+    ...row,
+    id: String(id),
+    eventId: String(row.eventId || row.event_id || ""),
+    eventTitle: row.eventTitle || row.event_title || "",
+    reference: row.reference || "",
+    companyName: row.companyName || row.company_name || "",
+    contactName: row.contactName || row.contact_name || "",
+    email: row.email || "",
+    phone: row.phone || "",
+    website: row.website || "",
+    message: row.message || "",
+    supportTypes: Array.isArray(row.supportTypes) ? row.supportTypes
+      : (Array.isArray(row.support_types) ? row.support_types : []),
+    source: row.source || "",
+    status: row.status || "new",
+    organizationId: row.organizationId || row.organization_id || "",
+    adminNote: row.adminNote || row.admin_note || "",
+    assignedTo: row.assignedTo || row.assigned_to || "",
+    createdAt: row.createdAt || row.created_at || null,
+    consentAt: row.consentAt || row.consent_at || null,
+    privacyVersion: row.privacyVersion || row.privacy_version || "",
+  };
+}
+
+function asTextList(value) {
+  if (Array.isArray(value)) {
+    return value.map(v => {
+      if (v && typeof v === "object") return String(v.name || v.title || v.label || v.id || "").trim();
+      return String(v || "").trim();
+    }).filter(Boolean);
+  }
+  const s = String(value || "").trim();
+  return s ? [s] : [];
+}
+
+export function normalizeContact(row) {
+  if (!row || typeof row !== "object") return null;
+  const id = row.id || row.contactId || row.email || row.emailKey;
+  if (!id) return null;
+  const email = String(row.email || "").trim();
+  const emailKey = String(row.emailKey || email).trim().toLowerCase();
+  const name = row.displayName || row.full_name || row.fullName || row.contactName
+    || row.name || email || String(id);
+  const types = asTextList(row.types || row.type || row.roles || row.role);
+  const events = asTextList(row.events || row.eventTitle || row.event || row.eventId);
+  const companies = asTextList(row.companies || row.company || row.companyName
+    || row.organization || row.organisation);
+  const phones = asTextList(row.phones || row.phone || row.mobile);
+  const added = asWhen(row.addedAt || row.addedMs || row.createdAt || row.created_at);
+  return {
+    ...row,
+    id: String(id),
+    email,
+    emailKey: emailKey || String(id).toLowerCase(),
+    displayName: name,
+    types,
+    events,
+    companies,
+    phones,
+    addedMs: added ? added.getTime() : (Number.isFinite(Number(row.addedMs)) ? Number(row.addedMs) : null),
+    createdAt: row.createdAt || row.created_at || null,
+  };
+}
+
+export async function listApiOrganizations(opts = {}) {
+  const data = await paaipePublicGet(organizationsPath(), opts);
+  return sortByName(withIds(asList(data, "organizations")).map(normalizeOrganization).filter(Boolean));
+}
+
+export async function getApiOrganization(id, opts = {}) {
+  const data = await paaipePublicGet(organizationPath(id), opts);
+  return normalizeOrganization(asResource(data) || data);
+}
+
+export async function listApiEventPartners(eventId, opts = {}) {
+  const data = await paaipePublicGet(eventPartnersPath(eventId), opts);
+  return withIds(asList(data, "partners"))
+    .map(r => normalizeEventPartner(r, eventId))
+    .filter(Boolean)
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+}
+
+export async function postPartnerApplication(fields, opts = {}) {
+  const data = await paaipeApiRequest(partnerApplicationsPath(), {
+    method: "POST",
+    body: partnerApplicationWritePayload(fields),
+    auth: "public",
+    token: undefined,
+    ...opts,
+  });
+  const row = normalizeApplication(asResource(data) || data) || data;
+  const id = row?.id || fields.id;
+  if (!id) {
+    throw Object.assign(
+      new Error("The API did not return an id. Nothing was assumed."),
+      { code: "api/invalid-response" }
+    );
+  }
+  return {
+    id: String(id),
+    reference: row?.reference || "",
+    organizationId: row?.organizationId || fields.organizationId || "",
+  };
+}
+
+export async function listMeOrganizations(opts = {}) {
+  const data = await paaipeApiRequest(meOrganizationsPath(), opts);
+  return sortByName(withIds(asList(data, "organizations")).map(normalizeOrganization).filter(Boolean));
+}
+
+export async function postMeOrganization(fields, opts = {}) {
+  const data = await paaipeApiRequest(meOrganizationsPath(), {
+    method: "POST",
+    body: organizationWritePayload(fields),
+    ...opts,
+  });
+  return createdId(data, fields.id);
+}
+
+export async function patchMeOrganization(id, fields, opts = {}) {
+  return paaipeApiRequest(meOrganizationPath(id), {
+    method: "PATCH",
+    body: organizationWritePayload(fields),
+    ...opts,
+  });
+}
+
+export async function listAdminOrganizations(opts = {}) {
+  const data = await paaipeApiRequest(adminOrganizationsPath(), opts);
+  return sortByName(withIds(asList(data, "organizations")).map(normalizeOrganization).filter(Boolean));
+}
+
+export async function getAdminOrganization(id, opts = {}) {
+  const data = await paaipeApiRequest(adminOrganizationPath(id), opts);
+  return normalizeOrganization(asResource(data) || data);
+}
+
+export async function postAdminOrganization(fields, opts = {}) {
+  const data = await paaipeApiRequest(adminOrganizationsPath(), {
+    method: "POST",
+    body: organizationWritePayload(fields),
+    ...opts,
+  });
+  return createdId(data, fields.id);
+}
+
+export async function patchAdminOrganization(id, fields, opts = {}) {
+  return paaipeApiRequest(adminOrganizationPath(id), {
+    method: "PATCH",
+    body: organizationWritePayload(fields),
+    ...opts,
+  });
+}
+
+export async function listAdminPartners(opts = {}) {
+  const data = await paaipeApiRequest(adminPartnersPath(), opts);
+  return withIds(asList(data, "partners")).map(r => normalizeEventPartner(r)).filter(Boolean);
+}
+
+export async function listAdminEventPartners(eventId, opts = {}) {
+  const data = await paaipeApiRequest(adminEventPartnersPath(eventId), opts);
+  return withIds(asList(data, "partners"))
+    .map(r => normalizeEventPartner(r, eventId))
+    .filter(Boolean)
+    .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+}
+
+export async function listAdminPartnerApplications(opts = {}) {
+  const data = await paaipeApiRequest(adminPartnerApplicationsPath(), opts);
+  return sortByCreatedDesc(
+    withIds(asList(data, "applications")).map(normalizeApplication).filter(Boolean)
+  );
+}
+
+export async function getAdminPartnerApplication(id, opts = {}) {
+  const data = await paaipeApiRequest(adminPartnerApplicationPath(id), opts);
+  const row = normalizeApplication(asResource(data) || data);
+  if (!row) {
+    throw Object.assign(
+      new Error("The API did not return a partner application. Nothing was assumed."),
+      { code: "api/invalid-response" }
+    );
+  }
+  return row;
+}
+
+export async function patchAdminPartnerApplication(id, fields, opts = {}) {
+  return paaipeApiRequest(adminPartnerApplicationPath(id), {
+    method: "PATCH",
+    body: partnerApplicationPatchPayload(fields),
+    ...opts,
+  });
+}
+
+export async function listAdminContacts(opts = {}) {
+  const data = await paaipeApiRequest(adminContactsPath(), opts);
+  return sortByCreatedDesc(asList(data, "contacts").map(normalizeContact).filter(Boolean));
+}
+
+export async function getAdminContact(id, opts = {}) {
+  const data = await paaipeApiRequest(adminContactPath(id), opts);
+  const row = normalizeContact(asResource(data) || data);
+  if (!row) {
+    throw Object.assign(
+      new Error("The API did not return a contact. Nothing was assumed."),
+      { code: "api/invalid-response" }
+    );
+  }
+  return row;
+}
+

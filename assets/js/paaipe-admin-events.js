@@ -18,8 +18,9 @@
  * Event create / content / settings / duplicate / the admin list / the
  * calendar file go to api.paaipe.org. Feedback questions and responses
  * go to the Feedback API. Reports stay FE-computed from that payload.
- * Sponsors, partners, orgs, activity log, and Zoom private stay on
- * Firestore. Email drafts stay in this browser (never Firestore).
+ * Organizations and partner applications go to the API. Sponsors,
+ * activity log, and Zoom private stay on Firestore until the partners
+ * PUT slice. Email drafts stay in this browser (never Firestore).
  * Email send is still 501.
  */
 import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
@@ -27,6 +28,7 @@ import {
   listAdminEvents, postAdminEventDuplicate, patchAdminEvent, patchAdminEventContent,
   listAdminEventRegistrations, eventSettingsPayload, eventContentPayload,
   getAdminEventCalendarIcs,
+  listAdminPartnerApplications, postAdminOrganization,
 } from "/assets/js/paaipe-api.js";
 import {
   renderAdminNav, renderAdminTop, renderCrumbs, renderStateChip, setNavBadge,
@@ -534,8 +536,13 @@ async function loadTabCounts(id) {
     } catch { return null; }   // null renders as no badge, never as zero
   };
   setTabCount("sponsors", await countOf(COL.sponsors, F.where("eventId", "==", id)));
-  setTabCount("applications", await countOf(COL.partners,
-    F.where("eventId", "==", id), F.where("status", "==", PARTNER_STATUS.NEW)));
+  try {
+    const token = await idTokenForRequest();
+    const apps = await listAdminPartnerApplications({ token });
+    setTabCount("applications", apps.filter(a => a.eventId === id && a.status === PARTNER_STATUS.NEW).length);
+  } catch {
+    setTabCount("applications", null);
+  }
   try {
     const token = await idTokenForRequest();
     setTabCount("registrations", (await listAdminEventRegistrations(id, { token })).length);
@@ -649,14 +656,11 @@ async function loadPartnerSummary(eventId) {
   if (!host) return;
   const link = `admin-partners.html?event=${encodeURIComponent(eventId)}`;
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    const col = F.collection(await db(), COL.partners);
-    const countOf = async (...clauses) =>
-      (await F.getCountFromServer(F.query(col, ...clauses))).data().count;
-    const [total, fresh] = await Promise.all([
-      countOf(F.where("eventId", "==", eventId)),
-      countOf(F.where("eventId", "==", eventId), F.where("status", "==", PARTNER_STATUS.NEW)),
-    ]);
+    const token = await idTokenForRequest();
+    const apps = (await listAdminPartnerApplications({ token }))
+      .filter(a => a.eventId === eventId);
+    const total = apps.length;
+    const fresh = apps.filter(a => a.status === PARTNER_STATUS.NEW).length;
     host.innerHTML = total === 0
       ? `<p class="note" style="margin-top:0">No company has applied to partner on this event.
            The button is on the public event page, the events list, the page people see after
@@ -1579,27 +1583,30 @@ async function createOrgAndSponsor() {
   const name = $("[data-no-name]")?.value.trim();
   if (!name) return flash("A new organization needs a name.");
   const tier = $("[data-add-tier]")?.value || TIER.COMMUNITY;
-  const F = await import(`${SDK}/firebase-firestore.js`);
   try {
-    const ref = F.doc(F.collection(await db(), COL.organizations));
-    const doc = {
+    const token = await idTokenForRequest();
+    const createdId = await postAdminOrganization({
       name,
       website: $("[data-no-web]")?.value.trim() || "",
       logoUrl: $("[data-no-logo]")?.value.trim() || "",
-      // Inactive and proposed: created here, published nowhere until somebody says so.
       status: "inactive",
       type: "sponsor",
-      relationshipStatus: "proposed",
-      primaryContactName: $("[data-no-cname]")?.value.trim() || "",
-      primaryContactEmail: $("[data-no-cemail]")?.value.trim() || "",
-      createdFromEvent: CURRENT?.id || "",
+    }, { token });
+    const doc = {
+      id: createdId,
+      name,
+      website: $("[data-no-web]")?.value.trim() || "",
+      logoUrl: $("[data-no-logo]")?.value.trim() || "",
+      status: "inactive",
+      type: "sponsor",
     };
-    await F.setDoc(ref, doc);
-    ORGS.push({ id: ref.id, ...doc });
+    ORGS.push(doc);
     await logActivity("organization.create", `${name} (from ${CURRENT?.title || CURRENT?.id})`, CURRENT?.id);
-    await writeSponsor({ organizationId: ref.id, tier });
+    await writeSponsor({ organizationId: createdId, tier });
   } catch (ex) {
-    flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not create: ${ex?.message || ex}`);
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that."
+      : `Could not create: ${ex?.message || ex}`);
   }
 }
 

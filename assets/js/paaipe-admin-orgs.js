@@ -1,8 +1,7 @@
 /* PAAIPE admin — organizations and event sponsorships.
  *
- * This is the other end of the same wire. Everything written here is read by the
- * public event page and the Partners page, live, with no rebuild: change a logo
- * and it changes in both places, because it is stored once.
+ * Organizations list/edit: GET/PATCH /v1/admin/organizations.
+ * Event Partners (sponsors) stay on Firestore — not in this API contract.
  *
  * Two rules from the brief are enforced here AND in firestore.rules, because a
  * limit that lives only in a form is a limit the next form forgets:
@@ -17,6 +16,7 @@ import {
   listOrganizations, listEvents, listEventSponsors, groupSponsors,
 } from "/assets/js/paaipe-events-data.js";
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
+import { patchAdminOrganization } from "/assets/js/paaipe-api.js";
 import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
 import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
@@ -91,8 +91,8 @@ function openOrgEditor(id, { push = true } = {}) {
       <option value="inactive"${o.status !== "active" ? " selected" : ""}>inactive</option></select></div>
     <div class="dacts"><button class="btn btn-gold btn-sm" data-save-org>Save</button></div>
     <p class="note">Saving updates every event that credits this organization and the public
-      Partners page, because the logo is stored once. Deleting is refused by the rules — an
-      organization that is a Partner on an event would leave those rows orphaned, so deactivate instead.</p>
+      Partners page, because the logo is stored once. Organizations are not deleted in v1 —
+      deactivate instead.</p>
     <p class="note">Pick a logo file to store it on media.paaipe.org. The returned URL is written into
       the path field above. You can still paste a path instead.</p>`;
   d.hidden = false;
@@ -129,8 +129,8 @@ async function saveOrg(id) {
   if (!patch.name) return flash("An organization needs a name.");
   $$("button", d).forEach(b => b.disabled = true);
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    await F.setDoc(F.doc(await db(), COL.organizations, id), patch, { merge: true });
+    const token = await idTokenForRequest();
+    await patchAdminOrganization(id, patch, { token });
     await logActivity("organization.update", `${patch.name} (${id})`);
     Object.assign(ORGS.find(o => o.id === id), patch);
     renderOrgs();
@@ -139,8 +139,8 @@ async function saveOrg(id) {
     d.hidden = true;
   } catch (ex) {
     $$("button", d).forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that change."
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that change. Your account may not be on the admin allow-list."
       : `Could not save: ${ex?.message || ex}`);
   }
 }
@@ -254,6 +254,9 @@ async function loadSponsors() {
     [ORGS, EVENTS] = await Promise.all([listOrganizations({ asAdmin: true }), listEvents({ asAdmin: true })]);
   } catch (ex) {
     flash(`Could not load: ${ex?.message || ex}`);
+    const b = $("[data-orgs]");
+    if (b) b.innerHTML =
+      `<tr><td colspan="5" class="empty">Organizations could not be loaded. This is not "none".</td></tr>`;
     document.documentElement.setAttribute("data-admin-orgs", "error");
     return;
   }

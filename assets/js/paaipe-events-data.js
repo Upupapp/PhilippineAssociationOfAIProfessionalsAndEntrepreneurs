@@ -1,17 +1,24 @@
-/* PAAIPE — events, organizations and sponsorships. ONE source of truth.
+/* PAAIPE — events, organizations and sponsorships.
  *
- * The public event pages, the registration page, the member portal and the admin
- * console all read these same documents. There is no build step and no server:
- * paaipe.org is static, so "change it in admin and it shows up everywhere" works
- * because every surface reads the record at runtime. No revalidation, no
- * redeploy, no cache to bust - and no Netlify build minute either.
+ * Organizations and partner applications are hard-cut to api.paaipe.org.
+ * Events, sponsors, recordings and feedback still read Firestore.
+ * Firebase is Auth/users (Bearer) only on the org/application path.
  *
  * WHAT THIS MEANS FOR SECRECY. Anything a browser can fetch is public, so the
  * boundary is firestore.rules, not a render step: a draft event is unreadable, a
  * sponsorship that is only proposed is unreadable, and the Zoom link is a
  * separate document no client may read.
  */
-import { firebaseConfig, DATABASE_ID, DOC_VERSIONS } from "/assets/js/paaipe-firebase.js";
+import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
+import {
+  listApiOrganizations,
+  listMeOrganizations,
+  postMeOrganization,
+  patchMeOrganization,
+  listAdminOrganizations,
+  postPartnerApplication,
+  listAdminPartnerApplications,
+} from "/assets/js/paaipe-api.js";
 
 const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 let _db = null;
@@ -342,67 +349,44 @@ export async function getEvent(id) {
   return s.exists() ? { id: s.id, ...s.data() } : null;
 }
 
-/** @param asAdmin pass true only from the admin console. After the org read
- *  rule is conditional, an unconstrained list is refused to everyone else —
- *  the public Partners page would go blank rather than show the confirmed ones.
- *  Visitors MUST constrain to status == 'active' (the only public state). */
-export async function listOrganizations({ asAdmin = false } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const col = F.collection(await db(), COL.organizations);
-  const snap = await F.getDocs(asAdmin
-    ? col
-    : F.query(col, F.where("status", "==", "active")));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+async function bearerToken(opts = {}) {
+  if (opts.token) return opts.token;
+  const { idTokenForRequest } = await import("/assets/js/paaipe-firebase.js");
+  const token = await idTokenForRequest();
+  if (!token) {
+    throw Object.assign(new Error("You need to be signed in."), { code: "not-signed-in" });
+  }
+  return token;
 }
 
-/** Organizations this signed-in member owns. Constrained by createdByUserId,
- *  which is what the read rule can prove — an unconstrained list is refused. */
-export async function listMyOrganizations(uid) {
-  if (!uid) return [];
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const snap = await F.getDocs(F.query(
-    F.collection(await db(), COL.organizations),
-    F.where("createdByUserId", "==", uid)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+/** Public GET /v1/organizations (active only). Admin GET /v1/admin/organizations. */
+export async function listOrganizations({ asAdmin = false, token, fetchImpl } = {}) {
+  if (asAdmin) {
+    return listAdminOrganizations({ token: await bearerToken({ token }), fetchImpl });
+  }
+  return listApiOrganizations({ fetchImpl });
 }
 
-async function currentAuthUser() {
-  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
-  const { getAuth } = await import(`${SDK}/firebase-auth.js`);
-  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
-  return getAuth(app).currentUser || null;
+/** GET /v1/me/organizations. The Bearer token is the owner — uid is only a
+ *  guard so an unsigned-in visitor does not prompt for a token. */
+export async function listMyOrganizations(uid, { token, fetchImpl } = {}) {
+  if (!uid && !token) return [];
+  return listMeOrganizations({ token: await bearerToken({ token }), fetchImpl });
 }
 
-/** Create or update an unpublished org on this uid. The member cannot set the
- *  status pill — create is always inactive; update may not change status. */
-export async function saveMyOrganization({ id, name, website }) {
-  const user = await currentAuthUser();
-  if (!user) throw Object.assign(new Error("not-signed-in"), { code: "unauthenticated" });
-  const F = await import(`${SDK}/firebase-firestore.js`);
+/** Create or update via /v1/me/organizations. The member cannot set status. */
+export async function saveMyOrganization({ id, name, website, token, fetchImpl } = {}) {
   const n = String(name || "").trim().slice(0, 120);
   const w = String(website || "").trim().slice(0, 300);
   if (!n) throw new Error("An organization needs a name.");
+  const tok = await bearerToken({ token });
+  const opts = { token: tok, fetchImpl };
   if (id) {
-    await F.setDoc(F.doc(await db(), COL.organizations, id), {
-      name: n, website: w, updatedAt: F.serverTimestamp(),
-    }, { merge: true });
+    await patchMeOrganization(id, { name: n, website: w }, opts);
     return { id, name: n, website: w };
   }
-  const ref = F.doc(F.collection(await db(), COL.organizations));
-  const doc = {
-    name: n,
-    website: w,
-    status: "inactive",
-    type: "sponsor",
-    relationshipStatus: "prospect",
-    ownerEmail: String(user.email || "").trim().toLowerCase(),
-    createdByUserId: user.uid,
-    createdAt: F.serverTimestamp(),
-  };
-  await F.setDoc(ref, doc);
-  return { id: ref.id, ...doc };
+  const created = await postMeOrganization({ name: n, website: w }, opts);
+  return { id: created, name: n, website: w, status: "inactive" };
 }
 
 /** Sponsorships for an event, each joined to its organization so a caller never
@@ -579,6 +563,9 @@ export { toDate };
  * can answer is what makes it allowed. It is the same trap as the events list
  * above, and it bites here for the same reason.
  *
+ * HOLD: there is no GET /v1/me/partner-applications (404). New public submits
+ * go to POST /v1/partner-applications and will not appear here.
+ *
  * Returns a Map of eventId -> application. Never throws: a member who cannot be
  * told the status of their application should still get the button.
  */
@@ -612,11 +599,11 @@ export async function myApplications(uid) {
  *
  * @returns {{id:string, reference:string}}
  */
-export async function submitPartnerApplication(fields) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const user = await currentAuthUser();
-  const myOrgs = user ? await listMyOrganizations(user.uid).catch(() => []) : [];
-  const publicOrgs = await listOrganizations().catch(() => []);
+export async function submitPartnerApplication(fields, { token, fetchImpl } = {}) {
+  const myOrgs = fields.submittedByUserId
+    ? await listMyOrganizations(fields.submittedByUserId, { token, fetchImpl }).catch(() => [])
+    : [];
+  const publicOrgs = await listOrganizations({ fetchImpl }).catch(() => []);
   const resolved = resolveOrganizationMatch({
     companyName: fields.companyName,
     website: fields.website,
@@ -625,11 +612,13 @@ export async function submitPartnerApplication(fields) {
     publicOrgs,
   });
   let organization = resolved.organization;
-  if (resolved.create && user) {
+  if (resolved.create && fields.submittedByUserId) {
     try {
       organization = await saveMyOrganization({
         name: fields.companyName,
         website: fields.website || "",
+        token,
+        fetchImpl,
       });
     } catch {
       // The application is the record of the offer. An unpublished org is the
@@ -638,41 +627,34 @@ export async function submitPartnerApplication(fields) {
     }
   }
 
-  const ref = F.doc(F.collection(await db(), COL.partners));
-  const reference = partnerReference(ref.id);
-  const doc = {
-    eventId:           fields.eventId,
-    eventTitle:        String(fields.eventTitle || "").slice(0, 200),
-    reference,
-    companyName:       fields.companyName,
-    contactName:       fields.contactName,
-    email:             fields.email,
-    phone:             fields.phone,
-    website:           fields.website || "",
-    message:           fields.message || "",
-    supportTypes:      Array.isArray(fields.supportTypes) ? fields.supportTypes.slice(0, 5) : [],
-    source:            fields.source,
-    submittedByUserId: fields.submittedByUserId || "",
-    status:            PARTNER_STATUS.NEW,
-    privacyVersion:    DOC_VERSIONS.privacy,
-    userAgent:         String(navigator.userAgent || "").slice(0, 300),
-    consentAt:         F.serverTimestamp(),
-    createdAt:         F.serverTimestamp(),
+  const posted = await postPartnerApplication({
+    eventId: fields.eventId,
+    eventTitle: fields.eventTitle,
+    companyName: fields.companyName,
+    contactName: fields.contactName,
+    email: fields.email,
+    phone: fields.phone,
+    website: fields.website || "",
+    message: fields.message || "",
+    supportTypes: Array.isArray(fields.supportTypes) ? fields.supportTypes.slice(0, 5) : [],
+    source: fields.source,
+    organizationId: organization?.id || "",
+  }, { fetchImpl });
+  return {
+    id: posted.id,
+    reference: posted.reference || partnerReference(posted.id),
+    organizationId: posted.organizationId || organization?.id || "",
   };
-  if (organization?.id) doc.organizationId = organization.id;
-  await F.setDoc(ref, doc);
-  return { id: ref.id, reference, organizationId: organization?.id || "" };
 }
 
-/** Partner applications for ONE event. Constrained by eventId, which is both
- *  what the caller wants and what keeps every query on this collection the same
- *  shape - see the note on conditional rules above. */
-export async function listPartnerApplicationsFor(eventId) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const snap = await F.getDocs(F.query(
-    F.collection(await db(), COL.partners), F.where("eventId", "==", eventId)));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+/** Admin GET /v1/admin/partner-applications, scoped to one event in the client.
+ *  There is no /v1/admin/events/{id}/partner-applications route (404). */
+export async function listPartnerApplicationsFor(eventId, { token, fetchImpl } = {}) {
+  const rows = await listAdminPartnerApplications({
+    token: await bearerToken({ token }),
+    fetchImpl,
+  });
+  return rows.filter(a => a.eventId === eventId);
 }
 
 /** Every registration, for an administrator. NOT constrained by event, because

@@ -20,7 +20,7 @@ const fbStub=({signedIn=true,uid='u1',status='agent',email='rosa@example.com',na
 const br=await chromium.launch();
 const errs=[];
 async function open(opts={}){
-  const ctx=await br.newContext({viewport:{width:1280,height:900}});
+  const ctx=await br.newContext({viewport:opts.viewport||{width:1280,height:900}});
   const p=await ctx.newPage(); p.on('pageerror',e=>errs.push(String(e)));
   await p.route('**/assets/js/paaipe-firebase-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_FB}));
   await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbStub(opts.fb||{})}));
@@ -94,6 +94,9 @@ await T('signed copy is exact',()=>{
   ok(css.includes('Inter'),'Inter');
   ok(/border-radius:22px/.test(css)&&/border-radius:16px/.test(css),'16–22px radii');
   ok(css.includes('linear-gradient(160deg,#0B2A6B'),'navy icon fill from the mock');
+  ok(/width:min\(760px,\s*calc\(100vw - 32px\)\)/.test(css),'R-17 fluid width');
+  ok(/@media \(max-width:560px\)[\s\S]*\.pe-choices\{grid-template-columns:1fr/.test(css),'R-17 phone stack');
+  ok(/\.pe-x\{[^}]*width:44px;height:44px;min-width:44px;min-height:44px/.test(css),'R-17 close ≥44');
 });
 
 await T('Learnings hub reads #tab=sessions and #tab=micros',()=>{
@@ -128,6 +131,59 @@ await T('a signed-in Agent sees the popup on Home with the signed copy',async()=
   ok(/paaipe-logo\.png$/.test(logo||''),'existing logo');
   const cols=await p.locator('.pe-choices').evaluate(el=>getComputedStyle(el).gridTemplateColumns.split(' ').length);
   eq(cols,2,'2×2 grid');
+  const modalW=await p.locator('.pe-modal').evaluate(el=>el.getBoundingClientRect().width);
+  ok(Math.abs(modalW-760)<2,`desktop modal stays 760, got ${modalW}`);
+  await ctx.close();
+});
+
+function measureOpenModal(){
+  const html=document.documentElement;
+  const modal=document.querySelector('.pe-modal');
+  const choices=document.querySelector('.pe-choices');
+  const close=document.querySelector('.pe-x');
+  const opt=document.querySelector('.pe-opt');
+  const pill=document.querySelector('.pe-mark-pill');
+  const mr=modal.getBoundingClientRect();
+  const cr=close.getBoundingClientRect();
+  return {
+    overflow:html.scrollWidth-html.clientWidth,
+    modalW:mr.width,
+    inset:Math.min(mr.left, html.clientWidth-mr.right),
+    cols:getComputedStyle(choices).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
+    closeW:cr.width,
+    closeH:cr.height,
+    closeTop:cr.top,
+    closeBottom:cr.bottom,
+    optH:opt.getBoundingClientRect().height,
+    pillPx:parseFloat(getComputedStyle(pill).fontSize),
+  };
+}
+
+await T('R-17 @320/@390: overflow ≤0, choices stack, close ≥44',async()=>{
+  for(const vp of [{width:320,height:568},{width:390,height:844}]){
+    const {p,ctx}=await open({fb:{signedIn:true,uid:`u-r17-${vp.width}`},viewport:vp});
+    await p.waitForSelector('[data-entry-popup="on"]',{timeout:9000});
+    const m=await p.evaluate(measureOpenModal);
+    ok(m.overflow<=0,`${vp.width}: overflow ${m.overflow}`);
+    ok(m.modalW<=vp.width-32+0.75,`${vp.width}: modal ${m.modalW} exceeds 16px inset`);
+    ok(m.inset>=15.25,`${vp.width}: inset ${m.inset}`);
+    eq(m.cols,1,`${vp.width} columns`);
+    ok(m.closeW>=44&&m.closeH>=44,`${vp.width}: close ${m.closeW}×${m.closeH}`);
+    ok(m.closeTop>=0&&m.closeBottom<=vp.height,`${vp.width}: close off-screen ${m.closeTop}–${m.closeBottom}`);
+    ok(m.optH>=44,`${vp.width}: option ${m.optH}`);
+    ok(m.pillPx>=12,`${vp.width}: pill ${m.pillPx}`);
+    await ctx.close();
+  }
+});
+
+await T('R-17 @768: signed 2-col desktop look, no overflow',async()=>{
+  const {p,ctx}=await open({fb:{signedIn:true,uid:'u-r17-768'},viewport:{width:768,height:900}});
+  await p.waitForSelector('[data-entry-popup="on"]',{timeout:9000});
+  const m=await p.evaluate(measureOpenModal);
+  ok(m.overflow<=0,`768: overflow ${m.overflow}`);
+  eq(m.cols,2,'768 keeps 2 columns');
+  ok(m.modalW>=700&&m.modalW<=760,`768 modal desktop-sized, got ${m.modalW}`);
+  ok(m.closeW>=44&&m.closeH>=44,`768 close ${m.closeW}×${m.closeH}`);
   await ctx.close();
 });
 

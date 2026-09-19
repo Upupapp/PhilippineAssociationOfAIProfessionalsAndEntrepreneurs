@@ -154,6 +154,18 @@ await T("Paul rule: portal/player copy is never YouTube-only", async () => {
   ok(view.includes("https://media.paaipe.org/"), "upload path stays media.paaipe.org");
 });
 
+await T("portal-session-watch layout stacks without an inline grid (R-02)", async () => {
+  const h = read("portal-session-watch.html");
+  ok(!/style="[^"]*grid-template-columns/.test(h), "no inline grid-template-columns");
+  ok(/class="grid2 watch-layout"/.test(h), "watch-layout class on the player/rail grid");
+  ok(/min-width:1101px\)\{[^}]*1\.55fr/.test(h), "desktop 1.55 / .65 only at ≥1101");
+  ok(/max-width:1100px\)\{[^}]*!important/.test(h),
+    "≤1100 stack uses !important so inline columns cannot win");
+  ok(/\.watch-layout\{grid-template-columns:minmax\(0,1fr\)\}/.test(h),
+    "default watch-layout is a single column");
+  ok(/@media \(max-width:560px\)/.test(h), "560 phone harden on this page");
+});
+
 await T("isUploadPlayable needs a real storagePath; empty copy is source-agnostic", async () => {
   const src = read("assets/js/paaipe-session-view.js");
   ok(src.includes("This item has no playable source yet."), "honest empty copy");
@@ -700,6 +712,90 @@ await T("Open on the seeded playlist paints items and writes #playlist=", async 
   eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').innerText(),
     "Start with the question, not the dashboard", "item title");
   ok(!(await p.locator("[data-ss-watch-popup]").isVisible()), "no auto-play");
+  await ctx.close();
+});
+
+async function openWatch(viewport) {
+  // Layout-only: portal JS bounces guests to sign-in, and session-view
+  // replaces .content when no ?session= is present. R-02 is the static
+  // watch-layout CSS; measure that markup the same way the sprint pack did.
+  const ctx = await br.newContext({ viewport, javaScriptEnabled: false });
+  const p = await ctx.newPage();
+  await p.goto(`${BASE}/portal-session-watch.html`, { waitUntil: "load" });
+  await p.waitForSelector(".watch-layout .player");
+  return { p, ctx };
+}
+
+async function measureWatch(p, injectInline) {
+  if (injectInline) {
+    await p.evaluate(() => {
+      const el = document.querySelector(".watch-layout");
+      if (el) el.style.gridTemplateColumns = "1.55fr .65fr";
+    });
+  }
+  return p.evaluate(() => {
+    const layout = document.querySelector(".watch-layout");
+    const player = document.querySelector(".player");
+    const r = player.getBoundingClientRect();
+    const layoutW = layout ? layout.getBoundingClientRect().width : 0;
+    const hit = document.querySelector(".player .pl span") || player;
+    const hb = hit.getBoundingClientRect();
+    return {
+      overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      playerW: r.width,
+      layoutW,
+      cols: getComputedStyle(layout).gridTemplateColumns,
+      hitW: hb.width,
+      hitH: hb.height,
+    };
+  });
+}
+
+await T("watch page at 320 has no overflow and a full-width player (R-02)", async () => {
+  const { p, ctx } = await openWatch({ width: 320, height: 568 });
+  const m = await measureWatch(p, false);
+  ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
+  ok(m.playerW + 1 >= m.layoutW * 0.95, `player ≈ layout column (${m.playerW.toFixed(1)} vs ${m.layoutW.toFixed(1)})`);
+  ok(m.cols.trim().split(/\s+/).length === 1, `single column at 320, got ${m.cols}`);
+  ok(m.hitW >= 44 && m.hitH >= 44, `hit ${m.hitW.toFixed(1)}×${m.hitH.toFixed(1)} ≥ 44`);
+  await ctx.close();
+});
+
+await T("watch page at 390 has no overflow and a full-width player (R-02)", async () => {
+  const { p, ctx } = await openWatch({ width: 390, height: 844 });
+  const m = await measureWatch(p, false);
+  ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
+  ok(m.playerW >= 320, `player ${m.playerW.toFixed(1)}px ≥ 320`);
+  ok(m.playerW + 1 >= m.layoutW * 0.95, `player ≈ layout column (${m.playerW.toFixed(1)} vs ${m.layoutW.toFixed(1)})`);
+  ok(m.cols.trim().split(/\s+/).length === 1, `single column at 390, got ${m.cols}`);
+  ok(m.hitW >= 44 && m.hitH >= 44, `hit ${m.hitW.toFixed(1)}×${m.hitH.toFixed(1)} ≥ 44`);
+  await ctx.close();
+});
+
+await T("injected inline 1.55/.65 still stacks at 320 and 390 (R-02)", async () => {
+  for (const vp of [{ width: 320, height: 568 }, { width: 390, height: 844 }]) {
+    const { p, ctx } = await openWatch(vp);
+    const m = await measureWatch(p, true);
+    ok(m.overflow <= 0, `${vp.width}: overflow ${m.overflow} ≤ 0 after inline inject`);
+    ok(m.cols.trim().split(/\s+/).length === 1, `${vp.width}: still one column, got ${m.cols}`);
+    ok(m.playerW + 1 >= m.layoutW * 0.95,
+      `${vp.width}: player ≈ layout (${m.playerW.toFixed(1)} vs ${m.layoutW.toFixed(1)})`);
+    await ctx.close();
+  }
+});
+
+await T("watch layout stacks at 768 and stays two-column on desktop (R-02)", async () => {
+  const t = await openWatch({ width: 768, height: 1024 });
+  const tablet = await measureWatch(t.p, false);
+  ok(tablet.overflow <= 0, `768 overflow ${tablet.overflow} ≤ 0`);
+  ok(tablet.cols.trim().split(/\s+/).length === 1, `768 single column, got ${tablet.cols}`);
+  await t.ctx.close();
+
+  const { p, ctx } = await openWatch({ width: 1280, height: 900 });
+  const cols = await p.evaluate(() => getComputedStyle(document.querySelector(".watch-layout")).gridTemplateColumns);
+  ok(cols.trim().split(/\s+/).length === 2, `desktop two cols: ${cols}`);
+  const overflow = await p.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  ok(overflow <= 0, `1280 overflow ${overflow} ≤ 0`);
   await ctx.close();
 });
 

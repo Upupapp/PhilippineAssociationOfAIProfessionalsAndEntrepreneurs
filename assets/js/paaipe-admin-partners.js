@@ -1,8 +1,9 @@
 /* PAAIPE admin — partner applications.
  *
- * Companies that offered to support an event, what they offered, and what PAAIPE
- * did about it. Nothing here is public: firestore.rules refuses this collection
- * to everyone but an administrator and the applicant themselves.
+ * Inbox is hard-cut to api.paaipe.org:
+ *   GET/PATCH /v1/admin/partner-applications[/{id}]
+ * Accept activates the organization. Event sponsor writes are not in this
+ * contract and are not invented here.
  *
  * THE ORGANIZATION MATCH IS RECOMPUTED HERE, EVERY TIME.
  * An application carries only what the applicant typed. The link to a PAAIPE
@@ -32,11 +33,17 @@
  *   on it.
  */
 import {
-  COL, PARTNER_STATUS, SUPPORT_TYPES, TIER, SPONSOR_STATUS,
-  listEvents, listOrganizations, listEventSponsors,
+  COL, PARTNER_STATUS, SUPPORT_TYPES,
+  listEvents, listOrganizations,
   matchOrganization, referenceMatchesId, normaliseCompany,
 } from "/assets/js/paaipe-events-data.js";
-import { firebaseConfig, DATABASE_ID, currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
+import {
+  firebaseConfig, DATABASE_ID, currentAgent, isAdminNow, signOutNow,
+  idTokenForRequest,
+} from "/assets/js/paaipe-firebase.js";
+import {
+  listAdminPartnerApplications, patchAdminPartnerApplication, postAdminOrganization,
+} from "/assets/js/paaipe-api.js";
 import { renderAdminNav, renderAdminTop, setNavBadge } from "/assets/js/paaipe-admin.js";
 import { readSearch, writeSearch, onViewChange } from "/assets/js/paaipe-view-url.js";
 
@@ -62,8 +69,16 @@ const SOURCE_LABEL = {
   portal_sessions: "Portal · Sessions", portal_events: "Portal · Events", portal_session: "Portal · Session",
 };
 
-const toDate = v =>
-  v?.toDate ? v.toDate() : v instanceof Date ? v : Number.isFinite(v?.seconds) ? new Date(v.seconds * 1000) : null;
+const toDate = v => {
+  if (v?.toDate) return v.toDate();
+  if (v instanceof Date) return v;
+  if (Number.isFinite(v?.seconds)) return new Date(v.seconds * 1000);
+  if (typeof v === "string" || typeof v === "number") {
+    const d = new Date(v);
+    return isNaN(d) ? null : d;
+  }
+  return null;
+};
 const dateShort = v => {
   const d = toDate(v);
   return d ? d.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" }) : "—";
@@ -102,10 +117,8 @@ function flash(msg, good = false) {
 /* ------------------------------------------------------------------- reads */
 
 async function listApplications() {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const snap = await F.getDocs(F.collection(await db(), COL.partners));
-  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
-    .sort((a, b) => (toDate(b.createdAt)?.getTime() || 0) - (toDate(a.createdAt)?.getTime() || 0));
+  const token = await idTokenForRequest();
+  return listAdminPartnerApplications({ token });
 }
 
 /* ------------------------------------------------------------------ filters */
@@ -393,7 +406,7 @@ function openDetail(id, { fromUrl = false } = {}) {
               Accept — add as Partner (proposed)</button>
           </div>
         </div>
-        <p class="muted small">Accept creates a proposed Partner — confirm on Organizations to publish.</p>
+        <p class="muted small">Accept activates the organization on the API. Event sponsor placement is still separate.</p>
       </div>
     </section>`;
   d.hidden = false;
@@ -405,10 +418,9 @@ function openDetail(id, { fromUrl = false } = {}) {
 /* ------------------------------------------------------------------ writes */
 
 async function patchApp(id, patch, action, details) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
   const a = APPS.find(x => x.id === id);
-  await F.setDoc(F.doc(await db(), COL.partners, id),
-    { ...patch, updated_by: ME, updatedAt: F.serverTimestamp() }, { merge: true });
+  const token = await idTokenForRequest();
+  await patchAdminPartnerApplication(id, patch, { token });
   Object.assign(a, patch);
   await logActivity(action, details, a.eventId);
   renderRows();
@@ -445,75 +457,50 @@ async function saveNote(id) {
 }
 
 /**
- * Accept: link or create the organization, propose the sponsorship, mark accepted.
- *
- * Deliberately three writes and not a transaction, because Firestore batches
- * cannot span the reads this needs and a half-done accept is recoverable: the
- * organization and the sponsorship are both idempotent to re-create, and the
- * application keeps its old status until the last write lands. Failing halfway
- * leaves a prospect organization and no false "accepted".
+ * Accept: PATCH /v1/admin/partner-applications/{id}. The API activates the
+ * organization. Event sponsor rows are not in this contract — they are not
+ * written here.
  */
 async function acceptApplication(id) {
   const a = APPS.find(x => x.id === id);
   if (!a) return;
-  const F = await import(`${SDK}/firebase-firestore.js`);
   const d = $("[data-detail]");
   $$("button", d).forEach(b => b.disabled = true);
 
   try {
-    // 1. the organization - the administrator's choice wins over the guess.
+    const token = await idTokenForRequest();
     const chosen = $("[data-link-org]", d)?.value || "";
     let org = chosen ? ORGS.find(o => o.id === chosen) || null : null;
     if (!chosen) {
-      const ref = F.doc(F.collection(await db(), COL.organizations));
-      const doc = {
+      const createdId = await postAdminOrganization({
         name: a.companyName,
         website: a.website || "",
         logoUrl: "",
-        // A prospect is not a partner. It is inactive so nothing on the public
-        // Partners page picks it up: that page renders active organizations.
         status: "inactive",
         type: "sponsor",
-        relationshipStatus: "prospect",
-        primaryContactName: a.contactName || "",
-        primaryContactEmail: a.email || "",
-        primaryContactPhone: a.phone || "",
-        createdFromApplication: a.reference || "",
+      }, { token });
+      org = {
+        id: createdId,
+        name: a.companyName,
+        website: a.website || "",
+        logoUrl: "",
+        status: "inactive",
+        type: "sponsor",
       };
-      await F.setDoc(ref, doc);
-      org = { id: ref.id, ...doc };
       ORGS.push(org);
       await logActivity("organization.create",
-        `${a.companyName} (prospect, from ${a.reference})`, a.eventId);
+        `${a.companyName} (from ${a.reference})`, a.eventId);
     }
 
-    // 2. the sponsorship, PROPOSED - unreadable to the public by rule
-    const already = (await listEventSponsors(a.eventId, { asAdmin: true }))
-      .find(s => s.organizationId === org.id);
-    if (!already) {
-      await F.addDoc(F.collection(await db(), COL.sponsors), {
-        eventId: a.eventId,
-        organizationId: org.id,
-        tier: TIER.COMMUNITY,
-        status: SPONSOR_STATUS.PROPOSED,
-        order: 100,
-        note: `From partner application ${a.reference}`,
-      });
-      await logActivity("sponsor.create",
-        `${org.name}: community/proposed from ${a.reference}`, a.eventId);
-    }
-
-    // 3. the application, last, so a failure above leaves no false "accepted"
     await patchApp(id, { status: PARTNER_STATUS.ACCEPTED, organizationId: org.id },
       "partner_application.accept", `${a.reference} ${a.companyName} → ${org.name}`);
 
-    flash(`Accepted. ${org.name} now has a PROPOSED community Partner on this event (${eventTitle(a)}) — set the tier and confirm it on Organizations to put the logo ` +
-          `on the public page.`, true);
+    flash(`Accepted. ${org.name} is activated on the API for ${eventTitle(a)}. Event sponsor placement is still separate.`, true);
     openDetail(id);
   } catch (ex) {
     $$("button", d).forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that. Your account may no longer be an administrator."
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that. Your account may no longer be an administrator."
       : `Could not accept: ${ex?.message || ex}`);
   }
 }
@@ -599,6 +586,7 @@ async function boot() {
   } catch (ex) {
     $("[data-rows]").innerHTML =
       `<tr><td colspan="7" class="empty">Could not load applications: ${esc(ex?.message || ex)}</td></tr>`;
+    document.documentElement.setAttribute("data-admin-partners", "error");
     return;
   }
   fillEventFilter();

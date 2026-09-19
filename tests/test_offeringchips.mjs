@@ -120,6 +120,24 @@ async function stub(p){
   await p.route('**/assets/js/paaipe-api.js',r=>r.fulfill({contentType:'text/javascript',body:apiStub}));
   await p.route('**/firebasejs/**/firebase-firestore.js',r=>r.fulfill({contentType:'text/javascript',body:firestoreStub}));
   await p.route('**/firebasejs/**/firebase-app.js',r=>r.fulfill({contentType:'text/javascript',body:appStub}));
+  await p.route('https://api.paaipe.org/**', async route => {
+    const url = route.request().url();
+    if (url.includes('/v1/admin/partner-applications')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ applications: APPS }),
+      });
+    }
+    if (url.includes('/v1/admin/organizations')) {
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ organizations: [] }),
+      });
+    }
+    await route.fulfill({ status: 404, body: 'missing' });
+  });
 }
 
 await T('markup uses .tag inside .tags, not the publish-rail .chip',()=>{

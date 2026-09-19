@@ -519,10 +519,10 @@ export async function listRegistrations() {
  * collection; asking narrowly costs nothing and keeps the shape consistent.
  */
 export async function countNewPartnerApplications() {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const snap = await F.getCountFromServer(F.query(
-    F.collection(await db(), COLLECTIONS.partners), F.where("status", "==", "new")));
-  return snap.data().count;
+  const { listAdminPartnerApplications } = await import("/assets/js/paaipe-api.js");
+  const token = await idTokenForRequest();
+  const rows = await listAdminPartnerApplications({ token });
+  return rows.filter(a => a.status === "new").length;
 }
 
 /** The statuses a registration can hold. A registration written by the public

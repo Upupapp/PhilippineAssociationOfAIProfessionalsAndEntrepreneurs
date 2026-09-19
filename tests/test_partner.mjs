@@ -623,15 +623,16 @@ await T('the admin inbox does not list missing capabilities as a card',()=>{
   ok(!/function renderGaps/.test(js),'and they are not drawn');
 });
 
-await T('accepting proposes a sponsorship and never confirms one',()=>{
+await T('accepting activates the organization on the API and does not invent a sponsor write',()=>{
   const js=readFileSync(`${ROOT}/assets/js/paaipe-admin-partners.js`,'utf8');
   const fn=js.slice(js.indexOf('async function acceptApplication'),
                     js.indexOf('/* ------------------------------------------------------------------- export */'));
-  ok(/SPONSOR_STATUS\.PROPOSED/.test(fn),'the sponsorship is proposed');
-  ok(!/SPONSOR_STATUS\.CONFIRMED/.test(fn),
-     'confirming is what puts a logo on the public page, not a side effect of tidying an inbox');
-  ok(/status:\s*"inactive"/.test(fn),'a prospect organization is not live on the Partners page');
-  ok(/relationshipStatus:\s*"prospect"/.test(fn),'and is recorded as a prospect');
+  ok(/patchAdminPartnerApplication|patchApp/.test(fn),'accept PATCHes the application');
+  ok(/PARTNER_STATUS\.ACCEPTED/.test(fn),'marks accepted');
+  ok(!/COL\.sponsors|listEventSponsors/.test(fn),
+     'event sponsor writes are not in this contract');
+  ok(/postAdminOrganization/.test(fn),'a new org is created on the API when none is chosen');
+  ok(/status:\s*"inactive"/.test(fn),'a newly created organization starts inactive');
 });
 
 await T('a declined or spam application can never reach the public page',()=>{

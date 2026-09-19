@@ -85,6 +85,15 @@
  *   GET  /v1/admin/contacts/{id}
  * Contacts are read-only. Do not invent contact writes.
  *
+ * Feedback (Slice 3 — portal Event Details). Admin PUT questions is admin-side
+ * and is not called from the portal.
+ *   GET  /v1/events/{eventId}/feedback/questions                 public
+ *   POST /v1/events/{eventId}/feedback/responses                 Bearer, create-once
+ *   GET  /v1/events/{eventId}/feedback/responses/{registrationId} Bearer
+ *
+ * Certificate issue / download / email APIs are not in this client. Do not
+ * invent them here. The portal Certificate tab is UI-only until Clarence lands.
+ *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
  * Unauthenticated admin calls return 401 (Missing bearer token), not 404.
@@ -860,6 +869,51 @@ export async function getAdminRegistration(id, opts) {
     );
   }
   return row;
+}
+
+export function eventFeedbackResponsePayload(src = {}) {
+  const out = {};
+  if (src.registrationId) out.registrationId = String(src.registrationId);
+  if ("answers" in src) {
+    out.answers = src.answers && typeof src.answers === "object" && !Array.isArray(src.answers)
+      ? src.answers
+      : {};
+  }
+  return out;
+}
+
+/** Public GET. Throws on network / non-OK / unreadable JSON. */
+export async function listEventFeedbackQuestions(eventId, opts) {
+  const data = await paaipePublicGet(eventFeedbackQuestionsPath(eventId), opts);
+  return withIds(asList(data, "questions").map((row, i) => {
+    if (!row || typeof row !== "object") return null;
+    const questionKey = String(row.questionKey || row.key || "").trim();
+    const id = String(row.id || questionKey || "").trim();
+    if (!id && !questionKey) return null;
+    return {
+      ...row,
+      id: id || questionKey,
+      questionKey: questionKey || id,
+      order: Number.isFinite(Number(row.order)) ? Number(row.order) : i,
+    };
+  }).filter(Boolean));
+}
+
+/**
+ * Member GET. 404 means no response yet — that is a fact, not a failure.
+ * Other errors throw. Never invents a submitted row.
+ */
+export async function getEventFeedbackResponse(eventId, registrationId, opts) {
+  try {
+    const data = await paaipeApiRequest(eventFeedbackResponsePath(eventId, registrationId), opts);
+    if (!data) return null;
+    if (data.response && typeof data.response === "object") return data.response;
+    if (data.id || data.registrationId || data.answers) return data;
+    return asResource(data);
+  } catch (e) {
+    if (e?.status === 404 || e?.code === "api/not-found") return null;
+    throw e;
+  }
 }
 
 export async function patchAdminRegistration(id, status, opts) {

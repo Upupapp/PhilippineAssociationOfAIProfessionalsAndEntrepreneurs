@@ -45,6 +45,9 @@ await T("helper lives in the repo and existing Learnings links still name #tab="
   ok(entry.includes("portal-sessions.html#tab=sessions"), "entry popup sessions");
   ok(entry.includes("portal-sessions.html#tab=micros"), "entry popup micros");
   ok(read("netlify.toml").includes("from = \"/*.html\""), "pretty-URL redirects stay");
+  const portalEv = read("assets/js/paaipe-portal-events.js");
+  ok(portalEv.includes("paaipe-view-url.js"), "portal Event Details uses the helper");
+  ok(portalEv.includes('event: ev.id') || portalEv.includes("event:"), "writes #event=");
 });
 
 await T("watch and slides still use ?session= (not a new path)", () => {

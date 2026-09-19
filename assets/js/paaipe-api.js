@@ -1,15 +1,12 @@
 /* PAAIPE admin API — Clarence's BE contract.
  *
- * Draft default:  http://127.0.0.1:8091  (SSH tunnel)
+ * Default:  https://api.paaipe.org  (HTTPS live; health/live + health/ready 200)
+ * Offline smoke override: http://127.0.0.1:8091
+ *   ?paaipe_api=tunnel | localStorage/window PAAIPE_API_BASE
  *   ssh -L 8091:127.0.0.1:8091 root@103.3.62.77
- * Target host:    https://api.paaipe.org
- *   Flip PAAIPE_API_DEFAULT_BASE to PAAIPE_API_PROD_BASE when Aryhan/Paul
- *   add the NS1 A record api.paaipe.org → 103.3.62.77 and TLS is finished.
- *   Do NOT default to api.paaipe.org until that lands (DNS A not created,
- *   cert pending).
  *
  * ONE override knob, first non-empty wins:
- *   1. ?paaipe_api=   — "tunnel"/"local" → tunnel; "prod"/"api" → api.paaipe.org;
+ *   1. ?paaipe_api=   — "tunnel"/"local" → 8091; "prod"/"api" → api.paaipe.org;
  *                       otherwise an absolute base
  *   2. window.PAAIPE_API_BASE
  *   3. localStorage["PAAIPE_API_BASE"]
@@ -19,10 +16,10 @@
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
- * Unauthenticated hits to live Registrations admin return 401 (route exists).
+ * Unauthenticated Settings PATCH and Registrations GET return 401 (routes exist).
  *
- * CORS allowlist (Clarence): https://paaipe.org, https://www.paaipe.org,
- * plus localhost smoke ports. Other origins still need to be added.
+ * CORS: https://paaipe.org is allowed. Other origins still need to be added
+ * (www / localhost smoke ports if used).
  *
  * Paths (use exactly):
  *   PATCH /v1/admin/events/{id}
@@ -38,8 +35,8 @@
  */
 export const PAAIPE_API_PROD_BASE = "https://api.paaipe.org";
 export const PAAIPE_API_TUNNEL_BASE = "http://127.0.0.1:8091";
-/** Flip to PAAIPE_API_PROD_BASE once api.paaipe.org DNS A + TLS are live. */
-export const PAAIPE_API_DEFAULT_BASE = PAAIPE_API_TUNNEL_BASE;
+/** Live default. Override to PAAIPE_API_TUNNEL_BASE for offline 8091 smoke only. */
+export const PAAIPE_API_DEFAULT_BASE = PAAIPE_API_PROD_BASE;
 export const PAAIPE_API_OVERRIDE_KEY = "PAAIPE_API_BASE";
 export const PAAIPE_API_QUERY_PARAM = "paaipe_api";
 

@@ -1,4 +1,4 @@
-/* Admin API client: tunnel default, one flip knob, Bearer, honest failures. */
+/* Admin API client: api.paaipe.org default, 8091 override, Bearer, honest failures. */
 import { readFileSync } from "fs";
 import { pathToFileURL } from "url";
 import { chromium } from "playwright";
@@ -18,13 +18,12 @@ const read = p => readFileSync(`${ROOT}/${p}`, "utf8");
 
 const api = await import(pathToFileURL(`${ROOT}/assets/js/paaipe-api.js`).href);
 
-await T("source: draft default is the tunnel; prod is the flip target, not the default", () => {
-  eq(api.PAAIPE_API_TUNNEL_BASE, "http://127.0.0.1:8091", "tunnel");
-  eq(api.PAAIPE_API_PROD_BASE, "https://api.paaipe.org", "prod target");
-  eq(api.PAAIPE_API_DEFAULT_BASE, api.PAAIPE_API_TUNNEL_BASE, "default is tunnel");
-  eq(api.resolvePaaipeApiBase({}), "http://127.0.0.1:8091", "resolver empty → tunnel");
-  ok(api.PAAIPE_API_DEFAULT_BASE !== api.PAAIPE_API_PROD_BASE,
-     "do not default to api.paaipe.org until DNS A + TLS land");
+await T("source: default is https://api.paaipe.org; 8091 is an override only", () => {
+  eq(api.PAAIPE_API_TUNNEL_BASE, "http://127.0.0.1:8091", "tunnel override");
+  eq(api.PAAIPE_API_PROD_BASE, "https://api.paaipe.org", "prod");
+  eq(api.PAAIPE_API_DEFAULT_BASE, api.PAAIPE_API_PROD_BASE, "default is prod");
+  eq(api.resolvePaaipeApiBase({}), "https://api.paaipe.org", "resolver empty → prod");
+  eq(api.PAAIPE_API_BASE, "https://api.paaipe.org", "module default");
   const src = read("assets/js/paaipe-api.js");
   ok(!/media\.paaipe\.org/.test(src.split("\n").filter(l =>
     !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n")),
@@ -77,7 +76,7 @@ await T("settings payload sends only Clarence's fields", () => {
   ok(!("title" in body) && !("confirmationEmailText" in body), "no extra fields");
 });
 
-await T("PATCH event request: Bearer + JSON body to the tunnel default", async () => {
+await T("PATCH event request: Bearer + JSON body to api.paaipe.org", async () => {
   let captured;
   const fetchImpl = async (url, opts) => {
     captured = { url, opts };
@@ -88,8 +87,8 @@ await T("PATCH event request: Bearer + JSON body to the tunnel default", async (
     waitlistEnabled: false,
     questionsEnabled: [],
     status: "published",
-  }, { token: "tok-admin", fetchImpl, base: api.PAAIPE_API_TUNNEL_BASE });
-  eq(captured.url, "http://127.0.0.1:8091/v1/admin/events/2026-10-ai-exchange", "url");
+  }, { token: "tok-admin", fetchImpl });
+  eq(captured.url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange", "url");
   eq(captured.opts.method, "PATCH", "method");
   eq(captured.opts.headers.Authorization, "Bearer tok-admin", "Authorization");
   eq(captured.opts.headers["Content-Type"], "application/json", "json");
@@ -111,7 +110,7 @@ await T("GET registrations + PATCH status; unknown status is refused", async () 
     return new Response("{}", { status: 200, headers: { "content-type": "application/json" } });
   };
   const rows = await api.listAdminEventRegistrations("e-oct", {
-    token: "tok", fetchImpl, base: "http://127.0.0.1:8091",
+    token: "tok", fetchImpl,
   });
   eq(rows.length, 1, "one row");
   eq(rows[0].id, "r1", "id kept");
@@ -119,10 +118,10 @@ await T("GET registrations + PATCH status; unknown status is refused", async () 
   eq(captured[0].opts.headers.Authorization, "Bearer tok", "list bearer");
 
   await api.patchAdminRegistration("r1", "attended", {
-    token: "tok", fetchImpl, base: "http://127.0.0.1:8091",
+    token: "tok", fetchImpl,
   });
   const patch = captured[1];
-  eq(patch.url, "http://127.0.0.1:8091/v1/admin/registrations/r1", "patch url");
+  eq(patch.url, "https://api.paaipe.org/v1/admin/registrations/r1", "patch url");
   eq(patch.opts.method, "PATCH", "patch method");
   eq(patch.opts.body, JSON.stringify({ status: "attended" }), "status only");
 
@@ -205,7 +204,7 @@ await T("admin-registrations 401 is an error, not an empty list", async () => {
     r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
   await p.route("**/assets/js/paaipe-events-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: dataStub }));
-  await p.route("http://127.0.0.1:8091/**", route =>
+  await p.route("https://api.paaipe.org/**", route =>
     route.fulfill({ status: 401, contentType: "text/plain", body: "missing bearer" }));
   await p.goto(`${BASE}/admin-registrations.html`, { waitUntil: "load" });
   await p.waitForSelector('html[data-admin-regs="error"]', { timeout: 9000 });
@@ -231,7 +230,7 @@ await T("admin-registrations lists rows from GET /v1/admin/events/{id}/registrat
     r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
   await p.route("**/assets/js/paaipe-events-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: dataStub }));
-  await p.route("http://127.0.0.1:8091/**", async route => {
+  await p.route("https://api.paaipe.org/**", async route => {
     hit = route.request().url();
     auth = route.request().headers().authorization || "";
     await route.fulfill({

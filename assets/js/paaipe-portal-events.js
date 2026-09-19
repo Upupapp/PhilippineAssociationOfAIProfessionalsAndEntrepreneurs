@@ -321,12 +321,12 @@ export function googleCalendarHref(ev) {
   const params = new URLSearchParams({
     action: "TEMPLATE",
     text: title,
-    dates: `${compact(start)}/${compact(end)}`,
     details: `${topic} — Online. Join link is sent to registered participants by email.`,
     location: "Online",
     ctz: "Asia/Manila",
   });
-  return `https://calendar.google.com/calendar/render?${params}`;
+  // Public event pages keep a literal slash in dates=; encode the rest.
+  return `https://calendar.google.com/calendar/render?${params}&dates=${compact(start)}/${compact(end)}`;
 }
 
 /** Square / wide banner downloads only when a URL is on the record. */

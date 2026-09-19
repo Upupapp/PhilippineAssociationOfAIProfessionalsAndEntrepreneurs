@@ -1,25 +1,36 @@
-/* PAAIPE — event feedback, against Clarence's locked schema.
+/* PAAIPE — event feedback, against Clarence's live Feedback API.
  *
- *   paaipe_event_feedback_questions/{eventId}_{questionKey}
- *   paaipe_event_feedback_responses/{eventId}_{registrationId}
+ *   GET  /v1/events/{eventId}/feedback/questions                 public { questions }
+ *   PUT  /v1/admin/events/{eventId}/feedback/questions           admin publish
+ *   POST /v1/events/{eventId}/feedback/responses                 member create-once
+ *   GET  /v1/events/{eventId}/feedback/responses/{registrationId}
+ *   GET  /v1/admin/events/{eventId}/feedback/responses[+/{id}]
  *
- * Questions are not embedded on the event, are not questionsEnabled (that
- * toggle is the registration form), and are not sessions/micros. A failed
- * read is "not available", an empty read is "no documents yet", and those
- * two are different. Mock figures (48, 12, 4.2, 25%) are never used as data.
+ * Schema fields stay Clarence-locked: eventId, questionKey, order,
+ * prompt, type 1-5|yes-no|short, required, active. Answers
+ * keys are question ids (`{eventId}_{questionKey}`). Reports stay
+ * FE-computed from the responses payload — there is no reports table.
+ *
+ * Postgres starts empty. A failed read is "not available", an empty read is
+ * "no questions yet", and those two are different. Mock figures (48, 12,
+ * 4.2, 25%) are never used as data.
  *
  * Public join cannot be proven by listing registrations — those reads stay
  * admin-only. A new registration form keeps the id submitRegistration
  * returns. People who registered before that have no client path to their
  * id; the public block stays hidden rather than faking a lookup.
  */
-import { firebaseConfig, DATABASE_ID, currentAgent, isAdminNow } from "/assets/js/paaipe-firebase.js";
+import { currentAgent, isAdminNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import {
-  COL, eventDateLong, eventDateTimeLine, formatTime12, eventStartAt,
+  eventDateLong, eventDateTimeLine, formatTime12, eventStartAt,
   eventStatusShort,
 } from "/assets/js/paaipe-events-data.js";
+import {
+  listApiFeedbackQuestions, putAdminFeedbackQuestions,
+  listAdminFeedbackResponses, getApiFeedbackResponse,
+  postEventFeedbackResponse, normalizeFeedbackQuestion,
+} from "/assets/js/paaipe-api.js";
 
-const SDK = "https://www.gstatic.com/firebasejs/12.19.0";
 const RECEIPT_KEY = "paaipe.registrationReceipt.v1";
 
 const $  = (s, r = document) => r.querySelector(s);
@@ -53,22 +64,7 @@ export function newQuestionKey(used) {
 }
 
 function normalizeQuestion(q, i = 0) {
-  if (!q || typeof q !== "object") return null;
-  const type = Q_TYPE_LABEL[q.type] ? q.type : null;
-  const questionKey = String(q.questionKey || "").trim();
-  const prompt = String(q.prompt || "").trim();
-  if (!type || !questionKey || !prompt) return null;
-  const eventId = String(q.eventId || "").trim();
-  return {
-    id: q.id || (eventId ? questionDocId(eventId, questionKey) : questionKey),
-    eventId,
-    questionKey,
-    prompt,
-    type,
-    required: q.required !== false,
-    active: q.active !== false,
-    order: Number.isFinite(q.order) ? q.order : i,
-  };
+  return normalizeFeedbackQuestion(q, q?.eventId, i);
 }
 
 /* ------------------------------------------------ registration receipt
@@ -134,62 +130,54 @@ export function whoSeesCopy(ev) {
   };
 }
 
-/* ------------------------------------------------ Firestore */
-
-async function db() {
-  const { initializeApp, getApps } = await import(`${SDK}/firebase-app.js`);
-  const { getFirestore } = await import(`${SDK}/firebase-firestore.js`);
-  const app = getApps().find(a => a.name === "paaipe") || initializeApp(firebaseConfig, "paaipe");
-  return getFirestore(app, DATABASE_ID);
-}
+/* ------------------------------------------------ API (no Firestore) */
 
 function unavailable(reason) {
   return { ok: false, rows: [], reason: reason || "Not available yet." };
 }
 
-export async function listFeedbackQuestions(eventId) {
+async function withBearer(opts = {}) {
+  if (opts.token) return opts;
+  return { ...opts, token: await idTokenForRequest() };
+}
+
+function readFailReason(ex, fallback) {
+  const code = ex?.code || "";
+  if (code === "api/unauthorized" || code === "not-signed-in")
+    return "Sign-in expired or missing. This is not a count of zero.";
+  if (code === "api/forbidden" || code === "permission-denied")
+    return "You do not have permission to read this. This is not a count of zero.";
+  if (code === "api/not-found")
+    return fallback || "Feedback is not available yet. This is not an empty form.";
+  return ex?.message || fallback || String(ex);
+}
+
+export async function listFeedbackQuestions(eventId, opts = {}) {
   if (!eventId) return unavailable("No event.");
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    const snap = await F.getDocs(F.query(
-      F.collection(await db(), COL.feedbackQuestions),
-      F.where("eventId", "==", eventId)));
-    const rows = snap.docs.map((d, i) => normalizeQuestion({ id: d.id, ...d.data() }, i)).filter(Boolean)
-      .sort((a, b) => a.order - b.order);
+    const rows = await listApiFeedbackQuestions(eventId, opts);
     return { ok: true, rows, reason: "" };
   } catch (ex) {
-    const code = ex?.code || "";
-    if (code === "permission-denied" || code === "not-found")
-      return unavailable("Feedback questions are not available yet. This is not an empty form.");
-    return unavailable(`Questions could not be read: ${ex?.message || ex}`);
+    return unavailable(readFailReason(ex, "Feedback questions are not available yet. This is not an empty form."));
   }
 }
 
-export async function listFeedbackResponses(eventId) {
+export async function listFeedbackResponses(eventId, opts = {}) {
   if (!eventId) return unavailable("No event.");
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    const snap = await F.getDocs(F.query(
-      F.collection(await db(), COL.feedbackResponses),
-      F.where("eventId", "==", eventId)));
-    const rows = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-      .sort((a, b) => (a.submittedAt?.seconds || 0) - (b.submittedAt?.seconds || 0));
+    const rows = await listAdminFeedbackResponses(eventId, await withBearer(opts));
     return { ok: true, rows, reason: "" };
   } catch (ex) {
-    const code = ex?.code || "";
-    if (code === "permission-denied" || code === "not-found")
-      return unavailable("Feedback storage is not connected yet. Nothing here is a count of zero.");
-    return unavailable(`Feedback responses could not be read: ${ex?.message || ex}`);
+    return unavailable(readFailReason(ex, "Feedback responses could not be read. Nothing here is a count of zero."));
   }
 }
 
-/** One response by known id. Public must not list the collection. */
-export async function getFeedbackResponse(eventId, registrationId) {
+/** One response by known registration id. Public must not list all responses. */
+export async function getFeedbackResponse(eventId, registrationId, opts = {}) {
   if (!eventId || !registrationId) return { ok: false, row: null, reason: "missing id" };
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    const s = await F.getDoc(F.doc(await db(), COL.feedbackResponses, responseDocId(eventId, registrationId)));
-    return { ok: true, row: s.exists() ? { id: s.id, ...s.data() } : null, reason: "" };
+    const row = await getApiFeedbackResponse(eventId, registrationId, await withBearer(opts));
+    return { ok: true, row, reason: "" };
   } catch (ex) {
     return { ok: false, row: null, reason: ex?.message || String(ex) };
   }
@@ -208,18 +196,27 @@ export function citedQuestionIds(responses) {
   return ids;
 }
 
-export async function writeFeedbackQuestions(eventId, next, { citedIds } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const database = await db();
-  const current = await listFeedbackQuestions(eventId);
-  if (!current.ok) throw Object.assign(new Error(current.reason), { code: "unavailable" });
-
+/** Archive / mint locally, then PUT the full set. Retired keys stay in the
+ *  payload so old answers still resolve. Nothing is deleted. */
+export function planFeedbackQuestions(eventId, currentRows, next, { citedIds } = {}) {
   const cited = citedIds instanceof Set ? citedIds : new Set(citedIds || []);
-  const byKey = new Map(current.rows.map(q => [q.questionKey, q]));
+  const current = (currentRows || []).map((q, i) => normalizeQuestion({ ...q, eventId: q.eventId || eventId }, i)).filter(Boolean);
+  const byKey = new Map(current.map(q => [q.questionKey, q]));
+  const usedKeys = new Set(current.map(q => q.questionKey));
+  const outgoing = [];
   const seen = new Set();
-  const usedKeys = new Set(current.rows.map(q => q.questionKey));
 
-  for (let i = 0; i < next.length; i++) {
+  const make = (fields, i) => normalizeQuestion({
+    eventId,
+    questionKey: fields.questionKey,
+    prompt: fields.prompt,
+    type: fields.type,
+    required: fields.required,
+    active: fields.active !== false,
+    order: i,
+  }, i);
+
+  for (let i = 0; i < (next || []).length; i++) {
     const row = next[i];
     const prompt = String(row.prompt || "").trim();
     const type = Q_TYPE_LABEL[row.type] ? row.type : Q_TYPE.SHORT;
@@ -231,28 +228,22 @@ export async function writeFeedbackQuestions(eventId, next, { citedIds } = {}) {
 
     // A retired key stays retired. Do not reactivate it; mint a new key.
     if (existing && existing.active === false) {
+      outgoing.push({ ...existing, active: false });
       seen.add(existing.questionKey);
       key = newQuestionKey(usedKeys);
       usedKeys.add(key);
-      const id = questionDocId(eventId, key);
-      await F.setDoc(F.doc(database, COL.feedbackQuestions, id), {
-        eventId, questionKey: key, prompt, type, required, active: true, order: i,
-      });
+      outgoing.push(make({ questionKey: key, prompt, type, required, active: true }, i));
       seen.add(key);
       continue;
     }
 
     const existingId = existing ? (existing.id || questionDocId(eventId, existing.questionKey)) : "";
     if (existing && existing.type !== type && cited.has(existingId)) {
-      // Type is immutable once any answer cites this document id.
-      await F.setDoc(F.doc(database, COL.feedbackQuestions, existing.id), { active: false, order: i }, { merge: true });
+      outgoing.push({ ...existing, active: false, order: i });
       seen.add(existing.questionKey);
       key = newQuestionKey(usedKeys);
       usedKeys.add(key);
-      const id = questionDocId(eventId, key);
-      await F.setDoc(F.doc(database, COL.feedbackQuestions, id), {
-        eventId, questionKey: key, prompt, type, required, active: true, order: i,
-      });
+      outgoing.push(make({ questionKey: key, prompt, type, required, active: true }, i));
       seen.add(key);
       continue;
     }
@@ -260,42 +251,36 @@ export async function writeFeedbackQuestions(eventId, next, { citedIds } = {}) {
     if (!existing) {
       if (!key || usedKeys.has(key)) { key = newQuestionKey(usedKeys); }
       usedKeys.add(key);
-      const id = questionDocId(eventId, key);
-      await F.setDoc(F.doc(database, COL.feedbackQuestions, id), {
-        eventId, questionKey: key, prompt, type, required, active: true, order: i,
-      });
+      outgoing.push(make({ questionKey: key, prompt, type, required, active: true }, i));
       seen.add(key);
       continue;
     }
 
-    await F.setDoc(F.doc(database, COL.feedbackQuestions, existing.id), {
-      eventId, questionKey: existing.questionKey, prompt, type, required,
-      active: true, order: i,
-    }, { merge: true });
+    outgoing.push(make({
+      questionKey: existing.questionKey, prompt, type, required, active: true,
+    }, i));
     seen.add(existing.questionKey);
   }
 
-  for (const q of current.rows) {
+  for (const q of current) {
     if (seen.has(q.questionKey)) continue;
-    if (!q.active) continue;
-    await F.setDoc(F.doc(database, COL.feedbackQuestions, q.id), { active: false }, { merge: true });
+    outgoing.push({ ...q, active: false });
   }
+
+  return outgoing;
 }
 
-export async function submitFeedbackResponse(eventId, registrationId, answers) {
+export async function writeFeedbackQuestions(eventId, next, { citedIds, token, fetchImpl } = {}) {
+  const current = await listFeedbackQuestions(eventId, { fetchImpl });
+  if (!current.ok) throw Object.assign(new Error(current.reason), { code: "unavailable" });
+  const outgoing = planFeedbackQuestions(eventId, current.rows, next, { citedIds });
+  await putAdminFeedbackQuestions(eventId, outgoing, await withBearer({ token, fetchImpl }));
+}
+
+export async function submitFeedbackResponse(eventId, registrationId, answers, opts = {}) {
   if (!eventId || !registrationId)
     throw Object.assign(new Error("missing-id"), { code: "missing-id" });
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const ref = F.doc(await db(), COL.feedbackResponses, responseDocId(eventId, registrationId));
-  const existing = await F.getDoc(ref);
-  if (existing.exists())
-    throw Object.assign(new Error("already-exists"), { code: "already-exists" });
-  await F.setDoc(ref, {
-    eventId,
-    registrationId,
-    submittedAt: F.serverTimestamp(),
-    answers,
-  });
+  await postEventFeedbackResponse(eventId, { registrationId, answers }, await withBearer(opts));
 }
 
 /* ------------------------------------------------ report figures
@@ -438,8 +423,10 @@ export function figureNote(cell) {
 }
 
 export function submittedWhen(row) {
-  const d = row?.submittedAt?.toDate ? row.submittedAt.toDate()
-          : Number.isFinite(row?.submittedAt?.seconds) ? new Date(row.submittedAt.seconds * 1000)
+  const raw = row?.submittedAt;
+  const d = raw?.toDate ? raw.toDate()
+          : Number.isFinite(raw?.seconds) ? new Date(raw.seconds * 1000)
+          : (typeof raw === "string" || typeof raw === "number") ? new Date(raw)
           : null;
   if (!d || isNaN(d)) return "";
   return d.toLocaleString("en-PH", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -739,8 +726,9 @@ function paintOpen(host, ev, questions, receipt) {
       paintSent(host, ev);
     } catch (ex) {
       if (btn) btn.disabled = false;
-      if (ex?.code === "already-exists" || ex?.code === "permission-denied") {
-        show("Feedback could not be stored. Either a response already exists for this registration, or storage refused the write. Nothing new was sent.");
+      if (ex?.code === "already-exists" || ex?.code === "permission-denied"
+        || ex?.code === "api/forbidden" || ex?.status === 409) {
+        show("Feedback could not be stored. Either a response already exists for this registration, or the API refused the write. Nothing new was sent.");
         return;
       }
       show(`Could not send feedback: ${ex?.message || ex}. Nothing was stored.`);

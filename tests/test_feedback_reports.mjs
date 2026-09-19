@@ -1,8 +1,6 @@
-/* Feedback + Reports against Clarence's locked collections.
- *
- * Questions: paaipe_event_feedback_questions/{eventId}_{questionKey}
- * Responses: paaipe_event_feedback_responses/{eventId}_{registrationId}
- * Mock figures 48 / 12 / 4.2 / 25% must never appear as live data. */
+/* Feedback + Reports. Questions/responses read the live Feedback API;
+ * report figures stay FE-computed. Mock figures 48 / 12 / 4.2 / 25%
+ * must never appear as live data. */
 import { chromium } from 'playwright';
 import { readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
@@ -50,7 +48,8 @@ const fbStub=`export * from '/assets/js/paaipe-firebase-real.js';
 const memberStub=`export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {uid:'u1',email:'ada@x.com',status:'agent'}}
   export async function isAdminNow(){return false}
-  export async function signOutNow(){}`;
+  export async function signOutNow(){}
+  export async function idTokenForRequest(){ return 'test-id-token' }`;
 const guestStub=`export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return null}`;
 
@@ -93,6 +92,20 @@ async function routeAdmin(p, {feed}={}){
   await p.route('**/assets/js/paaipe-feedback.js',r=>r.fulfill({contentType:'text/javascript',body:feed||feedStub()}));
 }
 
+await T('feedback cut surfaces do not read Firestore questions/responses',()=>{
+  const feed=readFileSync(`${ROOT}/assets/js/paaipe-feedback.js`,'utf8');
+  const ev=readFileSync(`${ROOT}/assets/js/paaipe-admin-events.js`,'utf8');
+  const reports=readFileSync(`${ROOT}/assets/js/paaipe-event-reports.js`,'utf8');
+  ok(!/firebase-firestore/.test(feed),'feedback.js has no Firestore');
+  ok(/listApiFeedbackQuestions/.test(feed)&&/putAdminFeedbackQuestions/.test(feed),'questions API');
+  ok(/listAdminFeedbackResponses/.test(feed)&&/postEventFeedbackResponse/.test(feed),'responses API');
+  const fbTab=ev.slice(ev.indexOf('async function loadFeedbackTab'), ev.indexOf('async function loadReportsTab'));
+  ok(/listFeedbackQuestions/.test(fbTab)&&/writeFeedbackQuestions/.test(fbTab),'admin Feedback tab uses helpers');
+  ok(!/firebase-firestore/.test(fbTab),'Feedback tab body does not open Firestore');
+  ok(/listFeedbackQuestions/.test(reports)&&/listFeedbackResponses/.test(reports),'Reports FE-computed from helpers');
+  ok(!/feedback\/reports/.test(feed+reports),'no reports BE table');
+});
+
 await T('Clarence locked two collections and no invented third',()=>{
   ok(/match \/paaipe_event_feedback_questions\/\{id\}/.test(RULES),'questions collection');
   ok(/match \/paaipe_event_feedback_responses\/\{id\}/.test(RULES),'responses collection');
@@ -123,6 +136,53 @@ await T('starter keys, types, and the signed mock prompts',async()=>{
   await p.close();
 });
 
+await T('planFeedbackQuestions archives a cited type change and never reactivates a retired key',async()=>{
+  const p=await ctx.newPage();
+  await routeAdmin(p);
+  await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
+  const r=await p.evaluate(async()=>{
+    const m=await import('/assets/js/paaipe-feedback.js');
+    const eventId='2026-10-ai-exchange';
+    const current=[
+      {id:`${eventId}_overall`,eventId,questionKey:'overall',prompt:'Overall?',type:'1-5',required:true,active:true,order:0},
+      {id:`${eventId}_old`,eventId,questionKey:'old',prompt:'Retired',type:'short',required:false,active:false,order:9},
+    ];
+    const cited=new Set([`${eventId}_overall`]);
+    const planned=m.planFeedbackQuestions(eventId, current, [
+      {questionKey:'overall',prompt:'Overall now?',type:'yes-no',required:true},
+      {questionKey:'old',prompt:'Please come back',type:'short',required:false},
+    ], {citedIds:cited});
+    return {
+      keys: planned.map(q=>q.questionKey),
+      overallActive: planned.find(q=>q.questionKey==='overall')?.active,
+      overallType: planned.find(q=>q.questionKey==='overall')?.type,
+      minted: planned.filter(q=>q.active && q.questionKey!=='overall' && q.questionKey!=='old').map(q=>({t:q.type,p:q.prompt,a:q.active})),
+      oldActive: planned.find(q=>q.questionKey==='old')?.active,
+    };
+  });
+  ok(r.keys.includes('overall')&&r.keys.includes('old'),'keeps retired keys in the PUT set');
+  eq(r.overallActive,false,'cited type change archives overall');
+  eq(r.overallType,'1-5','archived row keeps its type');
+  eq(r.oldActive,false,'retired key is not reactivated');
+  eq(r.minted.length,2,'two new keys: type-change + retired-reactivate');
+  ok(r.minted.every(q=>q.a===true),'minted rows are active');
+  ok(r.minted.some(q=>q.t==='yes-no'&&/Overall/.test(q.p)),'type-change minted yes-no');
+  await p.close();
+});
+
+await T('submittedWhen reads an ISO string from the API',async()=>{
+  const p=await ctx.newPage();
+  await routeAdmin(p);
+  await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
+  const r=await p.evaluate(()=>import('/assets/js/paaipe-feedback.js').then(m=>({
+    iso: m.submittedWhen({submittedAt:'2026-10-13T12:05:00.000Z'}),
+    empty: m.submittedWhen({}),
+  })));
+  ok(r.iso && /Oct/.test(r.iso) && /13/.test(r.iso),`iso: ${r.iso}`);
+  eq(r.empty,'','missing submittedAt is blank');
+  await p.close();
+});
+
 await T('admin Feedback tab lists live questions, not mock prompts as data when docs exist',async()=>{
   const p=await ctx.newPage();
   await routeAdmin(p);
@@ -136,6 +196,42 @@ await T('admin Feedback tab lists live questions, not mock prompts as data when 
   eq(keys,['overall','recommend','mostUseful','improve'],'keys');
   ok(await p.locator('[data-save-form]').isVisible(),'Save form');
   ok(/Who sees it/.test(await p.locator('.who-card').innerText()),'who sees it');
+  await p.close();
+});
+
+await T('admin Feedback tab reads public GET questions and admin GET responses',async()=>{
+  const p=await ctx.newPage();
+  await routeAdmin(p,{feed:`export * from '/assets/js/paaipe-feedback-real.js';`});
+  const hits=[];
+  await p.route('https://api.paaipe.org/**',async route=>{
+    const req=route.request();
+    const url=req.url();
+    hits.push({url,method:req.method(),auth:req.headers().authorization||''});
+    if(/\/feedback\/questions$/.test(url)&&req.method()==='GET'){
+      await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({
+        questions:QS.map(({id,...q})=>q),
+      })});
+      return;
+    }
+    if(/\/feedback\/responses/.test(url)){
+      await route.fulfill({status:200,contentType:'application/json',body:JSON.stringify({responses:[]})});
+      return;
+    }
+    await route.fulfill({status:200,contentType:'application/json',body:'{}'});
+  });
+  await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
+  await p.waitForSelector('html[data-admin-events]',{timeout:9000});
+  await p.click('tr[data-event="2026-10-ai-exchange"] [data-edit-event]');
+  await p.click('[data-tab="feedback"]');
+  await p.waitForSelector('[data-fq-list] [data-fq]',{timeout:9000});
+  const keys=await p.$$eval('[data-fq]',els=>els.map(e=>e.dataset.fqKey));
+  eq(keys,['overall','recommend','mostUseful','improve'],'keys from API');
+  ok(hits.some(h=>h.method==='GET'&&h.url.endsWith('/v1/events/2026-10-ai-exchange/feedback/questions')&&!h.auth),
+     'public questions GET, no Bearer');
+  ok(hits.some(h=>h.method==='GET'&&h.url.endsWith('/v1/admin/events/2026-10-ai-exchange/feedback/responses')&&h.auth==='Bearer test-id-token'),
+     'admin responses GET with Bearer');
+  ok(!hits.some(h=>h.method==='GET'&&/\/v1\/admin\/events\/[^/]+\/feedback\/questions$/.test(h.url)),
+     'must not GET admin questions');
   await p.close();
 });
 

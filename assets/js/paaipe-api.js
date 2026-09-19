@@ -49,8 +49,20 @@
  *   GET   /v1/admin/registrations/{id}
  *   PATCH /v1/admin/registrations/{id}              body { status } only
  *
- * Email send is still 501. Sponsors, partners, orgs, activity log, Zoom
- * private join, and Feedback/Reports are not on this API — do not invent them.
+ * Email send is still 501. Sponsors, partners, orgs, activity log, and Zoom
+ * private stay off this module unless a later slice cuts them.
+ *
+ * Feedback (Clarence deploy feedback-20260919T043818Z, live-probed):
+ *   GET  /v1/events/{eventId}/feedback/questions              → { questions }  public, no Bearer
+ *   PUT  /v1/admin/events/{eventId}/feedback/questions        admin write (401 without Bearer)
+ *   GET  /v1/admin/events/{eventId}/feedback/questions        404 — do not call; read is the public GET
+ *   PUT  /v1/events/{eventId}/feedback/questions              404 — do not call
+ *   POST /v1/events/{eventId}/feedback/responses              member create-once (401 without Bearer)
+ *   GET  /v1/events/{eventId}/feedback/responses/{registrationId}  member own row (401 without Bearer)
+ *   GET  /v1/events/{eventId}/feedback/responses              404 — no public list
+ *   GET  /v1/admin/events/{eventId}/feedback/responses        admin list (401 without Bearer)
+ *   GET  /v1/admin/events/{eventId}/feedback/responses/{registrationId}  admin one (401)
+ *   DELETE and a reports table 404 — do not invent them. Reports stay FE-computed.
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
@@ -185,6 +197,30 @@ export function adminRegistrationPath(id) {
   return `/v1/admin/registrations/${encodeURIComponent(id)}`;
 }
 
+export function eventFeedbackQuestionsPath(eventId) {
+  return `/v1/events/${encodeURIComponent(eventId)}/feedback/questions`;
+}
+
+export function eventFeedbackResponsesPath(eventId) {
+  return `/v1/events/${encodeURIComponent(eventId)}/feedback/responses`;
+}
+
+export function eventFeedbackResponsePath(eventId, registrationId) {
+  return `/v1/events/${encodeURIComponent(eventId)}/feedback/responses/${encodeURIComponent(registrationId)}`;
+}
+
+export function adminEventFeedbackQuestionsPath(eventId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/feedback/questions`;
+}
+
+export function adminEventFeedbackResponsesPath(eventId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/feedback/responses`;
+}
+
+export function adminEventFeedbackResponsePath(eventId, registrationId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/feedback/responses/${encodeURIComponent(registrationId)}`;
+}
+
 export function sessionsPath() {
   return "/v1/sessions";
 }
@@ -298,11 +334,17 @@ function statusError(status, bodyText, { method, path } = {}) {
   let detail;
   if (status === 401) detail = "Sign-in expired or missing.";
   else if (status === 403) {
-    detail = "You do not have permission. The admin allow-list is enforced on the API.";
+    detail = /\/admin\//.test(path || "")
+      ? "You do not have permission. The admin allow-list is enforced on the API."
+      : "You do not have permission.";
   } else if (status === 404) {
     detail = /\/registrations/.test(path || "")
       ? "The registrations API route was not found (404). It may not be deployed on this host yet."
       : "The API route was not found (404).";
+  } else if (status === 409) {
+    detail = /feedback\/responses/.test(path || "")
+      ? "A response already exists for this registration."
+      : "This record already exists.";
   } else if (trimmed && trimmed.length < 280 && !/^[\s{[]/.test(trimmed)) {
     detail = trimmed.replace(/\.?$/, ".");
   } else {
@@ -312,6 +354,7 @@ function statusError(status, bodyText, { method, path } = {}) {
   err.code = status === 401 ? "api/unauthorized"
     : status === 403 ? "api/forbidden"
     : status === 404 ? "api/not-found"
+    : status === 409 ? "already-exists"
     : "api/request-failed";
   err.status = status;
   return err;
@@ -400,6 +443,8 @@ function asList(data, namedKey) {
   if (Array.isArray(data?.playlists)) return data.playlists;
   if (Array.isArray(data?.events)) return data.events;
   if (Array.isArray(data?.registrations)) return data.registrations;
+  if (Array.isArray(data?.questions)) return data.questions;
+  if (Array.isArray(data?.responses)) return data.responses;
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.data)) return data.data;
   return [];
@@ -747,4 +792,147 @@ export async function patchAdminRegistration(id, status, opts) {
     body: { status },
     ...opts,
   });
+}
+
+export const FEEDBACK_QUESTION_TYPES = new Set(["1-5", "yes-no", "short"]);
+
+export function normalizeFeedbackQuestion(q, eventHint, i = 0) {
+  if (!q || typeof q !== "object" || Array.isArray(q)) return null;
+  const type = FEEDBACK_QUESTION_TYPES.has(q.type) ? q.type : null;
+  const questionKey = String(q.questionKey || "").trim();
+  const prompt = String(q.prompt || "").trim();
+  if (!type || !questionKey || !prompt) return null;
+  const eventId = String(q.eventId || eventHint || "").trim();
+  return {
+    id: q.id || (eventId ? `${eventId}_${questionKey}` : questionKey),
+    eventId,
+    questionKey,
+    prompt,
+    type,
+    required: q.required !== false,
+    active: q.active !== false,
+    order: Number.isFinite(Number(q.order)) ? Number(q.order) : i,
+  };
+}
+
+export function normalizeFeedbackResponse(row, eventHint, registrationHint) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+  const registrationId = String(row.registrationId || registrationHint || "").trim();
+  const answers = row.answers && typeof row.answers === "object" && !Array.isArray(row.answers)
+    ? row.answers
+    : null;
+  if (!registrationId && !answers) return null;
+  const eventId = String(row.eventId || eventHint || "").trim();
+  const rid = registrationId || "";
+  return {
+    ...row,
+    id: row.id || (eventId && rid ? `${eventId}_${rid}` : rid),
+    eventId,
+    registrationId: rid,
+    answers: answers || {},
+    submittedAt: row.submittedAt || row.submitted_at || null,
+  };
+}
+
+function unwrapFeedbackResponse(data, eventId, registrationId) {
+  if (data == null || typeof data !== "object" || Array.isArray(data)) return null;
+  const inner = data.response && typeof data.response === "object" && !Array.isArray(data.response)
+    ? data.response
+    : data;
+  if (inner === data && (Array.isArray(data.responses) || Array.isArray(data.questions))) {
+    return null;
+  }
+  return normalizeFeedbackResponse(inner, eventId, registrationId);
+}
+
+export function feedbackQuestionWritePayload(q = {}, eventId, i = 0) {
+  const questionKey = String(q.questionKey || "").trim();
+  const prompt = String(q.prompt || "").trim();
+  const type = FEEDBACK_QUESTION_TYPES.has(q.type) ? q.type : null;
+  if (!questionKey || !prompt || !type) return null;
+  return {
+    eventId: String(q.eventId || eventId || "").trim(),
+    questionKey,
+    prompt,
+    type,
+    required: q.required !== false,
+    active: q.active !== false,
+    order: Number.isFinite(Number(q.order)) ? Number(q.order) : i,
+  };
+}
+
+export function feedbackQuestionsWritePayload(rows, eventId) {
+  return {
+    questions: (Array.isArray(rows) ? rows : [])
+      .map((q, i) => feedbackQuestionWritePayload(q, eventId, i))
+      .filter(Boolean),
+  };
+}
+
+export function feedbackResponseWritePayload(src = {}) {
+  const registrationId = String(src.registrationId || "").trim();
+  if (!registrationId) {
+    throw Object.assign(new Error("A registration id is required."), { code: "missing-id" });
+  }
+  const answers = src.answers && typeof src.answers === "object" && !Array.isArray(src.answers)
+    ? src.answers
+    : {};
+  return { registrationId, answers };
+}
+
+/** Public GET. No Bearer. Empty `{ questions: [] }` is honest empty, not a failure. */
+export async function listApiFeedbackQuestions(eventId, opts) {
+  const data = await paaipePublicGet(eventFeedbackQuestionsPath(eventId), opts);
+  return asList(data, "questions")
+    .map((q, i) => normalizeFeedbackQuestion(q, eventId, i))
+    .filter(Boolean)
+    .sort((a, b) => a.order - b.order);
+}
+
+export async function putAdminFeedbackQuestions(eventId, questions, opts) {
+  return paaipeApiRequest(adminEventFeedbackQuestionsPath(eventId), {
+    method: "PUT",
+    body: feedbackQuestionsWritePayload(questions, eventId),
+    ...opts,
+  });
+}
+
+export async function postEventFeedbackResponse(eventId, fields, opts) {
+  return paaipeApiRequest(eventFeedbackResponsesPath(eventId), {
+    method: "POST",
+    body: feedbackResponseWritePayload(fields),
+    ...opts,
+  });
+}
+
+/** Member GET of one response. A 404 is "no row yet", not a missing route. */
+export async function getApiFeedbackResponse(eventId, registrationId, opts) {
+  try {
+    const data = await paaipeApiRequest(eventFeedbackResponsePath(eventId, registrationId), opts);
+    return unwrapFeedbackResponse(data, eventId, registrationId);
+  } catch (e) {
+    if (e?.status === 404) return null;
+    throw e;
+  }
+}
+
+export async function listAdminFeedbackResponses(eventId, opts) {
+  const data = await paaipeApiRequest(adminEventFeedbackResponsesPath(eventId), opts);
+  return asList(data, "responses")
+    .map(r => normalizeFeedbackResponse(r, eventId))
+    .filter(r => r && r.registrationId)
+    .sort((a, b) => String(a.submittedAt || "").localeCompare(String(b.submittedAt || "")));
+}
+
+export async function getAdminFeedbackResponse(eventId, registrationId, opts) {
+  try {
+    const data = await paaipeApiRequest(
+      adminEventFeedbackResponsePath(eventId, registrationId),
+      opts
+    );
+    return unwrapFeedbackResponse(data, eventId, registrationId);
+  } catch (e) {
+    if (e?.status === 404) return null;
+    throw e;
+  }
 }

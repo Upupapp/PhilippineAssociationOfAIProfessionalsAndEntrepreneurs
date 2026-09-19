@@ -104,9 +104,13 @@
   cursor:pointer;padding:8px 4px;appearance:none;-webkit-appearance:none;white-space:nowrap;
 }
 @media (max-width:560px){
+  .pe-entry{align-items:start;justify-items:center}
   .pe-modal{border-radius:16px}
-  .pe-choices{grid-template-columns:1fr}
-  .pe-foot{flex-wrap:wrap}
+  .pe-head{padding:20px 16px 4px}
+  .pe-head h1{font-size:22px}
+  .pe-choices{grid-template-columns:1fr;padding:12px 14px 6px;gap:10px}
+  .pe-opt{min-height:44px;padding:14px}
+  .pe-foot{flex-wrap:wrap;padding:6px 14px 14px}
   .pe-foot span{min-width:0;overflow-wrap:anywhere}
   .pe-skip{min-height:44px}
   .pe-mark-pill{font-size:12px}

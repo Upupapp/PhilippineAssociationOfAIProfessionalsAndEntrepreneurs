@@ -95,7 +95,7 @@ await T('signed copy is exact',()=>{
   ok(/border-radius:22px/.test(css)&&/border-radius:16px/.test(css),'16–22px radii');
   ok(css.includes('linear-gradient(160deg,#0B2A6B'),'navy icon fill from the mock');
   ok(/width:min\(760px,\s*calc\(100vw - 32px\)\)/.test(css),'R-17 fluid width');
-  ok(/@media \(max-width:560px\)[\s\S]*\.pe-choices\{grid-template-columns:1fr\}/.test(css),'R-17 phone stack');
+  ok(/@media \(max-width:560px\)[\s\S]*\.pe-choices\{grid-template-columns:1fr/.test(css),'R-17 phone stack');
   ok(/\.pe-x\{[^}]*width:44px;height:44px;min-width:44px;min-height:44px/.test(css),'R-17 close ≥44');
 });
 
@@ -152,6 +152,8 @@ function measureOpenModal(){
     cols:getComputedStyle(choices).gridTemplateColumns.split(/\s+/).filter(Boolean).length,
     closeW:cr.width,
     closeH:cr.height,
+    closeTop:cr.top,
+    closeBottom:cr.bottom,
     optH:opt.getBoundingClientRect().height,
     pillPx:parseFloat(getComputedStyle(pill).fontSize),
   };
@@ -167,6 +169,7 @@ await T('R-17 @320/@390: overflow ≤0, choices stack, close ≥44',async()=>{
     ok(m.inset>=15.25,`${vp.width}: inset ${m.inset}`);
     eq(m.cols,1,`${vp.width} columns`);
     ok(m.closeW>=44&&m.closeH>=44,`${vp.width}: close ${m.closeW}×${m.closeH}`);
+    ok(m.closeTop>=0&&m.closeBottom<=vp.height,`${vp.width}: close off-screen ${m.closeTop}–${m.closeBottom}`);
     ok(m.optH>=44,`${vp.width}: option ${m.optH}`);
     ok(m.pillPx>=12,`${vp.width}: pill ${m.pillPx}`);
     await ctx.close();

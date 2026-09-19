@@ -719,16 +719,18 @@ function applyReelsChrome(root = document) {
       });
     });
     showHubTab(hubTabFromLocation());
+    function paintPlaylistView() {
+      renderPlaylists(HUB.playlists.all, { loadError: HUB.playlistsError });
+      playFromLocation();
+    }
     document.querySelector("[data-ss-playlists-all]")?.addEventListener("click", e => {
       e.preventDefault();
       writeHash({ tab: "playlists" }, { push: true });
+      paintPlaylistView();
     });
     onViewChange(() => {
       showHubTab(hubTabFromLocation());
-      renderPlaylists(HUB.playlists.all, {
-        loadError: HUB.playlistsError,
-      });
-      playFromLocation();
+      paintPlaylistView();
     });
 
     const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
@@ -965,6 +967,8 @@ function applyReelsChrome(root = document) {
             playlist: pl.id,
             ...(first ? { play: first.id } : {}),
           }, { push: true });
+          // pushState does not fire hashchange/popstate — paint the detail now.
+          paintPlaylistView();
         };
         el.querySelector("[data-ss-open-playlist]").addEventListener("click", e => {
           e.preventDefault();

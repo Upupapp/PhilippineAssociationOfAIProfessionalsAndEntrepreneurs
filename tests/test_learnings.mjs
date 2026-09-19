@@ -475,7 +475,7 @@ await T("Playlists tab lists published playlists and Open shows items", async ()
   eq(await tabs.count(), 3, "three hub tabs");
   eq(await tabs.nth(2).innerText(), "Playlists", "Playlists after Micros");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
-  const row = p.locator('[data-ss-live-playlists] [data-playlist="pl-signals"]');
+  const row = p.locator('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"]');
   ok(await row.isVisible(), "playlist row");
   eq(await row.locator("b").innerText(), "From Signals to Strategy", "playlist title");
   ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");

@@ -301,7 +301,7 @@ async function openHub({ sessions = [], micros = MICROS, playlists = [PLAYLIST],
 await T("portal Micros groups the four clips inside From Signals to Strategy", async () => {
   const { p, ctx } = await openHub();
   await p.locator('[data-ss-hub-tab="micros"]').click();
-  const block = p.locator('[data-playlist="pl-signals"]');
+  const block = p.locator('[data-ss-hub-panel="micros"] [data-playlist="pl-signals"]');
   ok(await block.isVisible(), "playlist block");
   eq(await block.locator("h3").innerText(), "From Signals to Strategy", "playlist title");
   ok((await block.locator(".playlist-head p").innerText()).includes("Sven Bally"), "playlist description");
@@ -405,7 +405,7 @@ await T("Playlists tab after Micros lists published playlists and Open plays the
   eq(await tabs.nth(1).innerText(), "Micros", "Micros second");
   eq(await tabs.nth(2).innerText(), "Playlists", "Playlists third");
   await p.locator('[data-ss-hub-tab="playlists"]').click();
-  const row = p.locator('[data-ss-live-playlists] [data-playlist="pl-signals"]');
+  const row = p.locator('[data-ss-hub-panel="playlists"] [data-playlist="pl-signals"]');
   ok(await row.isVisible(), "playlist listed");
   eq(await row.locator("b").innerText(), "From Signals to Strategy", "title");
   ok((await row.innerText()).includes("Sven Bally"), "description");

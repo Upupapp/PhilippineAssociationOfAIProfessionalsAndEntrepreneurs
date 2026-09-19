@@ -9,11 +9,21 @@
  *   - "Import Zoom attendance"  nothing exports attendance from Zoom to import
  * A button that cannot do its job is worse than no button, so they are absent
  * rather than present and dead.
+ *
+ * This page is hard-cut to the admin API (not Firestore):
+ *   GET  /v1/admin/events/{eventId}/registrations
+ *   GET  /v1/admin/registrations/{id}
+ *   PATCH /v1/admin/registrations/{id}   { status }
+ * Event ids still come from listEvents so we know which event paths to call.
  */
 import {
-  currentAgent, isAdminNow, signOutNow,
-  listRegistrations, setRegistrationStatus, REG_STATUS, regStatusOf,
+  currentAgent, isAdminNow, signOutNow, idTokenForRequest,
+  REG_STATUS, regStatusOf,
 } from "/assets/js/paaipe-firebase.js";
+import { listEvents } from "/assets/js/paaipe-events-data.js";
+import {
+  listAdminEventRegistrations, getAdminRegistration, patchAdminRegistration,
+} from "/assets/js/paaipe-api.js";
 import { renderAdminNav, renderAdminTop, renderCrumbs, setNavBadge } from "/assets/js/paaipe-admin.js";
 import { readHash, patchHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
@@ -23,7 +33,10 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const when = ts => {
-  const d = ts?.toDate ? ts.toDate() : Number.isFinite(ts?.seconds) ? new Date(ts.seconds * 1000) : null;
+  const d = ts?.toDate ? ts.toDate()
+    : Number.isFinite(ts?.seconds) ? new Date(ts.seconds * 1000)
+    : (typeof ts === "string" || typeof ts === "number") ? new Date(ts)
+    : null;
   return d && !isNaN(d)
     ? d.toLocaleString("en-PH", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" })
     : "—";
@@ -118,11 +131,9 @@ function render() {
 
 /* ------------------------------------------------------------ detail drawer */
 
-function openDetail(id, { push = true } = {}) {
-  const r = ALL.find(x => x.id === id);
-  if (!r) return;
+function paintDetail(r) {
   const d = $("[data-detail]");
-  const [cls, label] = PILL[regStatusOf(r)];
+  const [cls, label] = PILL[regStatusOf(r)] || PILL[REG_STATUS.REGISTERED];
 
   const answered = ANSWERS
     .filter(([k]) => String(r[k] || "").trim() !== "")
@@ -152,24 +163,40 @@ function openDetail(id, { push = true } = {}) {
     <p class="muted small">Cancelling records a status. It never deletes the registration —
       what someone submitted is not ours to make disappear.</p>`;
   d.hidden = false;
-  d.dataset.id = id;
+  d.dataset.id = r.id;
   d.scrollIntoView({ block: "nearest" });
-  patchHash({ id }, { push });
+}
+
+async function openDetail(id, { push = true } = {}) {
+  const d = $("[data-detail]");
+  try {
+    const token = await idTokenForRequest();
+    const fresh = await getAdminRegistration(id, { token });
+    const i = ALL.findIndex(x => x.id === id);
+    if (i >= 0) ALL[i] = { ...ALL[i], ...fresh };
+    else ALL.push(fresh);
+    paintDetail(fresh);
+    patchHash({ id }, { push });
+  } catch (ex) {
+    if (d) d.hidden = true;
+    flash(`Could not load this registration: ${ex?.message || ex}`);
+  }
 }
 
 async function mark(id, status) {
   const d = $("[data-detail]");
   $$("button", d).forEach(b => b.disabled = true);
   try {
-    await setRegistrationStatus(id, status, ME);
+    const token = await idTokenForRequest();
+    await patchAdminRegistration(id, status, { token });
     const r = ALL.find(x => x.id === id);
     if (r) r.status = status;
     render();
-    openDetail(id);
+    await openDetail(id);
   } catch (ex) {
     $$("button", d).forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that change. Your account may no longer be an administrator."
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that change. Your account may no longer be an administrator."
       : `Could not update this registration: ${ex?.message || ex}`);
   }
 }
@@ -256,6 +283,25 @@ function fillSelect(sel, values, allLabel) {
     values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
 }
 
+async function loadRegistrationsFromApi() {
+  const token = await idTokenForRequest();
+  let events;
+  try {
+    events = await listEvents({ asAdmin: true });
+  } catch (ex) {
+    throw new Error(`Could not list events to query registrations: ${ex?.message || ex}`);
+  }
+  const batches = await Promise.all(events.map(async ev => {
+    const rows = await listAdminEventRegistrations(ev.id, { token });
+    return rows.map(r => ({
+      ...r,
+      eventId: r.eventId || ev.id,
+      event: r.event || ev.title || ev.id,
+    }));
+  }));
+  return batches.flat();
+}
+
 (async function () {
   if (!$("[data-admin-registrations]")) return;
   renderAdminNav("admin-registrations.html");
@@ -281,10 +327,14 @@ function fillSelect(sel, values, allLabel) {
   });
 
   try {
-    ALL = await listRegistrations();
+    ALL = await loadRegistrationsFromApi();
   } catch (ex) {
     flash(`Could not load registrations: ${ex?.message || ex}`);
     document.documentElement.setAttribute("data-admin-regs", "error");
+    const body = $("[data-rows]");
+    if (body) {
+      body.innerHTML = `<tr><td colspan="5" class="empty">Registrations could not be loaded. This is not an empty list.</td></tr>`;
+    }
     return;
   }
 

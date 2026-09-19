@@ -15,7 +15,10 @@
  *   editor can write it and can NEVER show it back: reading it here would put it
  *   in a page, and a page is the thing we are keeping it out of.
  */
-import { currentAgent, isAdminNow, signOutNow } from "/assets/js/paaipe-firebase.js";
+import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
+import {
+  patchAdminEvent, listAdminEventRegistrations, eventSettingsPayload,
+} from "/assets/js/paaipe-api.js";
 import {
   renderAdminNav, renderAdminTop, renderCrumbs, renderStateChip, setNavBadge,
 } from "/assets/js/paaipe-admin.js";
@@ -524,7 +527,12 @@ async function loadTabCounts(id) {
   setTabCount("sponsors", await countOf(COL.sponsors, F.where("eventId", "==", id)));
   setTabCount("applications", await countOf(COL.partners,
     F.where("eventId", "==", id), F.where("status", "==", PARTNER_STATUS.NEW)));
-  setTabCount("registrations", await countOf(COL.registrations, F.where("event_id", "==", id)));
+  try {
+    const token = await idTokenForRequest();
+    setTabCount("registrations", (await listAdminEventRegistrations(id, { token })).length);
+  } catch {
+    setTabCount("registrations", null);
+  }
 }
 
 let EVENT_REPORT = null;
@@ -703,6 +711,17 @@ function readForm() {
   return patch;
 }
 
+const SETTINGS_KEYS = [
+  "registrationOpensAt", "registrationClosesAt",
+  "whoCanRegister", "waitlistEnabled", "questionsEnabled",
+];
+
+function withoutSettings(patch) {
+  const out = { ...patch };
+  for (const k of SETTINGS_KEYS) delete out[k];
+  return out;
+}
+
 async function writeEvent(id, patch, action, details) {
   const F = await import(`${SDK}/firebase-firestore.js`);
   await F.setDoc(F.doc(await db(), COL.events, id), patch, { merge: true });
@@ -721,24 +740,38 @@ async function saveEvent(id) {
 
   $$("button", d).forEach(b => b.disabled = true);
   try {
-    await writeEvent(id, patch, "event.update", patch.title);
+    const ev = EVENTS.find(e => e.id === id) || CURRENT;
+    const token = await idTokenForRequest();
+    const settings = eventSettingsPayload({ ...patch, status: ev?.status });
+    await patchAdminEvent(id, settings, { token });
+    if (ev) Object.assign(ev, settings);
 
-    // the Zoom link, if one was typed, into its own document
-    const zoom = $("[data-zoom]", d)?.value?.trim();
-    if (zoom) {
-      const F = await import(`${SDK}/firebase-firestore.js`);
-      await F.setDoc(F.doc(await db(), "paaipe_event_private", id),
-        { zoomLink: zoom, updatedBy: ME }, { merge: true });
-      EVENTS.find(e => e.id === id).hasZoom = true;
-      await logActivity("event.zoom_link_set", "(the link itself is not logged)", id);
+    try {
+      await writeEvent(id, withoutSettings(patch), "event.update", patch.title);
+
+      // the Zoom link, if one was typed, into its own document
+      const zoom = $("[data-zoom]", d)?.value?.trim();
+      if (zoom) {
+        const F = await import(`${SDK}/firebase-firestore.js`);
+        await F.setDoc(F.doc(await db(), "paaipe_event_private", id),
+          { zoomLink: zoom, updatedBy: ME }, { merge: true });
+        EVENTS.find(e => e.id === id).hasZoom = true;
+        await logActivity("event.zoom_link_set", "(the link itself is not logged)", id);
+      }
+    } catch (restEx) {
+      $$("button", d).forEach(b => b.disabled = false);
+      flash(`Registration settings reached the API, but the rest of the event could not be saved: ${restEx?.message || restEx}`);
+      return;
     }
     openEditor(id);
-    flash("Saved. The public page reads this record, so it is already showing the change.", true);
+    flash("Saved. Registration settings were written to the API. The rest of the event record was saved as before.", true);
   } catch (ex) {
     $$("button", d).forEach(b => b.disabled = false);
     flash(ex?.code === "permission-denied"
       ? "The rules refused that change. Check the title, slug and status."
-      : `Could not save: ${ex?.message || ex}`);
+      : ex?.code === "api/forbidden"
+        ? "The API refused that change. Your account may not be on the admin allow-list."
+        : `Could not save: ${ex?.message || ex}`);
   }
 }
 
@@ -1428,7 +1461,9 @@ let REGS = [];
 function renderRegistrationsTab(ev) {
   const host = panel("registrations");
   if (!host) return;
-  const mine = REGS.filter(r => registrationMatchesEvent(r, ev));
+  // Already scoped: GET /v1/admin/events/{eventId}/registrations. Do not
+  // re-join against Firestore titles — that would drop rows the API returned.
+  const mine = REGS;
   const n = s => mine.filter(r => (r.status || "registered") === s).length;
   const unlinked = mine.filter(isUnlinked).length;
   const cap = Number(ev.capacity) || 0;
@@ -1473,18 +1508,22 @@ function renderRegistrationsTab(ev) {
 }
 
 const regWhen = v => {
-  const d = v?.toDate ? v.toDate() : Number.isFinite(v?.seconds) ? new Date(v.seconds * 1000) : null;
-  return d ? d.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const d = v?.toDate ? v.toDate()
+    : Number.isFinite(v?.seconds) ? new Date(v.seconds * 1000)
+    : (typeof v === "string" || typeof v === "number") ? new Date(v)
+    : null;
+  return d && !isNaN(d) ? d.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" }) : "—";
 };
 
 async function loadRegistrationsTab(eventId) {
   const host = panel("registrations");
   host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Loading…</p></section>`;
   try {
-    REGS = await listAllRegistrations();
+    const token = await idTokenForRequest();
+    REGS = await listAdminEventRegistrations(eventId, { token });
     const ev = EVENTS.find(e => e.id === eventId) || CURRENT;
     renderRegistrationsTab(ev);
-    setTabCount("registrations", REGS.filter(r => registrationMatchesEvent(r, ev)).length);
+    setTabCount("registrations", REGS.length);
   } catch (ex) {
     host.innerHTML = `<section class="card"><p class="note" style="margin-top:0">Registrations could
       not be read: ${esc(ex?.message || ex)}. This is not "nobody registered".</p></section>`;
@@ -1658,25 +1697,14 @@ async function removeSponsorRow(id) {
   }
 }
 
-/** Record which event an old registration belongs to. An administrative fact,
- *  which is why the rules let an administrator write it and nothing else. */
-async function linkRegistration(id) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  try {
-    await F.setDoc(F.doc(await db(), COL.registrations, id),
-      { eventId: CURRENT.id, updated_by: ME }, { merge: true });
-    const r = REGS.find(x => x.id === id);
-    if (r) r.eventId = CURRENT.id;
-    await logActivity("registration.link", `${r?.email || id} → ${CURRENT.id}`, CURRENT.id);
-    renderRegistrationsTab(CURRENT);
-    flash("Linked. It now belongs to this event by id, not by the title it was typed with.", true);
-  } catch (ex) {
-    flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not link: ${ex?.message || ex}`);
-  }
+/** Linking is not on the API (PATCH /v1/admin/registrations/{id} accepts
+ *  { status } only). Do not write Firestore — this tab is hard-cut to the BE. */
+async function linkRegistration(_id) {
+  flash("Linking a registration is not available on the API yet (PATCH accepts { status } only). Nothing was changed.");
 }
 
 function exportEventRegistrations() {
-  const mine = REGS.filter(r => registrationMatchesEvent(r, CURRENT));
+  const mine = REGS;
   const head = ["Name", "Email", "Organisation", "Position", "Profile", "Status", "Registered", "Linked by id"];
   const cell = v => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const body = mine.map(r => [r.full_name, r.email, r.organization, r.position, r.profile,

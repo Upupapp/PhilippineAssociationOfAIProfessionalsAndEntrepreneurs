@@ -11,10 +11,12 @@
 .pe-entry{
   position:fixed;inset:0;background:rgba(8,22,52,.46);backdrop-filter:blur(6px);
   display:grid;place-items:center;z-index:40;padding:16px;
+  overflow:auto;box-sizing:border-box;
   font-family:Inter,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
 }
 .pe-modal{
-  width:760px;max-width:100%;background:#fff;border-radius:22px;
+  width:min(760px, calc(100vw - 32px));max-width:calc(100vw - 32px);min-width:0;
+  box-sizing:border-box;background:#fff;border-radius:22px;
   border:1px solid rgba(230,226,216,.9);
   box-shadow:0 30px 80px rgba(0,33,102,.28),0 0 0 1px rgba(21,187,234,.18);
   position:relative;overflow:hidden;
@@ -41,8 +43,8 @@
 }
 .pe-lead{margin:6px 0 0;color:#6B7793;font-size:14.5px;line-height:1.45;max-width:46ch}
 .pe-x{
-  position:absolute;top:18px;right:18px;width:36px;height:36px;border-radius:12px;
-  border:1px solid #E6E2D8;background:#fff;color:var(--navy,#002166);
+  position:absolute;top:14px;right:14px;width:44px;height:44px;min-width:44px;min-height:44px;
+  border-radius:12px;border:1px solid #E6E2D8;background:#fff;color:var(--navy,#002166);
   font-size:18px;line-height:1;cursor:pointer;appearance:none;-webkit-appearance:none;
   font-family:inherit;padding:0;
 }
@@ -105,4 +107,8 @@
   .pe-modal{border-radius:16px}
   .pe-choices{grid-template-columns:1fr}
   .pe-foot{flex-wrap:wrap}
+  .pe-foot span{min-width:0;overflow-wrap:anywhere}
+  .pe-skip{min-height:44px}
+  .pe-mark-pill{font-size:12px}
+  .pe-route{font-size:12px}
 }

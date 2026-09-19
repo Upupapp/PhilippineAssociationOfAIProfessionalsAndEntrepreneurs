@@ -713,34 +713,46 @@ await T("Open on the seeded playlist paints items and writes #playlist=", async 
   await ctx.close();
 });
 
-await T("watch page at 390 has no overflow and a full-width player (R-02)", async () => {
-  const ctx = await br.newContext({ viewport: { width: 390, height: 844 } });
+async function openWatch(viewport) {
+  // Layout-only: portal JS bounces guests to sign-in, and session-view
+  // replaces .content when no ?session= is present. R-02 is the static
+  // watch-layout CSS; measure that markup the same way the sprint pack did.
+  const ctx = await br.newContext({ viewport, javaScriptEnabled: false });
   const p = await ctx.newPage();
   await p.goto(`${BASE}/portal-session-watch.html`, { waitUntil: "load" });
+  await p.waitForSelector(".watch-layout .player");
+  return { p, ctx };
+}
+
+await T("watch page at 390 has no overflow and a full-width player (R-02)", async () => {
+  const { p, ctx } = await openWatch({ width: 390, height: 844 });
   const m = await p.evaluate(() => {
     const layout = document.querySelector(".watch-layout");
     const player = document.querySelector(".player");
     const r = player.getBoundingClientRect();
     const content = document.querySelector(".content");
     const cw = content ? content.getBoundingClientRect().width : 0;
+    const hit = document.querySelector(".player .pl span") || player;
+    const hb = hit.getBoundingClientRect();
     return {
       overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
       playerW: r.width,
       contentW: cw,
       cols: getComputedStyle(layout).gridTemplateColumns,
+      hitW: hb.width,
+      hitH: hb.height,
     };
   });
   ok(m.overflow <= 0, `overflow ${m.overflow} ≤ 0`);
   ok(m.playerW >= 320, `player ${m.playerW.toFixed(1)}px ≥ 320`);
   ok(m.playerW + 1 >= m.contentW * 0.9, `player ≈ content column (${m.playerW.toFixed(1)} vs ${m.contentW.toFixed(1)})`);
   ok(m.cols.trim().split(/\s+/).length === 1, `single column at 390, got ${m.cols}`);
+  ok(m.hitW >= 44 && m.hitH >= 44, `hit ${m.hitW.toFixed(1)}×${m.hitH.toFixed(1)} ≥ 44`);
   await ctx.close();
 });
 
 await T("watch layout stays two-column on desktop (R-02)", async () => {
-  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
-  const p = await ctx.newPage();
-  await p.goto(`${BASE}/portal-session-watch.html`, { waitUntil: "load" });
+  const { p, ctx } = await openWatch({ width: 1280, height: 900 });
   const cols = await p.evaluate(() => getComputedStyle(document.querySelector(".watch-layout")).gridTemplateColumns);
   ok(cols.trim().split(/\s+/).length === 2, `desktop two cols: ${cols}`);
   await ctx.close();

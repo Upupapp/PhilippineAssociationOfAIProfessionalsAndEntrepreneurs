@@ -1499,6 +1499,23 @@ await T("draft window + certificate: 200/401 live, 404 not-wired, media URLs onl
   });
   eq(readyIssuing.state, "issuing", "ready without cert → issuing");
 
+  const issuedBare = api.normalizeMeCertificate({
+    state: "issued", registered: true, feedbackSubmitted: true,
+    feedbackWindow: { state: "closed", opensAt: "a", closesAt: "b" },
+  });
+  eq(issuedBare.state, "issuing", "issued without certificate object is not terminal");
+  eq(issuedBare.certificate, null, "no invented certificate");
+
+  const issuingWithFile = api.normalizeMeCertificate({
+    state: "issuing",
+    registered: true,
+    feedbackSubmitted: true,
+    feedbackWindow: { state: "closed", opensAt: "a", closesAt: "b" },
+    certificate: { id: "c2", pdfUrl: "https://media.paaipe.org/c2.pdf" },
+  });
+  eq(issuingWithFile.state, "issuing", "explicit issuing stays issuing");
+  eq(issuingWithFile.certificate.id, "c2", "object kept; Download still disabled in UI");
+
   const badWin = api.normalizeFeedbackWindow({ state: "maybe" });
   eq(badWin, null, "unknown window state is not invented");
 

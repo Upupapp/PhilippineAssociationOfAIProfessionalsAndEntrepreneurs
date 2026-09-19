@@ -100,9 +100,11 @@
  *        state: not_registered | awaiting_feedback_open | feedback_open
  *               | issuing | issued | closed_no_cert
  *        Always includes feedbackWindow { opensAt, closesAt, state } | null.
- *        `ready` (if a host still sends it) → issued when certificate is present,
- *        else issuing. issued is terminal and carries certificate
+ *        issued is terminal and carries certificate
  *        { id, issuedAt, pdfUrl, pngUrl, emailedAt }.
+ *        issuing keeps Download disabled (rare; v1 usually sync → issued).
+ *        Leftover `ready` (not in the frozen enum) → issued when certificate
+ *        is present, else issuing.
  *   POST /v1/me/events/{eventId}/certificate/email               Bearer re-send
  *        200 { emailedAt } or a full certificate payload
  *        404 none · 409 not issued yet
@@ -417,15 +419,20 @@ export function normalizeFeedbackWindow(data) {
   };
 }
 
-/** `ready` → issued when a certificate object is present, otherwise issuing. */
+/**
+ * Frozen enum (no `ready`). issued is terminal and requires certificate
+ * { id, issuedAt, pdfUrl, pngUrl, emailedAt }. issuing keeps Download disabled
+ * even if a partial certificate object is present. A leftover `ready` maps to
+ * issued when that object is present, otherwise issuing.
+ */
 export function normalizeMeCertificate(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const raw = data.certificate && typeof data.certificate === "object" && !Array.isArray(data.certificate)
     ? data.certificate
     : null;
   let state = String(data.state || "").trim();
-  if (state === "ready") state = raw ? "issued" : "issuing";
-  if (raw && (state === "issuing" || state === "ready" || !state)) state = "issued";
+  if (state === "ready" || !state) state = raw ? "issued" : "issuing";
+  if (state === "issued" && !raw) state = "issuing";
   if (!CERT_API_STATES.has(state)) return null;
   return {
     state,

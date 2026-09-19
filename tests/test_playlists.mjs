@@ -74,7 +74,9 @@ await T("UI copy says Playlist, not collection/series/channel", () => {
   for (const p of files) {
     const s = read(p);
     ok(!/\b(collection|series|channel)s?\b/i.test(s.replace(/playlist/ig, "")), `no synonym in ${p}`);
-    if (p.includes("admin-learnings")) ok(/Playlists/.test(s), `${p} uses Playlists`);
+    if (p.includes("admin-learnings") || p.includes("portal-sessions")) {
+      ok(/Playlists/.test(s), `${p} uses Playlists`);
+    }
   }
 });
 
@@ -389,6 +391,31 @@ await T("unpublished playlist is hidden; its items stay visible ungrouped", asyn
   await p.locator('[data-ss-hub-tab="micros"]').click();
   eq(await p.locator("[data-playlist]").count(), 0, "no draft block");
   eq(await p.locator(".micro-card").count(), 4, "items still listed");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  eq(await p.locator("[data-ss-live-playlists] [data-playlist]").count(), 0, "no draft on Playlists tab");
+  ok(await p.locator("[data-ss-playlists-empty]").isVisible(), "empty published playlists");
+  await ctx.close();
+});
+
+await T("Playlists tab after Micros lists published playlists and Open plays the first item", async () => {
+  const { p, ctx } = await openHub();
+  const tabs = p.locator("[data-ss-hub-tab]");
+  eq(await tabs.count(), 3, "three tabs");
+  eq(await tabs.nth(0).innerText(), "Sessions", "Sessions first");
+  eq(await tabs.nth(1).innerText(), "Micros", "Micros second");
+  eq(await tabs.nth(2).innerText(), "Playlists", "Playlists third");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  const row = p.locator('[data-ss-live-playlists] [data-playlist="pl-signals"]');
+  ok(await row.isVisible(), "playlist listed");
+  eq(await row.locator("b").innerText(), "From Signals to Strategy", "title");
+  ok((await row.innerText()).includes("Sven Bally"), "description");
+  await row.locator("[data-ss-open-playlist]").click();
+  await p.waitForFunction(() => /tab=playlists/.test(location.hash), { timeout: 4000 });
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 4, "four items");
+  await p.locator("[data-ss-watch-popup]").waitFor({ state: "visible", timeout: 9000 });
+  eq(await p.locator("[data-ss-watch-title]").innerText(),
+    "Start with the question, not the dashboard", "opens first item");
+  ok(/play=micro-1/.test(await p.evaluate(() => location.hash)), "existing play hash");
   await ctx.close();
 });
 

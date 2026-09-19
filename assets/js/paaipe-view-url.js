@@ -5,7 +5,7 @@
  * bar stayed put — Back skipped the view, and a pasted link could not open it.
  *
  * Hash form: #key=value&key2=value2
- * That is the scheme already live for Learnings (#tab=sessions|#tab=micros) and
+ * That is the scheme already live for Learnings (#tab=sessions|#tab=micros|#tab=playlists) and
  * the admin event workspace (#event=…&tab=…). Query params already in use
  * (?session=, ?rec=, ?agent=, ?id=, ?new=, ?next=, ?event=) stay query params.
  * Nothing here invents a path router: pretty URLs and the *.html → /:splat

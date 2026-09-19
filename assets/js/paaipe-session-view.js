@@ -623,21 +623,31 @@ function applyReelsChrome(root = document) {
 
 
   if (page === "sessions-hub") {
-    // Sub-tabs: Sessions (default) | Micros. Nested play popup is #tab=&play=.
+    // Sub-tabs: Sessions (default) | Micros | Playlists. Nested play popup is #tab=&play=.
     const tabs = [...document.querySelectorAll("[data-ss-hub-tab]")];
     const panels = {
       sessions: document.querySelector('[data-ss-hub-panel="sessions"]'),
       micros: document.querySelector('[data-ss-hub-panel="micros"]'),
+      playlists: document.querySelector('[data-ss-hub-panel="playlists"]'),
     };
-    const HUB = { sessions: [], micros: [], playlists: { sessions: [], micros: [] } };
+    const HUB = {
+      sessions: [],
+      micros: [],
+      playlists: { all: [], sessions: [], micros: [] },
+      playlistsError: false,
+    };
     function hubTabFromLocation() {
-      // Hash is the live contract (#tab=sessions|#tab=micros). ?tab= still
-      // opens the same view so a half-written query link keeps working.
+      // Hash is the live contract (#tab=sessions|#tab=micros|#tab=playlists).
+      // ?tab= still opens the same view so a half-written query link keeps working.
       const name = String(readView().tab || "").toLowerCase();
-      return name === "micros" ? "micros" : "sessions";
+      if (name === "micros") return "micros";
+      if (name === "playlists") return "playlists";
+      return "sessions";
     }
     function showHubTab(name, { focus = false, syncUrl = false } = {}) {
-      const tab = name === "micros" ? "micros" : "sessions";
+      const tab = name === "micros" ? "micros"
+        : name === "playlists" ? "playlists"
+        : "sessions";
       tabs.forEach(t => {
         const on = t.getAttribute("data-ss-hub-tab") === tab;
         t.classList.toggle("on", on);
@@ -674,9 +684,13 @@ function applyReelsChrome(root = document) {
       if (row && pop && !pop.hidden && pop._rowId === row.id) return;
       if (row) {
         const isMicro = HUB.micros.some(r => r.id === id);
-        showHubTab(isMicro && !HUB.sessions.some(r => r.id === id) ? "micros" : tab);
+        showHubTab(tab === "playlists"
+          ? "playlists"
+          : (isMicro && !HUB.sessions.some(r => r.id === id) ? "micros" : tab));
         const playlist = playlistForItem(
-          HUB.playlists[isMicro ? "micros" : "sessions"],
+          HUB.playlists.all.length
+            ? HUB.playlists.all
+            : HUB.playlists[isMicro ? "micros" : "sessions"],
           row.id
         );
         openWatchPopup(row, {
@@ -705,8 +719,15 @@ function applyReelsChrome(root = document) {
       });
     });
     showHubTab(hubTabFromLocation());
+    document.querySelector("[data-ss-playlists-all]")?.addEventListener("click", e => {
+      e.preventDefault();
+      writeHash({ tab: "playlists" }, { push: true });
+    });
     onViewChange(() => {
       showHubTab(hubTabFromLocation());
+      renderPlaylists(HUB.playlists.all, {
+        loadError: HUB.playlistsError,
+      });
       playFromLocation();
     });
 
@@ -842,34 +863,181 @@ function applyReelsChrome(root = document) {
       }
     }
 
+    function playlistKindLabel(kind) {
+      return kind === "micros" ? "Micros" : "Sessions";
+    }
+
+    function itemsForPlaylist(playlist) {
+      const pool = playlist?.kind === "micros" ? HUB.micros : HUB.sessions;
+      const { groups } = groupLearningsByPlaylist(pool, [playlist]);
+      return groups[0]?.items || [];
+    }
+
+    function firstPlayable(items) {
+      return (items || []).find(row => isUploadPlayable(row) || row?.youtubeId) || null;
+    }
+
+    function renderPlaylists(playlists, { loadError = false } = {}) {
+      const host = document.querySelector("[data-ss-live-playlists]");
+      const empty = document.querySelector("[data-ss-playlists-empty]");
+      const loading = document.querySelector("[data-ss-playlists-loading]");
+      const count = document.querySelector("[data-ss-playlist-count]");
+      const back = document.querySelector("[data-ss-playlists-all]");
+      if (loading) loading.remove();
+      if (!host) return;
+
+      const published = (playlists || []).filter(p => p && p.status === "published");
+      if (count) {
+        count.textContent = published.length === 1
+          ? "1 published"
+          : `${published.length} published`;
+      }
+
+      if (loadError) {
+        if (empty) empty.hidden = true;
+        if (back) back.hidden = true;
+        host.innerHTML =
+          `<p class="note">Published playlists could not be loaded just now. ` +
+          `This is not an empty library — try again shortly.</p>`;
+        return;
+      }
+
+      if (!published.length) {
+        host.innerHTML = "";
+        if (empty) empty.hidden = false;
+        if (back) back.hidden = true;
+        return;
+      }
+      if (empty) empty.hidden = true;
+
+      const openId = String(readView().playlist || "").trim();
+      const open = published.find(p => p.id === openId) || null;
+      if (back) back.hidden = !open;
+
+      if (open) {
+        const items = itemsForPlaylist(open);
+        host.innerHTML = "";
+        const block = document.createElement("section");
+        block.className = "playlist-block";
+        block.setAttribute("data-playlist", open.id);
+        block.appendChild(playlistHead(open));
+        if (!items.length) {
+          const note = document.createElement("p");
+          note.className = "note";
+          note.textContent = "This Playlist has no published items to show yet.";
+          block.appendChild(note);
+        } else if (open.kind === "micros") {
+          const grid = document.createElement("div");
+          grid.className = "micro-grid";
+          items.forEach(row => grid.appendChild(microCard(row, open)));
+          block.appendChild(grid);
+        } else {
+          items.forEach(row => block.appendChild(sessionCard(row, {
+            inPlaylist: true,
+            playlist: open,
+          })));
+        }
+        host.appendChild(block);
+        return;
+      }
+
+      host.innerHTML = "";
+      published.forEach(pl => {
+        const items = itemsForPlaylist(pl);
+        const n = items.length;
+        const meta = n === 1 ? "1 item" : `${n} items`;
+        const el = document.createElement("div");
+        el.className = "row";
+        el.setAttribute("data-playlist", pl.id);
+        const bits = [pl.description, meta].filter(Boolean);
+        el.innerHTML =
+          `<span class="pill info">${esc(playlistKindLabel(pl.kind))}</span>` +
+          `<div><b>${esc(pl.title || "Playlist")}</b>` +
+            (bits.length ? `<small style="color:var(--muted)">${esc(bits.join(" · "))}</small>` : "") +
+          `</div>` +
+          `<div class="acts">` +
+            `<button type="button" class="btn btn-gold btn-sm" data-ss-open-playlist>Open</button>` +
+          `</div>`;
+        const go = playFirst => {
+          const first = playFirst ? firstPlayable(items) : null;
+          writeHash({
+            tab: "playlists",
+            playlist: pl.id,
+            ...(first ? { play: first.id } : {}),
+          }, { push: true });
+        };
+        el.querySelector("[data-ss-open-playlist]").addEventListener("click", e => {
+          e.preventDefault();
+          e.stopPropagation();
+          go(true);
+        });
+        el.addEventListener("click", e => {
+          if (e.target.closest("[data-ss-open-playlist]")) return;
+          e.preventDefault();
+          go(false);
+        });
+        host.appendChild(el);
+      });
+    }
+
+    function loadOne(loader) {
+      return loader().then(
+        value => ({ ok: true, value }),
+        error => ({ ok: false, error, value: [] })
+      );
+    }
+
+    function splitPlaylists(rows) {
+      const all = Array.isArray(rows) ? rows : [];
+      return {
+        all,
+        sessions: all.filter(p => p.kind === "sessions"),
+        micros: all.filter(p => p.kind === "micros"),
+      };
+    }
+
     (async () => {
-      try {
-        const [sessions, micros, sessionPlaylists, microPlaylists] = await Promise.all([
-          listPublishedSessions(),
-          listPublishedMicros(),
-          listPublishedPlaylists("sessions"),
-          listPublishedPlaylists("micros"),
-        ]);
-        HUB.sessions = sessions;
-        HUB.micros = micros;
-        HUB.playlists.sessions = sessionPlaylists;
-        HUB.playlists.micros = microPlaylists;
-        renderSessions(sessions, sessionPlaylists);
-        renderMicros(micros, microPlaylists);
-        document.documentElement.setAttribute(
-          "data-sessions-ready",
-          `live:${sessions.length}:${micros.length}`
-        );
-        playFromLocation();
-      } catch (ex) {
+      // Isolate fetches: a playlist permission error must not blank Sessions/Micros.
+      const [sessionRes, microRes, playlistRes] = await Promise.all([
+        loadOne(listPublishedSessions),
+        loadOne(listPublishedMicros),
+        loadOne(() => listPublishedPlaylists()),
+      ]);
+      HUB.sessions = sessionRes.value;
+      HUB.micros = microRes.value;
+      HUB.playlists = splitPlaylists(playlistRes.value);
+      HUB.playlistsError = !playlistRes.ok;
+      if (!sessionRes.ok) {
         const host = document.querySelector("[data-ss-live-sessions]");
         if (host) {
           host.innerHTML =
             `<p class="note">Published sessions could not be loaded just now. ` +
             `This is not an empty library — try again shortly.</p>`;
         }
-        document.documentElement.setAttribute("data-sessions-ready", "error");
+      } else {
+        renderSessions(HUB.sessions, HUB.playlists.sessions);
       }
+      if (!microRes.ok) {
+        const host = document.querySelector("[data-ss-live-micros]");
+        const empty = document.querySelector("[data-ss-micro-empty]");
+        if (empty) hide(empty);
+        if (host) {
+          host.hidden = false;
+          host.innerHTML =
+            `<p class="note">Published micros could not be loaded just now. ` +
+            `This is not an empty library — try again shortly.</p>`;
+        }
+      } else {
+        renderMicros(HUB.micros, HUB.playlists.micros);
+      }
+      renderPlaylists(HUB.playlists.all, { loadError: HUB.playlistsError });
+      document.documentElement.setAttribute(
+        "data-sessions-ready",
+        (!sessionRes.ok && !microRes.ok)
+          ? "error"
+          : `live:${HUB.sessions.length}:${HUB.micros.length}:${HUB.playlists.all.length}`
+      );
+      playFromLocation();
     })();
     return;
   }

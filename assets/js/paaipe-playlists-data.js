@@ -12,8 +12,9 @@
  *   publishedAt  timestamp | null
  *   createdAt / updatedAt / updatedBy
  *
- * Portal reads status==published only, then splits by kind onto Sessions or
- * Micros. Archived stays in admin for restore. Publish integrity is enforced
+ * Portal reads status==published only. The Learnings hub lists every
+ * published Playlist on its own Playlists tab, and still groups cited
+ * items on Sessions / Micros. Archived stays in admin for restore. Publish integrity is enforced
  * here: every itemIds entry must exist and be published==true of that kind
  * before status may become published. The portal still skips missing or
  * unpublished ids so a later unpublish cannot blank the block.

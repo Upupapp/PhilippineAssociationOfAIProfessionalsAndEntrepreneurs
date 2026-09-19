@@ -80,11 +80,20 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   const h = read("portal-sessions.html");
   ok(h.includes("data-ss-live-sessions"), "live sessions mount");
   ok(h.includes("data-ss-live-micros"), "live micros mount");
+  ok(h.includes('data-ss-hub-tab="playlists"'), "playlists tab");
+  ok(h.includes("data-ss-live-playlists"), "live playlists mount");
+  const tabSessions = h.indexOf('data-ss-hub-tab="sessions"');
+  const tabMicros = h.indexOf('data-ss-hub-tab="micros"');
+  const tabPlaylists = h.indexOf('data-ss-hub-tab="playlists"');
+  ok(tabSessions >= 0 && tabMicros > tabSessions && tabPlaylists > tabMicros,
+    "tab order Sessions → Micros → Playlists");
   ok(!h.includes("data-ss-continue"), "no continue/attendance chrome");
   ok(!h.includes("data-ss-lesson-list"), "no hardcoded library list");
   const view = read("assets/js/paaipe-session-view.js");
   ok(view.includes("listPublishedSessions"), "fetches sessions");
   ok(view.includes("listPublishedMicros"), "fetches micros");
+  ok(view.includes("listPublishedPlaylists"), "fetches playlists");
+  ok(view.includes("function loadOne"), "isolates each hub fetch");
   ok(view.includes("youtubeEmbedSrc"), "in-portal embed");
   ok(view.includes("LEARNING_SOURCE"), "uses LEARNING_SOURCE");
   ok(/createElement\(\s*"video"\s*\)/.test(view), "native video for uploads");
@@ -204,16 +213,31 @@ const learnStub = (sessions, micros) => `
 `;
 
 const REAL_PL = read("assets/js/paaipe-playlists-data.js");
-const plStub = `
+const plStub = (playlists = [], { fail = false } = {}) => fail
+  ? `
   export * from '/assets/js/paaipe-playlists-data-real.js';
-  export async function listPublishedPlaylists(){ return [] }
+  export async function listPublishedPlaylists(){
+    const e = new Error("Missing or insufficient permissions.");
+    e.code = "permission-denied";
+    throw e;
+  }
   export async function listPlaylists(){ return [] }
+`
+  : `
+  export * from '/assets/js/paaipe-playlists-data-real.js';
+  export async function listPublishedPlaylists(){ return ${JSON.stringify(playlists)} }
+  export async function listPlaylists(){ return ${JSON.stringify(playlists)} }
 `;
 
 const br = await chromium.launch();
 const errs = [];
 
-async function openHub({ sessions = SESSIONS, micros = [] } = {}) {
+async function openHub({
+  sessions = SESSIONS,
+  micros = [],
+  playlists = [],
+  playlistError = false,
+} = {}) {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
   p.on("pageerror", e => errs.push(String(e)));
@@ -228,7 +252,10 @@ async function openHub({ sessions = SESSIONS, micros = [] } = {}) {
   await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
     r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
   await p.route("**/assets/js/paaipe-playlists-data.js", r =>
-    r.fulfill({ contentType: "text/javascript", body: plStub }));
+    r.fulfill({
+      contentType: "text/javascript",
+      body: plStub(playlists, { fail: playlistError }),
+    }));
   await p.goto(`${BASE}/portal-sessions.html`, { waitUntil: "load" });
   await p.waitForSelector("html[data-sessions-ready]", { timeout: 9000 });
   return { p, ctx };
@@ -391,6 +418,72 @@ await T("uploaded session with poster uses poster on the card and video in the p
   eq(await video.getAttribute("src"), "https://media.paaipe.org/session/s-up.webm", "absolute storagePath kept");
   eq(await video.getAttribute("poster"), "https://media.paaipe.org/poster/s-up.jpg", "poster on player");
   eq(await p.locator("[data-ss-popup-player] iframe").count(), 0, "YouTube path unused");
+  await ctx.close();
+});
+
+await T("playlist permission error does not blank published Sessions or Micros", async () => {
+  const micro = {
+    id: "m1",
+    title: "30-second takeaway",
+    source: "youtube",
+    youtubeId: "ePw_wlPqYUk",
+    published: true,
+    displayOrder: 1,
+  };
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [micro],
+    playlistError: true,
+  });
+  eq(await p.locator(".live-session").count(), 2, "sessions still render");
+  ok(!(await p.locator("[data-ss-sessions-empty]").isVisible()), "not the empty sessions state");
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator(".micro-card").count(), 1, "micros still render");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  ok(await p.locator('[data-ss-hub-panel="playlists"]').isVisible(), "playlists panel");
+  ok((await p.locator("[data-ss-live-playlists]").innerText()).includes("could not be loaded"),
+    "honest playlist fault");
+  await ctx.close();
+});
+
+const HUB_PLAYLIST = {
+  id: "pl-signals",
+  title: "From Signals to Strategy",
+  description: "Short lessons from Sven Bally’s AI Exchange session.",
+  kind: "micros",
+  itemIds: ["m-hub"],
+  status: "published",
+  displayOrder: 1,
+};
+const HUB_MICRO = {
+  id: "m-hub",
+  title: "Start with the question, not the dashboard",
+  source: "upload",
+  storagePath: "micros/micro-1.mp4",
+  published: true,
+  displayOrder: 1,
+};
+
+await T("Playlists tab lists published playlists and Open shows items", async () => {
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [HUB_MICRO],
+    playlists: [HUB_PLAYLIST],
+  });
+  eq(await p.locator(".live-session").count(), 2, "sessions stay visible with playlist data");
+  const tabs = p.locator("[data-ss-hub-tab]");
+  eq(await tabs.count(), 3, "three hub tabs");
+  eq(await tabs.nth(2).innerText(), "Playlists", "Playlists after Micros");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  const row = p.locator('[data-ss-live-playlists] [data-playlist="pl-signals"]');
+  ok(await row.isVisible(), "playlist row");
+  eq(await row.locator("b").innerText(), "From Signals to Strategy", "playlist title");
+  ok(!(await p.locator("[data-ss-playlists-empty]").isVisible()), "not empty");
+  await row.click();
+  await p.waitForFunction(() => /playlist=pl-signals/.test(location.hash), { timeout: 4000 });
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card').count(), 1, "item cards");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] .micro-card .cap').innerText(),
+    "Start with the question, not the dashboard", "item title");
   await ctx.close();
 });
 

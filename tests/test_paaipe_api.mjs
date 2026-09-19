@@ -113,8 +113,20 @@ await T("one knob: query / window / localStorage, first non-empty wins", () => {
 });
 
 await T("contract paths are exact — admin + public library", () => {
+  eq(api.eventsPath(), "/v1/events", "public events");
+  eq(api.adminEventsPath(), "/v1/admin/events", "admin events list");
   eq(api.adminEventPath("2026-10-ai-exchange"),
      "/v1/admin/events/2026-10-ai-exchange", "event PATCH path");
+  eq(api.adminEventContentPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/content", "event content PATCH");
+  eq(api.adminEventDuplicatePath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/duplicate", "event duplicate");
+  eq(api.adminEventCalendarPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/calendar.ics", "admin calendar");
+  eq(api.adminEventEmailsPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/emails", "admin emails");
+  eq(api.eventPath("event-2026-10-ai-exchange"),
+     "/v1/events/event-2026-10-ai-exchange", "public event by slug");
   eq(api.adminEventRegistrationsPath("e-oct"),
      "/v1/admin/events/e-oct/registrations", "event regs");
   eq(api.adminEventRegistrationsPath("e-oct", { status: "attended" }),
@@ -161,6 +173,59 @@ await T("settings payload sends only Clarence's fields", () => {
   eq(body.registrationClosesAt, null, "blank close → null");
   eq(body.waitlistEnabled, true, "waitlist bool");
   ok(!("title" in body) && !("confirmationEmailText" in body), "no extra fields");
+  ok(!("capacity" in body) && !("hasZoom" in body), "six-key settings only");
+});
+
+await T("content payload is the event record, not settings", () => {
+  const body = api.eventContentPayload({
+    title: "AI Exchange — October 2026",
+    slug: "event-2026-10-ai-exchange",
+    series: "AI Exchange",
+    topic: "To be announced",
+    description: "A practical session.",
+    whatToExpect: ["Q&A"],
+    date: "2026-10-13",
+    startTime: "20:00",
+    endTime: "21:30",
+    format: "zoom",
+    speakers: [{ name: "Sven Bally", title: "Founder", photoUrl: "x.jpg" }],
+    program: [{ time: "20:00", item: "Welcome" }],
+    gallery: [{ url: "g.jpg", alt: "Room", order: 0 }],
+    coverUrl: "cover.jpg",
+    bannerSquareUrl: "sq.jpg",
+    bannerWideUrl: "wide.jpg",
+    confirmationEmailText: "You're registered.",
+    capacity: 500,
+    status: "registration_open",
+    hasZoom: true,
+    registrationOpensAt: "2026-10-01T08:00",
+    whoCanRegister: "members_only",
+    waitlistEnabled: true,
+    questionsEnabled: ["organization"],
+  });
+  eq(body.title, "AI Exchange — October 2026", "title");
+  eq(body.slug, "event-2026-10-ai-exchange", "slug");
+  eq(body.speakers[0].name, "Sven Bally", "speakers");
+  eq(body.gallery[0].alt, "Room", "gallery");
+  eq(body.confirmationEmailText, "You're registered.", "email wording");
+  eq(body.capacity, 500, "capacity rides with Details content");
+  ok(!("status" in body) && !("hasZoom" in body),
+     "six-key settings stay out of content");
+  ok(!("registrationOpensAt" in body) && !("whoCanRegister" in body),
+     "registration settings stay out of content");
+
+  const created = api.eventCreatePayload({
+    id: "2026-10-ai-exchange",
+    title: "AI Exchange — October 2026",
+    capacity: 500,
+    status: "draft",
+    zoomLink: "must-not-go",
+  });
+  eq(created.id, "2026-10-ai-exchange", "create may send id");
+  eq(created.title, "AI Exchange — October 2026", "create content");
+  eq(created.capacity, 500, "create settings");
+  eq(created.status, "draft", "create status");
+  ok(!("zoomLink" in created), "Zoom link is not an event field");
 });
 
 await T("PATCH event request: Bearer + JSON body to api.paaipe.org", async () => {
@@ -174,6 +239,9 @@ await T("PATCH event request: Bearer + JSON body to api.paaipe.org", async () =>
     waitlistEnabled: false,
     questionsEnabled: [],
     status: "published",
+    title: "must not go",
+    capacity: 500,
+    hasZoom: true,
   }, { token: "tok-admin", fetchImpl });
   eq(captured.url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange", "url");
   eq(captured.opts.method, "PATCH", "method");
@@ -182,7 +250,127 @@ await T("PATCH event request: Bearer + JSON body to api.paaipe.org", async () =>
   const body = JSON.parse(captured.opts.body);
   eq(body.whoCanRegister, "members_and_guests", "who");
   eq(body.status, "published", "status");
-  ok(!("title" in body), "title not sent");
+  ok(!("title" in body) && !("capacity" in body) && !("hasZoom" in body),
+     "settings PATCH is the six keys only");
+});
+
+const LIVE_ADMIN_EVENT = {
+  id: "2026-10-ai-exchange",
+  slug: "event-2026-10-ai-exchange",
+  title: "AI Exchange — October 2026",
+  status: "registration_open",
+  capacity: 500,
+  date: "2026-10-13",
+  startTime: "20:00",
+  endTime: "21:30",
+  format: "zoom",
+  hasZoom: false,
+  series: "AI Exchange",
+  topic: "To be announced",
+};
+
+await T("admin event list / create / content / duplicate; public list has no Bearer", async () => {
+  const hits = [];
+  const fetchImpl = async (url, opts) => {
+    hits.push({ url, opts: opts || {} });
+    if (String(url).endsWith("/v1/admin/events") && (opts?.method || "GET") === "GET") {
+      return new Response(JSON.stringify({ events: [LIVE_ADMIN_EVENT] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).endsWith("/v1/admin/events") && opts?.method === "POST") {
+      return new Response(JSON.stringify({
+        ...LIVE_ADMIN_EVENT, id: "2026-01-ai-exchange", title: "New Exchange", status: "draft",
+      }), { status: 201, headers: { "content-type": "application/json" } });
+    }
+    if (String(url).endsWith("/content") && opts?.method === "PATCH") {
+      return new Response(JSON.stringify({ ...LIVE_ADMIN_EVENT, title: "Renamed" }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    if (String(url).endsWith("/duplicate") && opts?.method === "POST") {
+      return new Response(JSON.stringify({
+        event: { ...LIVE_ADMIN_EVENT, id: "2026-10-ai-exchange-copy", status: "draft",
+          title: "AI Exchange — October 2026 (copy)" },
+      }), { status: 201, headers: { "content-type": "application/json" } });
+    }
+    if (String(url).endsWith("/v1/events")) {
+      return new Response(JSON.stringify({ events: [LIVE_ADMIN_EVENT] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    }
+    return new Response("missing", { status: 404 });
+  };
+
+  const listed = await api.listAdminEvents({ token: "tok-admin", fetchImpl });
+  eq(listed.length, 1, "admin list unwraps { events }");
+  eq(listed[0].id, "2026-10-ai-exchange", "admin id");
+  eq(hits[0].url, "https://api.paaipe.org/v1/admin/events", "admin list url");
+  eq(hits[0].opts.headers.Authorization, "Bearer tok-admin", "admin list Bearer");
+  eq(hits[0].opts.method || "GET", "GET", "admin list GET");
+
+  const created = await api.postAdminEvent({
+    title: "New Exchange", slug: "event-2026-01-ai-exchange", status: "draft",
+    zoomLink: "must-not-go",
+  }, { token: "tok-admin", fetchImpl });
+  eq(created.id, "2026-01-ai-exchange", "create id");
+  eq(hits[1].opts.method, "POST", "create POST");
+  const createBody = JSON.parse(hits[1].opts.body);
+  eq(createBody.title, "New Exchange", "create title");
+  eq(createBody.status, "draft", "create status");
+  ok(!("zoomLink" in createBody), "create does not send Zoom link");
+
+  await api.patchAdminEventContent("2026-10-ai-exchange", {
+    title: "Renamed",
+    capacity: 999,
+    status: "held",
+  }, { token: "tok-admin", fetchImpl });
+  eq(hits[2].url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange/content", "content url");
+  eq(hits[2].opts.method, "PATCH", "content PATCH");
+  eq(hits[2].opts.headers.Authorization, "Bearer tok-admin", "content Bearer");
+  const contentBody = JSON.parse(hits[2].opts.body);
+  eq(contentBody.title, "Renamed", "content title");
+  eq(contentBody.capacity, 999, "capacity on content");
+  ok(!("status" in contentBody), "content PATCH strips six-key settings");
+
+  const copy = await api.postAdminEventDuplicate("2026-10-ai-exchange", {
+    token: "tok-admin", fetchImpl,
+  });
+  eq(copy.id, "2026-10-ai-exchange-copy", "duplicate unwraps { event }");
+  eq(copy.status, "draft", "duplicate draft");
+  eq(hits[3].url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange/duplicate", "dup url");
+  eq(hits[3].opts.method, "POST", "dup POST");
+  eq(hits[3].opts.body, undefined, "duplicate sends no invented body");
+
+  const pub = await api.listApiEvents({ fetchImpl });
+  eq(pub.length, 1, "public list");
+  eq(pub[0].id, "2026-10-ai-exchange", "public id");
+  ok(!("Authorization" in (hits[4].opts.headers || {})), "public GET /v1/events has no Bearer");
+
+  const ics = await api.getAdminEventCalendarIcs("2026-10-ai-exchange", {
+    token: "tok-admin",
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, opts: opts || {} });
+      return new Response("BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR\n", {
+        status: 200, headers: { "content-type": "text/calendar" },
+      });
+    },
+  });
+  eq(hits[5].url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange/calendar.ics", "ics url");
+  eq(hits[5].opts.headers.Authorization, "Bearer tok-admin", "ics Bearer");
+  ok(/BEGIN:VCALENDAR/.test(ics), "ics is text, not JSON");
+
+  const one = await api.getApiEventBySlug("event-2026-10-ai-exchange", {
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, opts: opts || {} });
+      return new Response(JSON.stringify(LIVE_ADMIN_EVENT), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  eq(one.id, "2026-10-ai-exchange", "public slug");
+  eq(hits[6].url, "https://api.paaipe.org/v1/events/event-2026-10-ai-exchange", "slug url");
+  ok(!("Authorization" in (hits[6].opts.headers || {})), "slug GET has no Bearer");
 });
 
 await T("GET registrations + PATCH status; unknown status is refused", async () => {
@@ -344,14 +532,67 @@ await T("401 / 404 / missing token fail honestly and do not invent rows", async 
   try { await api.paaipeApiRequest("/v1/admin/events/x", { method: "PATCH", body: {} }); }
   catch (e) { eTok = e; }
   eq(eTok?.code, "not-signed-in", "no token");
+
+  let eList;
+  try { await api.listAdminEvents({ token: "x", fetchImpl: fetch401 }); }
+  catch (e) { eList = e; }
+  ok(eList && eList.status === 401, "admin events list 401");
+  ok(/sign-in expired or missing/i.test(eList.message), "admin list 401 message");
+
+  let eDup;
+  try { await api.postAdminEventDuplicate("2026-10-ai-exchange", { token: "x", fetchImpl: fetch401 }); }
+  catch (e) { eDup = e; }
+  ok(eDup && eDup.status === 401, "duplicate 401");
+  ok(/nothing was changed/i.test(eDup.message), "duplicate 401 is a write");
+
+  let eIcs;
+  try { await api.getAdminEventCalendarIcs("2026-10-ai-exchange", { token: "x", fetchImpl: fetch401 }); }
+  catch (e) { eIcs = e; }
+  ok(eIcs && eIcs.status === 401, "calendar 401");
+  ok(/sign-in expired or missing/i.test(eIcs.message), "calendar 401 message");
 });
 
 await T("admin JS hard-cuts Settings + Registrations off Firestore", () => {
   const ev = read("assets/js/paaipe-admin-events.js");
   const regs = read("assets/js/paaipe-admin-registrations.js");
   const save = ev.slice(ev.indexOf("async function saveEvent"), ev.indexOf("async function setStatus"));
-  ok(/patchAdminEvent/.test(save), "save PATCHes the API");
-  ok(/withoutSettings/.test(save), "settings fields stripped from Firestore write");
+  eq(JSON.stringify([...api.EVENT_SETTINGS_FIELDS].sort()),
+     JSON.stringify(["questionsEnabled","registrationClosesAt","registrationOpensAt","status","waitlistEnabled","whoCanRegister"]),
+     "settings stay the original six keys");
+  ok(/patchAdminEvent/.test(save), "save PATCHes settings");
+  ok(/patchAdminEventContent/.test(save), "save PATCHes content");
+  ok(!/patchAdminEvent\(id,\s*\{\s*hasZoom/.test(save),
+     "save must not invent a hasZoom settings PATCH");
+  ok(/eventContentPayload/.test(save) && /eventSettingsPayload/.test(save),
+     "save splits content vs settings");
+  ok(!/COL\.events/.test(save) && !/withoutSettings/.test(save),
+     "content save must not write Firestore paaipe_events");
+  ok(/paaipe_event_private/.test(save), "Zoom link stays on Firestore private");
+  const statusFn = ev.slice(ev.indexOf("async function setStatus"), ev.indexOf("const ACTION_LABEL"));
+  ok(/patchAdminEvent/.test(statusFn), "status is settings PATCH");
+  ok(!/COL\.events/.test(statusFn) && !/setDoc/.test(statusFn),
+     "status must not write Firestore events");
+  const dup = ev.slice(ev.indexOf("async function duplicateEvent"), ev.indexOf("function showList"));
+  ok(/postAdminEventDuplicate/.test(dup), "duplicate uses POST …/duplicate");
+  ok(!/COL\.events/.test(dup) && !/setDoc/.test(dup),
+     "duplicate must not write Firestore events");
+  ok(/listAdminEvents/.test(ev), "workspace list uses GET /v1/admin/events");
+  ok(!/listEvents\(\s*\{\s*asAdmin/.test(ev),
+     "workspace must not list Firestore events");
+  ok(!/COL\.events/.test(ev), "admin events JS must not touch COL.events");
+  ok(/getAdminEventCalendarIcs/.test(ev), "calendar download uses GET …/calendar.ics");
+  ok(!/function icsFor/.test(ev), "client-built ICS must not remain");
+  const email = read("assets/js/paaipe-event-email.js");
+  ok(/localStorage/.test(email), "email drafts stay in this browser");
+  ok(!/adminEventEmailsPath|\/v1\/admin\/events\/.*\/emails/.test(email),
+     "email tab must not invent an emails* cutover — it never wrote Firestore");
+  ok(!/adminEventEmailsPath/.test(ev),
+     "admin-events does not call emails* (send is still 501)");
+  const data = read("assets/js/paaipe-events-data.js");
+  const pubList = data.slice(data.indexOf("export async function listEvents"),
+                             data.indexOf("export async function getEventBySlug"));
+  ok(/firebase-firestore/.test(pubList) || /COL\.events/.test(pubList),
+     "public/shared listEvents stays on Firestore for queue item (3)");
   const load = ev.slice(ev.indexOf("async function loadRegistrationsTab"),
                         ev.indexOf("async function loadEmailTab"));
   ok(/listAdminEventRegistrations/.test(load), "regs tab uses API");

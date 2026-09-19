@@ -4,6 +4,7 @@ import { readFileSync, existsSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
 const REAL_FB=readFileSync(`${ROOT}/assets/js/paaipe-firebase.js`,'utf8');
 const REAL_DATA=readFileSync(`${ROOT}/assets/js/paaipe-events-data.js`,'utf8');
+const REAL_API=readFileSync(`${ROOT}/assets/js/paaipe-api.js`,'utf8');
 let pass=0,fail=0;
 const T=async(n,f)=>{try{await f();console.log(`  PASS  ${n}`);pass++}catch(e){console.log(`  FAIL  ${n}\n        ${e.message}`);fail++}};
 const ok=(c,m)=>{if(!c)throw new Error(m)};
@@ -23,7 +24,8 @@ const REGS=[
 const fbStub=`export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {uid:'a1',email:'admin@upupapp.asia',status:'guest'}}
   export async function isAdminNow(){return true}
-  export async function signOutNow(){}`;
+  export async function signOutNow(){}
+  export async function idTokenForRequest(){ return 'test-id-token' }`;
 const dataStub=`
   export * from '/assets/js/paaipe-events-data-real.js';
   export async function listEvents(){ return ${JSON.stringify([EV])} }
@@ -31,6 +33,9 @@ const dataStub=`
   export async function listEventSponsors(){ return [] }
   export async function listPartnerApplicationsFor(){ return [] }
   export async function listAllRegistrations(){ return ${JSON.stringify(REGS)} }`;
+const apiStub=`
+  export * from '/assets/js/paaipe-api-real.js';
+  export async function listAdminEvents(){ return ${JSON.stringify([EV])} }`;
 
 const br=await chromium.launch();
 const ctx=await br.newContext({viewport:{width:1440,height:1100}});
@@ -41,6 +46,8 @@ async function open(){
   await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbStub}));
   await p.route('**/assets/js/paaipe-events-data-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_DATA}));
   await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub}));
+  await p.route('**/assets/js/paaipe-api-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_API}));
+  await p.route('**/assets/js/paaipe-api.js',r=>r.fulfill({contentType:'text/javascript',body:apiStub}));
   await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
   await p.waitForSelector('html[data-admin-events]',{timeout:9000});
   await p.click('tr[data-event="e-oct"] [data-edit-event]');
@@ -132,6 +139,8 @@ await T('empty session points at Registrations and does not invent a Zoom resend
     export async function listEventSponsors(){ return [] }
     export async function listPartnerApplicationsFor(){ return [] }
     export async function listAllRegistrations(){ return [] }`}));
+  await p.route('**/assets/js/paaipe-api-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_API}));
+  await p.route('**/assets/js/paaipe-api.js',r=>r.fulfill({contentType:'text/javascript',body:apiStub}));
   await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
   await p.click('tr[data-event="e-oct"] [data-edit-event]');
   await p.click('[data-tab="email"]');

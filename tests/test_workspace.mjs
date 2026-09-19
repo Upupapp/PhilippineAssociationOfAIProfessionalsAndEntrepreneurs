@@ -259,7 +259,7 @@ await T('the Registrations tab reads the admin API for this event, not Firestore
   await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbTok}));
   await p.route('**/assets/js/paaipe-events-data-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_DATA}));
   await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub()}));
-  await p.route('http://127.0.0.1:8091/**',async route=>{
+  await p.route('https://api.paaipe.org/**',async route=>{
     const url=route.request().url();
     if(!/\/v1\/admin\/events\/e-oct\/registrations/.test(url))
       return route.fulfill({status:404,body:'wrong path'});

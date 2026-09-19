@@ -56,7 +56,9 @@ await T("Clarence lock: collection and field names are exact", () => {
   ok(!/firebase-firestore/.test(src), "no Firestore playlist reads");
   ok(src.includes("listApiPlaylists") && src.includes("listApiPlaylistItems"),
     "public list/get/items go through paaipe-api");
-  ok(src.includes("api/not-wired"), "admin writes are an honest hold");
+  ok(src.includes("listAdminPlaylists") && src.includes("postAdminPlaylist")
+    && src.includes("patchAdminPlaylist"),
+    "admin list/create/update go through paaipe-api");
   ok(!/PROVISIONAL_|pending_clarence|_awaiting/.test(src), "no provisional prefix");
   for (const field of ["title", "description", "kind", "itemIds", "status", "displayOrder", "publishedAt", "createdAt", "updatedAt", "updatedBy"]) {
     ok(src.includes(field), `field ${field}`);

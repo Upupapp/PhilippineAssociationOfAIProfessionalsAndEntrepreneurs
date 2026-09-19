@@ -22,21 +22,27 @@
  *   GET /v1/playlists?kind=micros|sessions → { playlists: [...] }
  *   GET /v1/playlists/{id}
  *   GET /v1/playlists/{id}/items      → { items: [...] } hydrated
+ *   Bare GET /v1/playlists is 400 — always pass ?kind=
  *
- * Admin writes (Bearer + allow-list):
+ * Admin (Bearer + ADMIN_EMAILS allow-list; 401 without). Live-confirmed:
+ *   GET/POST /v1/admin/playlists
+ *   GET/PATCH /v1/admin/playlists/{id}
+ *   POST  /v1/admin/sessions
+ *   PATCH /v1/admin/sessions/{id}
+ *   POST  /v1/admin/micros
+ *   PATCH /v1/admin/micros/{id}
+ * GET /v1/admin/sessions and GET /v1/admin/micros 404 — do not call them.
+ * DELETE / PUT on those resources 404 — do not invent them.
+ *
+ * Also:
  *   PATCH /v1/admin/events/{id}
- *     registrationOpensAt, registrationClosesAt, whoCanRegister,
- *     waitlistEnabled, questionsEnabled, status
  *   GET   /v1/admin/events/{eventId}/registrations   optional ?status=
  *   GET   /v1/admin/registrations/{id}
  *   PATCH /v1/admin/registrations/{id}               body { status } only
- *     registered | attended | no_show | cancelled
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
- * Settings PATCH and Registrations admin are live — unauthenticated calls
- * return 401 (Missing bearer token), not 404.
- * Admin Learnings / Playlist CRUD is not documented here — do not invent it.
+ * Unauthenticated admin calls return 401 (Missing bearer token), not 404.
  *
  * CORS allows https://paaipe.org. Other origins still need to be added
  * (or use the tunnel override for local smoke).
@@ -149,6 +155,30 @@ export function playlistPath(id) {
 
 export function playlistItemsPath(id) {
   return `/v1/playlists/${encodeURIComponent(id)}/items`;
+}
+
+export function adminPlaylistsPath() {
+  return "/v1/admin/playlists";
+}
+
+export function adminPlaylistPath(id) {
+  return `/v1/admin/playlists/${encodeURIComponent(id)}`;
+}
+
+export function adminSessionsPath() {
+  return "/v1/admin/sessions";
+}
+
+export function adminSessionPath(id) {
+  return `/v1/admin/sessions/${encodeURIComponent(id)}`;
+}
+
+export function adminMicrosPath() {
+  return "/v1/admin/micros";
+}
+
+export function adminMicroPath(id) {
+  return `/v1/admin/micros/${encodeURIComponent(id)}`;
 }
 
 export function eventSettingsPayload(src = {}) {
@@ -352,6 +382,118 @@ export async function getApiPlaylist(id, opts) {
 export async function listApiPlaylistItems(id, opts) {
   const data = await paaipePublicGet(playlistItemsPath(id), opts);
   return withIds(asList(data, "items"));
+}
+
+export function learningWritePayload(src = {}, { kind } = {}) {
+  const out = {};
+  if (src.id) out.id = String(src.id);
+  if ("title" in src) out.title = src.title;
+  if ("description" in src) out.description = src.description || null;
+  if ("source" in src) out.source = src.source;
+  if ("youtubeUrl" in src) out.youtubeUrl = src.youtubeUrl || null;
+  if ("youtubeId" in src) out.youtubeId = src.youtubeId || null;
+  if ("storagePath" in src) out.storagePath = src.storagePath || null;
+  if ("posterUrl" in src) out.posterUrl = src.posterUrl || null;
+  if ("posterStoragePath" in src) out.posterStoragePath = src.posterStoragePath || null;
+  if ("published" in src) out.published = src.published === true;
+  if ("displayOrder" in src && Number.isFinite(Number(src.displayOrder))) {
+    out.displayOrder = Number(src.displayOrder);
+  }
+  if ("publishedAt" in src && src.publishedAt !== "SERVER") {
+    out.publishedAt = src.publishedAt || null;
+  }
+  if ("updatedBy" in src) out.updatedBy = src.updatedBy || null;
+  out.aspect = kind === "micros" ? "9:16" : (src.aspect || "16:9");
+  return out;
+}
+
+export function playlistWritePayload(src = {}) {
+  const out = {};
+  if (src.id) out.id = String(src.id);
+  if ("title" in src) out.title = src.title;
+  if ("description" in src) out.description = src.description || null;
+  if ("kind" in src) out.kind = src.kind === "micros" ? "micros" : "sessions";
+  if ("itemIds" in src) out.itemIds = Array.isArray(src.itemIds) ? src.itemIds : [];
+  if ("status" in src) out.status = src.status;
+  if ("displayOrder" in src && Number.isFinite(Number(src.displayOrder))) {
+    out.displayOrder = Number(src.displayOrder);
+  }
+  if ("publishedAt" in src && src.publishedAt !== "SERVER") {
+    out.publishedAt = src.publishedAt || null;
+  }
+  if ("updatedBy" in src) out.updatedBy = src.updatedBy || null;
+  return out;
+}
+
+function createdId(data, fallback) {
+  const row = asResource(data);
+  if (row?.id) return String(row.id);
+  if (fallback) return String(fallback);
+  throw Object.assign(
+    new Error("The API did not return an id. Nothing was assumed."),
+    { code: "api/invalid-response" }
+  );
+}
+
+export async function listAdminPlaylists(opts) {
+  const data = await paaipeApiRequest(adminPlaylistsPath(), opts);
+  return sortByDisplayOrder(withIds(asList(data, "playlists")));
+}
+
+export async function getAdminPlaylist(id, opts) {
+  const data = await paaipeApiRequest(adminPlaylistPath(id), opts);
+  return asResource(data);
+}
+
+export async function postAdminPlaylist(fields, opts) {
+  const data = await paaipeApiRequest(adminPlaylistsPath(), {
+    method: "POST",
+    body: playlistWritePayload(fields),
+    ...opts,
+  });
+  return createdId(data, fields.id);
+}
+
+export async function patchAdminPlaylist(id, fields, opts) {
+  return paaipeApiRequest(adminPlaylistPath(id), {
+    method: "PATCH",
+    body: playlistWritePayload(fields),
+    ...opts,
+  });
+}
+
+export async function postAdminSession(fields, opts) {
+  const data = await paaipeApiRequest(adminSessionsPath(), {
+    method: "POST",
+    body: learningWritePayload(fields, { kind: "sessions" }),
+    ...opts,
+  });
+  return createdId(data, fields.id);
+}
+
+export async function patchAdminSession(id, fields, opts) {
+  return paaipeApiRequest(adminSessionPath(id), {
+    method: "PATCH",
+    body: learningWritePayload(fields, { kind: "sessions" }),
+    ...opts,
+  });
+}
+
+export async function postAdminMicro(fields, opts) {
+  const data = await paaipeApiRequest(adminMicrosPath(), {
+    method: "POST",
+    body: learningWritePayload(fields, { kind: "micros" }),
+    ...opts,
+  });
+  return createdId(data, fields.id);
+}
+
+export async function patchAdminMicro(id, fields, opts) {
+  return paaipeApiRequest(adminMicroPath(id), {
+    method: "PATCH",
+    body: learningWritePayload(fields, { kind: "micros" }),
+    ...opts,
+  });
 }
 
 export function normalizeRegistration(row, eventHint) {

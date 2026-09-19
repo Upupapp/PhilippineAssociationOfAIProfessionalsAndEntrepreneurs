@@ -17,10 +17,12 @@
  *   GET /v1/playlists?kind=micros|sessions → { playlists: [...] }
  *   GET /v1/playlists/{id}
  *   GET /v1/playlists/{id}/items           → { items: [...] } hydrated
+ *   Bare GET /v1/playlists is 400 — always pass ?kind=
  *
- * Admin Playlist writes are on hold: Clarence did not document admin
- * Learnings CRUD in this cut. save / status / reorder fail honestly.
- * Do not invent admin endpoints. Do not read paaipe_playlists from Firestore.
+ * Admin (Bearer + allow-list). Live-confirmed:
+ *   GET/POST /v1/admin/playlists
+ *   GET/PATCH /v1/admin/playlists/{id}
+ * DELETE / PUT 404 — do not invent them.
  *
  * Archived stays in admin for restore. Publish integrity is enforced
  * here: every itemIds entry must exist and be published==true of that kind
@@ -39,6 +41,10 @@ import {
   listApiPlaylists,
   getApiPlaylist,
   listApiPlaylistItems,
+  listAdminPlaylists,
+  getAdminPlaylist,
+  postAdminPlaylist,
+  patchAdminPlaylist,
 } from "/assets/js/paaipe-api.js";
 
 /** Clarence lock. One constant — this is the collection name. */
@@ -117,10 +123,23 @@ export function playlistForItem(playlists, itemId) {
   ).find(p => normalizeItemIds(p.itemIds).includes(id)) || null;
 }
 
-export async function listPlaylists({ asAdmin = false, kind = null } = {}) {
-  // Public API is published-only. Admin list is not a documented route.
-  void asAdmin;
-  return listPublishedPlaylists(kind);
+async function bearerToken(opts = {}) {
+  if (opts.token) return opts.token;
+  const { idTokenForRequest } = await import("/assets/js/paaipe-firebase.js");
+  const token = await idTokenForRequest();
+  if (!token) {
+    throw Object.assign(new Error("You need to be signed in."), { code: "not-signed-in" });
+  }
+  return token;
+}
+
+export async function listPlaylists({ asAdmin = false, kind = null, token } = {}) {
+  if (!asAdmin) return listPublishedPlaylists(kind);
+  let rows = await listAdminPlaylists({ token: await bearerToken({ token }) });
+  if (kind === PLAYLIST_KIND.SESSIONS || kind === PLAYLIST_KIND.MICROS) {
+    rows = rows.filter(r => r.kind === kind);
+  }
+  return sortByOrder(rows);
 }
 
 export async function listPublishedPlaylists(kind) {
@@ -130,10 +149,13 @@ export async function listPublishedPlaylists(kind) {
   return sortByOrder(await listApiPlaylists(filter));
 }
 
-export async function getPlaylist(id) {
+export async function getPlaylist(id, { asAdmin = false, token } = {}) {
   const safe = String(id || "").trim();
   if (!safe) return null;
   try {
+    if (asAdmin) {
+      return await getAdminPlaylist(safe, { token: await bearerToken({ token }) });
+    }
     return await getApiPlaylist(safe);
   } catch (err) {
     if (err && (err.status === 404 || err.code === "api/not-found")) return null;
@@ -218,33 +240,34 @@ export function buildPlaylistPayload(input, { actor, existing = null } = {}) {
   };
 }
 
-function adminPlaylistWriteHold() {
-  throw Object.assign(
-    new Error("Admin Playlist writes are not on api.paaipe.org yet. Nothing was saved."),
-    { code: "api/not-wired" }
-  );
-}
-
-export async function savePlaylist(id, input, { actor } = {}) {
-  const existing = id ? await getPlaylist(id) : null;
+export async function savePlaylist(id, input, { actor, token } = {}) {
+  const existing = id ? await getPlaylist(id, { asAdmin: true, token }) : null;
   const payload = buildPlaylistPayload(input, { actor, existing });
   if (payload.status === PLAYLIST_STATUS.PUBLISHED) {
     await assertPlaylistItemsPublishable(payload.kind, payload.itemIds);
   }
-  void payload;
-  adminPlaylistWriteHold();
+  delete payload._stampPublishedAt;
+  const tok = await bearerToken({ token });
+  const body = { ...payload, ...(id ? { id } : {}) };
+  if (!id) return postAdminPlaylist(body, { token: tok });
+  await patchAdminPlaylist(id, body, { token: tok });
+  return id;
 }
 
-export async function setPlaylistStatus(id, status, { actor } = {}) {
-  const existing = await getPlaylist(id);
+export async function setPlaylistStatus(id, status, { actor, token } = {}) {
+  const existing = await getPlaylist(id, { asAdmin: true, token });
   if (!existing) {
     throw Object.assign(new Error("That Playlist was not found."), { code: "not-found" });
   }
-  return savePlaylist(id, { ...existing, status }, { actor });
+  return savePlaylist(id, { ...existing, status }, { actor, token });
 }
 
-export async function reorderPlaylists(_orderedIds, { actor } = {}) {
-  void _orderedIds;
-  void actor;
-  adminPlaylistWriteHold();
+export async function reorderPlaylists(orderedIds, { actor, token } = {}) {
+  const tok = await bearerToken({ token });
+  for (let i = 0; i < orderedIds.length; i++) {
+    await patchAdminPlaylist(orderedIds[i], {
+      displayOrder: i + 1,
+      updatedBy: actor || null,
+    }, { token: tok });
+  }
 }

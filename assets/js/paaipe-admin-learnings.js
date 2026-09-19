@@ -2,7 +2,8 @@
  *
  * Top-nav CONTENT · Learnings. Not event Media banners. Sessions = 16:9,
  * Micros = 9:16. Playlists group published items of one kind (Clarence lock:
- * paaipe_playlists). Sessions/Micros publish and reorder are unchanged.
+ * itemIds). Reads/writes go to api.paaipe.org. Sessions/Micros publish and
+ * reorder chrome is unchanged.
  *
  * YouTube-first. File upload POSTs to media.paaipe.org (kind=session|micro)
  * and stores the returned path as storagePath. Poster is kind=poster.
@@ -52,6 +53,19 @@ function flash(msg, good = false) {
   el.classList.toggle("ok", !!good);
 }
 
+function writeError(ex) {
+  if (ex?.code === "api/forbidden" || ex?.status === 403) {
+    return "The API refused that change. Your account may not be on the admin allow-list.";
+  }
+  if (ex?.code === "not-signed-in" || ex?.code === "api/unauthorized" || ex?.status === 401) {
+    return "Sign-in expired or missing. Nothing was changed.";
+  }
+  if (ex?.code === "permission-denied") {
+    return "The rules refused that change. Your account may no longer be an administrator.";
+  }
+  return ex?.message || String(ex);
+}
+
 function kindLabel(k = KIND) {
   return k === "micros" ? "Micro" : "Session";
 }
@@ -60,6 +74,7 @@ function when(ts) {
   const d = ts?.toDate ? ts.toDate()
           : ts instanceof Date ? ts
           : Number.isFinite(ts?.seconds) ? new Date(ts.seconds * 1000)
+          : (typeof ts === "string" || typeof ts === "number") ? new Date(ts)
           : null;
   if (!d || isNaN(d)) return "";
   return d.toLocaleDateString("en-PH", { day: "numeric", month: "short", year: "numeric" });
@@ -373,9 +388,7 @@ async function savePlaylistFromEditor() {
     closeEditor();
   } catch (ex) {
     btns.forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that change. Your account may no longer be an administrator."
-      : (ex?.message || String(ex)));
+    flash(writeError(ex));
   }
 }
 
@@ -395,9 +408,7 @@ async function archiveOrRestorePlaylist(id, nextStatus) {
       ? `Archived “${title}”. Restore any time from this tab.`
       : `Restored “${title}” as a draft.`, true);
   } catch (ex) {
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that change."
-      : (ex?.message || String(ex)));
+    flash(writeError(ex));
   }
 }
 
@@ -447,9 +458,7 @@ function wirePlaylistDrag(body) {
       await reorderPlaylists(ids, { actor: ME });
       flash("Playlist order updated — portal Learnings will follow this sequence.", true);
     } catch (ex) {
-      flash(ex?.code === "permission-denied"
-        ? "The rules refused the reorder."
-        : `Could not save order: ${ex?.message || ex}`);
+      flash(writeError(ex));
       await reloadPlaylists();
     }
   });
@@ -713,9 +722,7 @@ async function saveFromEditor() {
     void savedId;
   } catch (ex) {
     btns.forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that change. Your account may no longer be an administrator."
-      : (ex?.message || String(ex)));
+    flash(writeError(ex));
   }
 }
 
@@ -731,9 +738,7 @@ async function removeRow(kind, id) {
     await reload(kind);
     flash(`Removed “${title}”.`, true);
   } catch (ex) {
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused to remove that."
-      : `Could not remove: ${ex?.message || ex}`);
+    flash(writeError(ex));
   }
 }
 
@@ -784,9 +789,7 @@ function wireDrag(body) {
       await reorderLearnings(kind, ids, { actor: ME });
       flash("Order updated — portal Learnings will follow this sequence.", true);
     } catch (ex) {
-      flash(ex?.code === "permission-denied"
-        ? "The rules refused the reorder."
-        : `Could not save order: ${ex?.message || ex}`);
+      flash(writeError(ex));
       await reload(kind);
     }
   });

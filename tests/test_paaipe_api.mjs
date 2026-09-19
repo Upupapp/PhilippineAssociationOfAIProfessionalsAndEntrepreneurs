@@ -130,6 +130,14 @@ await T("contract paths are exact — admin + public library", () => {
      "/v1/playlists/v55ktOv1GGmUhecYo4L8", "playlist id");
   eq(api.playlistItemsPath("v55ktOv1GGmUhecYo4L8"),
      "/v1/playlists/v55ktOv1GGmUhecYo4L8/items", "playlist items");
+  eq(api.adminPlaylistsPath(), "/v1/admin/playlists", "admin playlists");
+  eq(api.adminPlaylistPath("v55ktOv1GGmUhecYo4L8"),
+     "/v1/admin/playlists/v55ktOv1GGmUhecYo4L8", "admin playlist id");
+  eq(api.adminSessionsPath(), "/v1/admin/sessions", "admin sessions POST");
+  eq(api.adminSessionPath("2026-09-presentation"),
+     "/v1/admin/sessions/2026-09-presentation", "admin session PATCH");
+  eq(api.adminMicrosPath(), "/v1/admin/micros", "admin micros POST");
+  eq(api.adminMicroPath("micro-1"), "/v1/admin/micros/micro-1", "admin micro PATCH");
   let threw = false;
   try { api.playlistsPath(); }
   catch (e) { threw = true; eq(e.code, "api/bad-kind", "kind required"); }
@@ -359,10 +367,71 @@ await T("admin JS hard-cuts Settings + Registrations off Firestore", () => {
      "list page must not call the Firestore helpers");
 });
 
-await T("portal data modules hard-cut published reads off Firestore", () => {
+await T("admin Learnings POST/PATCH send Bearer and camelCase only", async () => {
+  const hits = [];
+  const fetchImpl = async (url, opts) => {
+    hits.push({ url, opts });
+    return new Response(JSON.stringify({ id: "new-1", title: "T" }), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+  };
+  const created = await api.postAdminSession({
+    title: "Part 1",
+    source: "youtube",
+    youtubeUrl: "https://www.youtube.com/watch?v=ePw_wlPqYUk",
+    youtubeId: "ePw_wlPqYUk",
+    published: true,
+    displayOrder: 1,
+    updatedBy: "paul@moveup.app",
+    createdAt: "must-not-go",
+  }, { token: "tok-admin", fetchImpl });
+  eq(created, "new-1", "create id");
+  eq(hits[0].url, "https://api.paaipe.org/v1/admin/sessions", "POST sessions");
+  eq(hits[0].opts.method, "POST", "method");
+  eq(hits[0].opts.headers.Authorization, "Bearer tok-admin", "Bearer");
+  const body = JSON.parse(hits[0].opts.body);
+  eq(body.youtubeId, "ePw_wlPqYUk", "youtubeId");
+  eq(body.aspect, "16:9", "session aspect");
+  ok(!("createdAt" in body), "no invented createdAt");
+
+  await api.patchAdminMicro("micro-1", {
+    title: "Signals vs noise",
+    published: true,
+    displayOrder: 2,
+  }, { token: "tok-admin", fetchImpl });
+  eq(hits[1].url, "https://api.paaipe.org/v1/admin/micros/micro-1", "PATCH micro");
+  eq(hits[1].opts.method, "PATCH", "patch method");
+  eq(JSON.parse(hits[1].opts.body).aspect, "9:16", "micro aspect");
+
+  await api.postAdminPlaylist({
+    title: "From Signals to Strategy",
+    kind: "micros",
+    itemIds: ["micro-1"],
+    status: "published",
+    displayOrder: 1,
+  }, { token: "tok", fetchImpl });
+  eq(hits[2].url, "https://api.paaipe.org/v1/admin/playlists", "POST playlist");
+  eq(JSON.parse(hits[2].opts.body).itemIds[0], "micro-1", "itemIds");
+
+  const listed = await api.listAdminPlaylists({
+    token: "tok",
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, opts });
+      return new Response(JSON.stringify({ playlists: [LIVE_PLAYLIST] }), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  eq(listed[0].id, "v55ktOv1GGmUhecYo4L8", "admin list");
+  eq(hits[3].url, "https://api.paaipe.org/v1/admin/playlists", "GET admin playlists");
+  eq(hits[3].opts.headers.Authorization, "Bearer tok", "admin list Bearer");
+});
+
+await T("portal + admin data modules hard-cut off Firestore", () => {
   const learn = read("assets/js/paaipe-learnings-data.js");
   const pl = read("assets/js/paaipe-playlists-data.js");
   const view = read("assets/js/paaipe-session-view.js");
+  const admin = read("assets/js/paaipe-admin-learnings.js");
   const pubLearn = learn.slice(
     learn.indexOf("export async function listPublishedSessions"),
     learn.indexOf("export function buildLearningPayload")
@@ -371,9 +440,15 @@ await T("portal data modules hard-cut published reads off Firestore", () => {
   ok(/listApiMicros/.test(pubLearn), "listPublishedMicros → API");
   ok(/getApiSession|getApiMicro/.test(pubLearn), "getLearning → API");
   ok(!/getDocs|getDoc/.test(pubLearn), "published get/list must not call Firestore");
+  ok(!/firebase-firestore/.test(learn), "learnings-data has no Firestore");
+  ok(/postAdminSession|patchAdminSession/.test(learn), "session writes use admin API");
+  ok(/postAdminMicro|patchAdminMicro/.test(learn), "micro writes use admin API");
   ok(!/firebase-firestore/.test(pl), "playlists-data has no Firestore");
+  ok(/listAdminPlaylists/.test(pl) && /postAdminPlaylist/.test(pl), "playlist admin API");
   ok(/listPublishedPlaylists/.test(view), "hub fetches playlists");
   ok(/function loadOne/.test(view), "hub isolates fetches");
+  ok(/listLearnings|saveLearning|savePlaylist/.test(admin), "admin chrome still uses data modules");
+  ok(!/firebase-firestore/.test(admin), "admin learnings JS has no Firestore");
 });
 
 const REAL_FB = read("assets/js/paaipe-firebase.js");

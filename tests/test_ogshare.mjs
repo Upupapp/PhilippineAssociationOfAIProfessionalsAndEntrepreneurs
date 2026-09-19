@@ -12,7 +12,7 @@ const OG='https://paaipe.org/assets/img/ai-exchange-2026-10-og.png';
 const GENERIC='https://paaipe.org/assets/img/paaipe-share-banner.png';
 const ALT='PAAIPE AI Exchange — October 13, 2026 · Online';
 const PAGES=['event-2026-10-ai-exchange.html','register-2026-10-ai-exchange.html'];
-const OTHERS=['index.html','events.html','event-2026-09-ai-exchange.html','event-2026-11-ai-exchange.html','event-2026-12-ai-exchange.html'];
+const OTHERS=['index.html','events.html','event-2026-09-ai-exchange.html','event-2026-11-ai-exchange.html','event-2026-12-ai-exchange.html','register-2026-11-ai-exchange.html','register-2026-12-ai-exchange.html'];
 
 function meta(html, attr, name){
   const re=new RegExp(`<meta ${attr}="${name}" content="([^"]*)"`);

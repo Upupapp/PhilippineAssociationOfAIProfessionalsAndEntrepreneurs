@@ -272,6 +272,34 @@ await T('the deferred focus cannot steal a field somebody is already typing in',
 
 /* ------------------------------------------------------- the success page */
 
+await T('November and December register pages clone October with only identity swapped',()=>{
+  for(const [file,id,title,date] of [
+    ['register-2026-11-ai-exchange.html','2026-11-ai-exchange','PAAIPE AI Exchange — November 2026','Tuesday, November 10, 2026'],
+    ['register-2026-12-ai-exchange.html','2026-12-ai-exchange','PAAIPE AI Exchange — December 2026','Tuesday, December 8, 2026'],
+  ]){
+    const html=readFileSync(`${ROOT}/${file}`,'utf8');
+    ok(html.includes(`name="event_id" value="${id}"`),`${file} event_id`);
+    ok(html.includes(`name="event" value="${title}"`),`${file} event title`);
+    ok(html.includes(date),`${file} date`);
+    ok(/location\.href='register-success\.html'/.test(html),`${file} same success redirect`);
+    ok(/fb\.submitRegistration/.test(html),`${file} same submit path`);
+    ok(!/2026-10-ai-exchange/.test(html),`${file} must not keep October id`);
+  }
+});
+
+await T('November and December event pages host a live Register now like October',()=>{
+  for(const [file,reg] of [
+    ['event-2026-11-ai-exchange.html','register-2026-11-ai-exchange.html'],
+    ['event-2026-12-ai-exchange.html','register-2026-12-ai-exchange.html'],
+  ]){
+    const html=readFileSync(`${ROOT}/${file}`,'utf8');
+    ok(html.includes(`data-register-href="${reg}"`),`${file} href attribute`);
+    ok(html.includes(`<a class="btn btn-gold" href="${reg}">Register now</a>`),`${file} live link`);
+    ok(html.includes('Free to register. Your join link is sent by email after you register.'),`${file} note`);
+    ok(!/Registration opens soon/.test(html),`${file} opens soon is gone`);
+  }
+});
+
 await T('the success page does not promise mail PAAIPE cannot send',()=>{
   const s=readFileSync(`${ROOT}/register-success.html`,'utf8');
   ok(/Check your email/i.test(s),'it does currently tell them to check their email');

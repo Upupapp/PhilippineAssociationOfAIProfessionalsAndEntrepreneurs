@@ -72,15 +72,16 @@ async function openPortal(){
   return p;
 }
 
-await T('clicking November Register leaves the hash stub and opens that event',async()=>{
+await T('clicking November Register leaves the hash stub and opens that form',async()=>{
   const p=await openPortal();
   const a=p.locator('.row',{hasText:'November 2026'}).locator('a',{hasText:'Register'});
   ok(await a.count(),'November Register is on the page');
   const href=await a.getAttribute('href');
   ok(href && href!=='#',`href was ${href}`);
-  await Promise.all([p.waitForURL(/event-2026-11-ai-exchange/,{timeout:9000}), a.click()]);
-  ok(/event-2026-11-ai-exchange/.test(p.url()),`landed on ${p.url()}`);
-  ok(await p.locator('[data-register-cta]').count(),'event page hosts the real registration CTA');
+  await Promise.all([p.waitForURL(/register-2026-11-ai-exchange/,{timeout:9000}), a.click()]);
+  ok(/register-2026-11-ai-exchange/.test(p.url()),`landed on ${p.url()}`);
+  ok(await p.locator('#reg').count(),'the October-style register form');
+  eq(await p.locator('[name="event_id"]').inputValue(),'2026-11-ai-exchange','November event id');
   await p.close();
 });
 

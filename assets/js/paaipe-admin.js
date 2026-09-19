@@ -180,6 +180,10 @@ export function renderAdminNav(current) {
   Object.entries(BADGES).forEach(([k, n]) => setNavBadge(k, n));
 }
 
+function adminBurgerHtml() {
+  return `<button type="button" class="aburger" data-admin-burger aria-label="Menu" aria-expanded="false" aria-controls="admin-aside"><span></span></button>`;
+}
+
 /** The topbar: page title, subtitle, search and the bell. One renderer, because
  *  five pages pasting the same header is five places for it to drift.
  *
@@ -190,6 +194,7 @@ export function renderAdminTop({ title, subtitle = "", email = "" }) {
   const host = document.querySelector("[data-admin-top]");
   if (!host) return;
   host.innerHTML = `
+    ${adminBurgerHtml()}
     <div class="ttl"><h1>${esc(title)}</h1>${subtitle ? `<p>${esc(subtitle)}</p>` : ""}</div>
     <div class="tools">
       <label class="search" title="Search is not built yet — there is no index to search.">
@@ -200,6 +205,111 @@ export function renderAdminTop({ title, subtitle = "", email = "" }) {
       <span class="who">Signed in as <b data-admin-email>${esc(email)}</b>
         <a href="#" data-admin-signout>Sign out</a></span>
     </div>`;
+  wireAdminAside();
+}
+
+/** Stamp thead labels onto tbody cells so phone card-rows can show them. */
+export function stampAdminTableLabels(root = document) {
+  root.querySelectorAll(".tbl table").forEach(table => {
+    const labels = [...table.querySelectorAll("thead th")].map(th =>
+      (th.textContent || "").replace(/\s+/g, " ").trim());
+    table.querySelectorAll("tbody tr").forEach(tr => {
+      const cells = [...tr.children];
+      if (cells.some(td => td.hasAttribute("colspan"))) {
+        cells.forEach(td => td.removeAttribute("data-label"));
+        return;
+      }
+      cells.forEach((td, i) => {
+        if (labels[i]) td.setAttribute("data-label", labels[i]);
+        else td.removeAttribute("data-label");
+      });
+    });
+  });
+}
+
+function watchAdminTables() {
+  if (watchAdminTables.bound || !document.body) return;
+  watchAdminTables.bound = true;
+  stampAdminTableLabels();
+  const mo = new MutationObserver(() => stampAdminTableLabels());
+  mo.observe(document.body, { childList: true, subtree: true });
+}
+
+function isAsideOpen() {
+  return document.body.classList.contains("aside-open");
+}
+
+export function setAdminAsideOpen(open) {
+  const next = !!open;
+  document.body.classList.toggle("aside-open", next);
+  document.body.classList.toggle("aside-lock", next);
+  document.querySelectorAll("[data-admin-burger]").forEach(btn => {
+    btn.setAttribute("aria-expanded", next ? "true" : "false");
+    btn.setAttribute("aria-label", next ? "Close menu" : "Menu");
+  });
+  const backdrop = document.querySelector("[data-aside-backdrop]");
+  if (backdrop) backdrop.hidden = !next;
+  if (next) {
+    const focusable = document.querySelector(".aside a, .aside button");
+    try { focusable?.focus({ preventScroll: true }); } catch { focusable?.focus(); }
+  }
+}
+
+/** Off-canvas admin rail ≤900. Hamburger, backdrop, Esc. Desktop rail unchanged. */
+export function wireAdminAside() {
+  const aside = document.querySelector(".aside");
+  if (!aside) return;
+  if (!aside.id) aside.id = "admin-aside";
+
+  let burger = document.querySelector("[data-admin-burger]");
+  if (!burger) {
+    const top = document.querySelector("[data-admin-top], .top");
+    if (top) {
+      top.insertAdjacentHTML("afterbegin", adminBurgerHtml());
+      burger = top.querySelector("[data-admin-burger]");
+    }
+  }
+
+  let backdrop = document.querySelector("[data-aside-backdrop]");
+  if (!backdrop) {
+    backdrop = document.createElement("button");
+    backdrop.type = "button";
+    backdrop.className = "aside-backdrop";
+    backdrop.setAttribute("data-aside-backdrop", "");
+    backdrop.setAttribute("aria-label", "Close menu");
+    backdrop.hidden = true;
+    document.body.appendChild(backdrop);
+  }
+
+  watchAdminTables();
+  if (wireAdminAside.bound) return;
+  wireAdminAside.bound = true;
+
+  document.addEventListener("click", e => {
+    if (e.target.closest("[data-admin-burger]")) {
+      e.preventDefault();
+      setAdminAsideOpen(!isAsideOpen());
+      return;
+    }
+    if (e.target.closest("[data-aside-backdrop]")) {
+      setAdminAsideOpen(false);
+      document.querySelector("[data-admin-burger]")?.focus();
+      return;
+    }
+    if (isAsideOpen() && e.target.closest(".aside a")) setAdminAsideOpen(false);
+  });
+
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && isAsideOpen()) {
+      e.preventDefault();
+      setAdminAsideOpen(false);
+      document.querySelector("[data-admin-burger]")?.focus();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900 && isAsideOpen()) setAdminAsideOpen(false);
+  });
 }
 
 /** Breadcrumbs. Each entry is [label, href] or just a label for the last one. */
@@ -683,5 +793,6 @@ async function boot() {
   await openConsole();
 }
 
+wireAdminAside();
 wireDoor();
 boot();

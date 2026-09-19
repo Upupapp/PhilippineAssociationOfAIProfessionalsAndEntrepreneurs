@@ -59,6 +59,9 @@ await T("Clarence lock: collection and field names are exact", () => {
   }
   ok(src.includes('"sessions"') && src.includes('"micros"'), "kind enum");
   ok(src.includes('"draft"') && src.includes('"published"') && src.includes('"archived"'), "status enum");
+  ok(src.includes("assertPlaylistItemsPublishable"), "publish integrity helper");
+  ok(src.includes("await assertPlaylistItemsPublishable(payload.kind, payload.itemIds)"),
+    "publish check runs before save");
 });
 
 await T("UI copy says Playlist, not collection/series/channel", () => {
@@ -117,6 +120,7 @@ await T("firestore.rules cover paaipe_playlists without touching sessions/micros
   ok(r.includes("isWellFormedLearning"), "learning validator kept");
   ok(/status in \['draft', 'published', 'archived'\]/.test(r), "status enum");
   ok(/kind in \['sessions', 'micros'\]/.test(r), "kind enum");
+  ok(r.includes("!('playlistId' in d.keys())"), "Session/Micro writes refuse playlistId");
   ok(!/admin-contacts/.test(r), "rules file is not contacts");
 });
 

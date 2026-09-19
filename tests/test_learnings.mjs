@@ -134,6 +134,46 @@ await T("mediaPlaybackUrl prefixes relative storagePath only", async () => {
   eq(fn("   "), "", "blank");
 });
 
+await T("isUploadPlayable needs a real storagePath; empty copy is source-agnostic", async () => {
+  const src = read("assets/js/paaipe-session-view.js");
+  ok(src.includes("This item has no playable source yet."), "honest empty copy");
+  ok(!/no playable YouTube source/i.test(src), "no YouTube-only empty copy");
+  ok(!/YouTube source yet/i.test(src), "no YouTube-only wording");
+  const start = src.indexOf("function mediaPlaybackUrl");
+  const end = src.indexOf("function youtubeIdOf");
+  ok(start >= 0 && end > start, "found playable-upload helpers");
+  const { mediaPlaybackUrl, isUploadPlayable } = new Function(
+    `${src.slice(start, end)}; return { mediaPlaybackUrl, isUploadPlayable };`
+  )();
+  ok(!isUploadPlayable({ source: "upload", storagePath: null }), "null path is not playable");
+  ok(!isUploadPlayable({ source: "upload", storagePath: "" }), "empty path is not playable");
+  ok(!isUploadPlayable({ source: "upload" }), "missing path is not invented");
+  ok(isUploadPlayable({ source: "upload", storagePath: "micros/a.mp4" }), "relative path");
+  ok(isUploadPlayable({ storagePath: "https://media.paaipe.org/m.mp4" }),
+    "absolute media URL is playable even without source");
+  eq(mediaPlaybackUrl(null), "", "null storagePath yields no URL");
+});
+
+await T("YouTube path accepts youtubeId or youtubeUrl", async () => {
+  const view = read("assets/js/paaipe-session-view.js");
+  const learn = read("assets/js/paaipe-learnings-data.js");
+  const yStart = learn.indexOf("export function youtubeIdFromUrl");
+  const yEnd = learn.indexOf("export function youtubeWatchUrl");
+  const vStart = view.indexOf("function youtubeIdOf");
+  const vEnd = view.indexOf("function destroyEmbed");
+  ok(yStart >= 0 && yEnd > yStart && vStart >= 0 && vEnd > vStart, "found YouTube helpers");
+  const ySrc = learn.slice(yStart, yEnd).replace("export function", "function");
+  const { youtubeIdOf, isYoutubePlayable } = new Function(
+    `${ySrc}; ${view.slice(vStart, vEnd)}; return { youtubeIdOf, isYoutubePlayable };`
+  )();
+  ok(isYoutubePlayable({ youtubeId: "ePw_wlPqYUk" }), "id");
+  ok(isYoutubePlayable({ youtubeUrl: "https://youtu.be/0PkiRVczWdQ" }), "url without id");
+  ok(!isYoutubePlayable({ source: "youtube" }), "source alone is not a playable source");
+  ok(!isYoutubePlayable({ youtubeUrl: "" }), "empty url");
+  eq(youtubeIdOf({ youtubeUrl: "https://www.youtube.com/watch?v=ePw_wlPqYUk" }),
+    "ePw_wlPqYUk", "derive id from url");
+});
+
 await T("youtubeEmbedSrc locks member chrome (no share, no kb, no fs)", async () => {
   const src = read("assets/js/paaipe-learnings-data.js");
   const start = src.indexOf("export function youtubeEmbedSrc");
@@ -422,6 +462,47 @@ await T("uploaded micro plays via native video on media.paaipe.org", async () =>
   eq(await video.getAttribute("src"), "https://media.paaipe.org/micro/m-up.mp4", "popup video src");
   ok(await video.evaluate(el => el.hasAttribute("controls")), "controls");
   ok(await video.evaluate(el => el.hasAttribute("playsinline") || el.playsInline), "playsinline");
+  await ctx.close();
+});
+
+await T("upload with null storagePath is honest empty, not YouTube-only wording", async () => {
+  const micro = {
+    id: "m-null",
+    title: "Pending upload",
+    source: "upload",
+    storagePath: null,
+    published: true,
+    displayOrder: 1,
+  };
+  const playlist = {
+    id: "pl-pending",
+    title: "Pending micros",
+    kind: "micros",
+    itemIds: ["m-null"],
+    status: "published",
+    displayOrder: 1,
+  };
+  const { p, ctx } = await openHub({
+    sessions: SESSIONS,
+    micros: [micro],
+    playlists: [playlist],
+  });
+  await p.locator('[data-ss-hub-tab="micros"]').click();
+  eq(await p.locator(".micro-card").count(), 1, "card still listed");
+  eq(await p.locator(".micro-card [data-ss-open-player]").count(), 0, "no play affordance");
+  ok((await p.locator(".micro-card").innerText()).includes("This item has no playable source yet."),
+    "source-agnostic empty on Micros");
+  ok(!(await p.locator(".micro-card").innerText()).includes("YouTube source"),
+    "not YouTube-only on Micros");
+  await p.locator('[data-ss-hub-tab="playlists"]').click();
+  await p.locator("[data-ss-open-playlist]").click();
+  await p.waitForSelector('[data-ss-hub-panel="playlists"] .micro-card', { timeout: 5000 });
+  const item = p.locator('[data-ss-hub-panel="playlists"] .micro-card');
+  ok((await item.innerText()).includes("This item has no playable source yet."),
+    "playlist item same copy");
+  ok(!(await item.innerText()).includes("YouTube source"), "not YouTube-only in playlist");
+  eq(await p.locator('[data-ss-hub-panel="playlists"] [data-ss-open-player]').count(), 0,
+    "playlist item has no play");
   await ctx.close();
 });
 

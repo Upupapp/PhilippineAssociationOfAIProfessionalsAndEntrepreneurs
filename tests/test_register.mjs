@@ -425,11 +425,26 @@ await T('helpers map the portal hint onto Event Details and leave the public bac
   eq(r.back,'portal-events.html#event=2026-12-ai-exchange','#37 Event Details');
   eq(url.page,'portal-events.html','PAGE is the live list');
   eq(url.idKey,'event','ID_KEY is #event=');
-  eq(url.form,'hash','FORM is hash until Ericson lands query');
+  eq(url.form,'hash','FORM is the unlocked #37/#43 Event Details hash');
   eq(url.href,r.back,'Register Back and the URL helper are the same address');
   eq(url.hrefFb,'portal-events.html#event=2026-09-ai-exchange&tab=feedback','tab stays on #37');
   ok(!existsSync(`${ROOT}/portal-event.html`),
-     'do not invent the dedicated page on this PR');
+     'do not invent the dedicated page — use it only if another agent ships it');
+  const dedicated=await p.evaluate(async()=>{
+    const u=await import('/assets/js/paaipe-portal-event-url.js');
+    globalThis.PAAIPE_PORTAL_EVENT_PAGE=true;
+    const href=u.portalEventDetailHref('2026-11-ai-exchange');
+    globalThis.PAAIPE_PORTAL_EVENT_PAGE=false;
+    const live=u.portalEventDetailHref('2026-11-ai-exchange');
+    return {href,live,
+      dedicatedPage:u.PORTAL_EVENT_DETAIL_DEDICATED.PAGE,
+      dedicatedKey:u.PORTAL_EVENT_DETAIL_DEDICATED.ID_KEY};
+  });
+  eq(dedicated.href,'portal-event.html?id=2026-11-ai-exchange',
+     'dedicated form when that page is chosen');
+  eq(dedicated.live,'portal-events.html#event=2026-11-ai-exchange','back to #37');
+  eq(dedicated.dedicatedPage,'portal-event.html','documented dedicated page');
+  eq(dedicated.dedicatedKey,'id','documented dedicated id key');
   await p.close();
 });
 

@@ -6,17 +6,18 @@
  * a blank form. Nothing here forces a sign-in.
  *
  * PORTAL BACK IS DETERMINISTIC. Portal Register CTAs pass ?from=portal&event=
- * so "Back to the event" can land on portalEventDetailHref(id) — today the
- * #37 Event Details view (portal-events.html#event=<id>). When Ericson lands
- * a dedicated page, that helper is the one swap. Without the portal hint the
- * public event page stays the back target, including a signed-in Agent who
- * arrived from the public site.
+ * so "Back to the event" lands on portal Event Details via
+ * portalEventDetailHref(id): live #37/#43 is portal-events.html#event=<id>,
+ * or portal-event.html?id=<id> only if that page is actually shipped.
+ * Without the portal hint the public event page stays the back target,
+ * including a signed-in Agent who arrived from the public site.
  *
  * Readonly, never disabled: a disabled field is dropped from FormData, and
  * the write would then go out without the account email.
  */
 import { currentAgent } from "/assets/js/paaipe-firebase.js";
-import { portalEventDetailHref } from "/assets/js/paaipe-portal-event-url.js";
+import { adoptDedicatedPortalEventPageIfPresent, portalEventDetailHref }
+  from "/assets/js/paaipe-portal-event-url.js";
 
 function queryOf(search = location.search) {
   return new URLSearchParams(String(search || "").replace(/^\?/, ""));
@@ -103,6 +104,9 @@ export function applyRegisterBackLink(root, { fromPortal, eventId } = {}) {
   const eventId = eventIdFromRegisterPage(document, location.search);
   applyRegisterBackLink(document, { fromPortal, eventId });
   document.documentElement.setAttribute("data-register-from", fromPortal ? "portal" : "public");
+  if (fromPortal && await adoptDedicatedPortalEventPageIfPresent()) {
+    applyRegisterBackLink(document, { fromPortal, eventId });
+  }
   let agent = null;
   try { agent = await currentAgent(); }
   catch { agent = null; }

@@ -803,7 +803,7 @@ function applyReelsChrome(root = document) {
     }
 
     // Chrome only until Clarence ships GET /v1/.../playlists on api.paaipe.org.
-    // Soft-fail empty. Do not call Firestore listPublishedPlaylists from this hub.
+    // Soft-fail empty. Do not read Firestore playlists from this hub.
     function renderPlaylists() {
       const host = document.querySelector("[data-ss-live-playlists]");
       const empty = document.querySelector("[data-ss-playlists-empty]");

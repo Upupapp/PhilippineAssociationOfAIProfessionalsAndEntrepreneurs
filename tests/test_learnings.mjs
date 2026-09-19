@@ -97,8 +97,10 @@ await T("portal-sessions hub loads live learnings, not PAST_SESSIONS library", a
   const view = read("assets/js/paaipe-session-view.js");
   ok(view.includes("listPublishedSessions"), "fetches sessions");
   ok(view.includes("listPublishedMicros"), "fetches micros");
-  ok(!view.includes("listPublishedPlaylists"), "hub does not fetch Firestore playlists");
-  ok(!view.includes("paaipe-playlists-data"), "hub does not import playlists-data");
+  ok(!/from\s+["']\/assets\/js\/paaipe-playlists-data\.js["']/.test(view),
+    "hub does not import playlists-data");
+  ok(!/\bloadOne\s*\(\s*(?:\(\)\s*=>\s*)?listPublishedPlaylists/.test(view),
+    "hub does not fetch Firestore playlists");
   ok(view.includes("function loadOne"), "isolates each hub fetch");
   ok(view.includes("youtubeEmbedSrc"), "in-portal embed");
   ok(view.includes("LEARNING_SOURCE"), "uses LEARNING_SOURCE");

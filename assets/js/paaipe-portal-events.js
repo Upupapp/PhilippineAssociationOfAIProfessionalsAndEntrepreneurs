@@ -404,23 +404,28 @@ function certificateChecklist({ registered, submitted, submittedLabel, ev, win }
   </ul>`;
 }
 
-function certActions({ ready, openFeedbackHref }) {
-  const dl = `<button type="button" class="btn btn-gold btn-sm" data-cert-download disabled
+function certActions({ ready, openFeedbackHref, registerHref }) {
+  const dlClass = ready ? "btn btn-gold btn-sm" : "btn btn-ghost btn-sm";
+  const dl = `<button type="button" class="${dlClass}" data-cert-download disabled
     title="Certificate download is not wired yet. Clarence’s certificate APIs are upcoming.">Download PDF</button>`;
   const em = `<button type="button" class="btn btn-ghost btn-sm" data-cert-email disabled
     title="Certificate email is not wired yet. Clarence’s certificate APIs are upcoming.">Email me the certificate</button>`;
+  const reg = registerHref
+    ? `<a class="btn btn-gold btn-sm" href="${esc(registerHref)}">Register</a>`
+    : "";
   const fb = openFeedbackHref
     ? `<a class="btn btn-gold btn-sm" href="${esc(openFeedbackHref)}">Open feedback</a>`
     : "";
   if (ready) return `<div class="ed-acts">${dl}${em}</div>`;
-  return `<div class="ed-acts">${fb}${dl}${em}</div>`;
+  return `<div class="ed-acts">${reg}${fb}${dl}${em}</div>`;
 }
 
 function certificateHtml(ev, state, { registered, submitted, submittedLabel, win }) {
   const ready = state === CERT_STATES.READY || state === CERT_STATES.ISSUED;
-  const openFb = (!submitted && (win.state === "open" || win.state === "locked"))
+  const openFb = (registered && !submitted && win.state !== "closed")
     ? portalEventHref(ev.id, "feedback")
     : "";
+  const registerHref = (!registered && ev.registerHref) ? ev.registerHref : "";
   let statusLabel = "Not ready yet";
   let statusKind = "info";
   let note = "When both are done, we email the certificate automatically and unlock download here — once Clarence’s certificate APIs land. Download and Email me are not wired yet.";
@@ -449,7 +454,7 @@ function certificateHtml(ev, state, { registered, submitted, submittedLabel, win
     <p class="ed-sub">${esc(closeLine)}</p>
     ${certificateChecklist({ registered, submitted, submittedLabel, ev, win })}
     ${preview}
-    ${certActions({ ready, openFeedbackHref: ready ? "" : openFb })}
+    ${certActions({ ready, openFeedbackHref: ready ? "" : openFb, registerHref })}
     <p class="ed-note${ready ? " ok" : ""}">${esc(note)}</p>
   </section>`;
 }
@@ -611,7 +616,7 @@ async function feedbackBody(ev, win, { registered, receipt, row, error }) {
     return `<button type="button" class="btn btn-ghost" disabled>Feedback opens one hour after the session starts</button>`;
   }
   if (win.state === "closed") {
-    return `<p class="ed-sub">After noon the next day the window is closed. New feedback is not accepted.</p>`;
+    return "";
   }
   if (!receipt?.registrationId) {
     return `<p class="ed-sub">We do not have a registration id on this device, so the live Feedback API cannot accept a response from here. If you registered in this browser after the receipt was added, reload and try again.</p>`;

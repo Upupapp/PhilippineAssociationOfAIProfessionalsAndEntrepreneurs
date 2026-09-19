@@ -22,7 +22,7 @@ await T("URL helper and recap markup order", () => {
   ok(html.includes("portal-events.html#event=2026-10-ai-exchange"), "canonical #event=");
   ok(html.includes("portal-events.html#event=2026-09-ai-exchange&amp;tab=feedback"), "feedback deep-link");
   const recap = html.match(/data-ss-recap[\s\S]*?<\/ul>/)[0];
-  const labels = [...recap.matchAll(/<li[^>]*>[\s\S]*?<b>([^<]+)<\/b>/g)].map(m => m[1]);
+  const labels = [...recap.matchAll(/<li[^>]*>[\s\S]*?<b>([^<]+)<\/b>/g)].map(m => m[1].replace(/&amp;/g, "&"));
   const wanted = ["Session recording", "Speaker's slides", "Feedback", "Certificate", "Q&A follow-ups"];
   const present = wanted.filter(w => labels.includes(w));
   eq(present.join("|"), wanted.join("|"), "recap labels present");

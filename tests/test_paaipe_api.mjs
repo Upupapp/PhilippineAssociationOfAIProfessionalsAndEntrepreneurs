@@ -121,6 +121,12 @@ await T("contract paths are exact — admin + public library", () => {
      "/v1/admin/events/2026-10-ai-exchange/content", "event content PATCH");
   eq(api.adminEventDuplicatePath("2026-10-ai-exchange"),
      "/v1/admin/events/2026-10-ai-exchange/duplicate", "event duplicate");
+  eq(api.adminEventCalendarPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/calendar.ics", "admin calendar");
+  eq(api.adminEventEmailsPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/emails", "admin emails");
+  eq(api.eventPath("event-2026-10-ai-exchange"),
+     "/v1/events/event-2026-10-ai-exchange", "public event by slug");
   eq(api.adminEventRegistrationsPath("e-oct"),
      "/v1/admin/events/e-oct/registrations", "event regs");
   eq(api.adminEventRegistrationsPath("e-oct", { status: "attended" }),
@@ -350,6 +356,31 @@ await T("admin event list / create / content / duplicate; public list has no Bea
   eq(pub.length, 1, "public list");
   eq(pub[0].id, "2026-10-ai-exchange", "public id");
   ok(!("Authorization" in (hits[4].opts.headers || {})), "public GET /v1/events has no Bearer");
+
+  const ics = await api.getAdminEventCalendarIcs("2026-10-ai-exchange", {
+    token: "tok-admin",
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, opts: opts || {} });
+      return new Response("BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR\n", {
+        status: 200, headers: { "content-type": "text/calendar" },
+      });
+    },
+  });
+  eq(hits[5].url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange/calendar.ics", "ics url");
+  eq(hits[5].opts.headers.Authorization, "Bearer tok-admin", "ics Bearer");
+  ok(/BEGIN:VCALENDAR/.test(ics), "ics is text, not JSON");
+
+  const one = await api.getApiEventBySlug("event-2026-10-ai-exchange", {
+    fetchImpl: async (url, opts) => {
+      hits.push({ url, opts: opts || {} });
+      return new Response(JSON.stringify(LIVE_ADMIN_EVENT), {
+        status: 200, headers: { "content-type": "application/json" },
+      });
+    },
+  });
+  eq(one.id, "2026-10-ai-exchange", "public slug");
+  eq(hits[6].url, "https://api.paaipe.org/v1/events/event-2026-10-ai-exchange", "slug url");
+  ok(!("Authorization" in (hits[6].opts.headers || {})), "slug GET has no Bearer");
 });
 
 await T("GET registrations + PATCH status; unknown status is refused", async () => {
@@ -523,6 +554,12 @@ await T("401 / 404 / missing token fail honestly and do not invent rows", async 
   catch (e) { eDup = e; }
   ok(eDup && eDup.status === 401, "duplicate 401");
   ok(/nothing was changed/i.test(eDup.message), "duplicate 401 is a write");
+
+  let eIcs;
+  try { await api.getAdminEventCalendarIcs("2026-10-ai-exchange", { token: "x", fetchImpl: fetch401 }); }
+  catch (e) { eIcs = e; }
+  ok(eIcs && eIcs.status === 401, "calendar 401");
+  ok(/sign-in expired or missing/i.test(eIcs.message), "calendar 401 message");
 });
 
 await T("admin JS hard-cuts Settings + Registrations off Firestore", () => {
@@ -548,6 +585,14 @@ await T("admin JS hard-cuts Settings + Registrations off Firestore", () => {
   ok(!/listEvents\(\s*\{\s*asAdmin/.test(ev),
      "workspace must not list Firestore events");
   ok(!/COL\.events/.test(ev), "admin events JS must not touch COL.events");
+  ok(/getAdminEventCalendarIcs/.test(ev), "calendar download uses GET …/calendar.ics");
+  ok(!/function icsFor/.test(ev), "client-built ICS must not remain");
+  const email = read("assets/js/paaipe-event-email.js");
+  ok(/localStorage/.test(email), "email drafts stay in this browser");
+  ok(!/adminEventEmailsPath|\/v1\/admin\/events\/.*\/emails/.test(email),
+     "email tab must not invent an emails* cutover — it never wrote Firestore");
+  ok(!/adminEventEmailsPath/.test(ev),
+     "admin-events does not call emails* (send is still 501)");
   const data = read("assets/js/paaipe-events-data.js");
   const pubList = data.slice(data.indexOf("export async function listEvents"),
                              data.indexOf("export async function getEventBySlug"));

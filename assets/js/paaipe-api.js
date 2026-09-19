@@ -36,11 +36,14 @@
  *
  * Events (Clarence 2026-09-19, live-confirmed):
  *   GET   /v1/events                                → { events }  (public, no Bearer)
+ *   GET   /v1/events/{slug}                         public one event (slug, not id)
  *   GET   /v1/admin/events                          → { events: AdminEvent[] }
  *   POST  /v1/admin/events                          → EventCreate → AdminEvent (201)
  *   PATCH /v1/admin/events/{id}/content             content only
  *   PATCH /v1/admin/events/{id}                     settings only
  *   POST  /v1/admin/events/{id}/duplicate
+ *   GET   /v1/admin/events/{id}/calendar.ics
+ *   GET   /v1/admin/events/{eventId}/emails         exists (401 without Bearer)
  *   GET   /v1/admin/events/{id}/content             404 — PATCH only; do not call
  *   GET   /v1/admin/events/{eventId}/registrations  optional ?status=
  *   GET   /v1/admin/registrations/{id}
@@ -160,6 +163,18 @@ export function adminEventContentPath(id) {
 
 export function adminEventDuplicatePath(id) {
   return `/v1/admin/events/${encodeURIComponent(id)}/duplicate`;
+}
+
+export function adminEventCalendarPath(id) {
+  return `/v1/admin/events/${encodeURIComponent(id)}/calendar.ics`;
+}
+
+export function adminEventEmailsPath(eventId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/emails`;
+}
+
+export function eventPath(slug) {
+  return `/v1/events/${encodeURIComponent(slug)}`;
 }
 
 export function adminEventRegistrationsPath(eventId, { status } = {}) {
@@ -316,6 +331,7 @@ export async function paaipeApiRequest(path, {
   fetchImpl,
   base = PAAIPE_API_BASE,
   auth = "admin",
+  asText = false,
 } = {}) {
   const root = String(base || "").trim().replace(/\/+$/, "");
   if (!root) {
@@ -367,6 +383,7 @@ export async function paaipeApiRequest(path, {
       { code: "api/invalid-response", status: res.status }
     );
   }
+  if (asText) return text || "";
   if (!text) return null;
   try { return JSON.parse(text); }
   catch {
@@ -650,6 +667,15 @@ function requireAdminEvent(data) {
 export async function listApiEvents(opts) {
   const data = await paaipePublicGet(eventsPath(), opts);
   return sortEventsByDate(withIds(asList(data, "events")).map(normalizeAdminEvent).filter(Boolean));
+}
+
+export async function getApiEventBySlug(slug, opts) {
+  const data = await paaipePublicGet(eventPath(slug), opts);
+  return asAdminEvent(data);
+}
+
+export async function getAdminEventCalendarIcs(id, opts) {
+  return paaipeApiRequest(adminEventCalendarPath(id), { ...opts, asText: true });
 }
 
 export async function listAdminEvents(opts) {

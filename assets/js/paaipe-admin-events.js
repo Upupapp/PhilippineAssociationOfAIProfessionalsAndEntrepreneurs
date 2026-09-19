@@ -15,15 +15,17 @@
  *   editor can write it and can NEVER show it back: reading it here would put it
  *   in a page, and a page is the thing we are keeping it out of.
  *
- * Event create / content / settings / duplicate / the admin list go to
- * api.paaipe.org. Sponsors, partners, orgs, activity log, Zoom private,
- * Feedback and Reports stay on Firestore until those routes exist. Email
- * send is still 501.
+ * Event create / content / settings / duplicate / the admin list / the
+ * calendar file go to api.paaipe.org. Sponsors, partners, orgs, activity
+ * log, Zoom private, Feedback and Reports stay on Firestore until those
+ * routes exist. Email drafts stay in this browser (never Firestore).
+ * Email send is still 501.
  */
 import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import {
   listAdminEvents, postAdminEventDuplicate, patchAdminEvent, patchAdminEventContent,
   listAdminEventRegistrations, eventSettingsPayload, eventContentPayload,
+  getAdminEventCalendarIcs,
 } from "/assets/js/paaipe-api.js";
 import {
   renderAdminNav, renderAdminTop, renderCrumbs, renderStateChip, setNavBadge,
@@ -835,42 +837,24 @@ async function loadHistory(eventId) {
   }
 }
 
-/** A calendar file built from THIS record, so it cannot drift from the event.
- *  The .ics files in the repository are hand-written and already disagree with
- *  nothing only because nobody has moved an event yet. */
-function icsFor(ev) {
-  const pad = n => String(n).padStart(2, "0");
-  // Asia/Manila is UTC+8 all year - the Philippines has no daylight saving - so
-  // the conversion is a subtraction rather than a timezone database.
-  const stamp = (date, time) => {
-    const [Y, M, D] = String(date || "").split("-").map(Number);
-    const [h, m]    = String(time || "00:00").split(":").map(Number);
-    if (!Y || !M || !D) return null;
-    const utc = new Date(Date.UTC(Y, M - 1, D, h - 8, m));
-    return `${utc.getUTCFullYear()}${pad(utc.getUTCMonth() + 1)}${pad(utc.getUTCDate())}T${pad(utc.getUTCHours())}${pad(utc.getUTCMinutes())}00Z`;
-  };
-  const start = stamp(ev.date, ev.startTime), end = stamp(ev.date, ev.endTime);
-  if (!start) return null;
-  const fold = s => String(s).replace(/([,;\\])/g, "\\$1").replace(/\n/g, "\\n");
-  return [
-    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//PAAIPE//Events//EN", "CALSCALE:GREGORIAN",
-    "BEGIN:VEVENT",
-    `UID:${ev.id}@paaipe.org`,
-    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "")}`,
-    `DTSTART:${start}`, end ? `DTEND:${end}` : "",
-    `SUMMARY:${fold(ev.title || "PAAIPE event")}`,
-    `DESCRIPTION:${fold(ev.description || "")}`,
-    "LOCATION:Online", "END:VEVENT", "END:VCALENDAR",
-  ].filter(Boolean).join("\r\n") + "\r\n";
-}
-
-function downloadIcs(ev) {
-  const ics = icsFor(ev);
-  if (!ics) return flash("This event needs a date before a calendar file can be made.");
-  const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
-  const a = Object.assign(document.createElement("a"), { href: url, download: `${ev.slug || ev.id}.ics` });
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+async function downloadIcs(id) {
+  const ev = EVENTS.find(x => x.id === id);
+  try {
+    const token = await idTokenForRequest();
+    const ics = await getAdminEventCalendarIcs(id, { token });
+    if (!ics || !/BEGIN:VCALENDAR/i.test(ics)) {
+      flash("The API did not return a calendar file. Nothing was downloaded.");
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+    const a = Object.assign(document.createElement("a"), {
+      href: url, download: `${ev?.slug || ev?.id || id}.ics`,
+    });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (ex) {
+    flash(saveErrorMessage(ex).replace("Could not save:", "Could not download the calendar file:"));
+  }
 }
 
 /** Duplicate an event as a DRAFT. Never as anything else: a copy that arrived
@@ -1038,7 +1022,7 @@ function applyFromLocation() {
     const st = e.target.closest("[data-status]");
     if (st) return setStatus($("[data-event-editor]").dataset.event, st.dataset.status);
     if (e.target.closest("[data-ics]"))
-      return downloadIcs(EVENTS.find(x => x.id === $("[data-event-editor]").dataset.event));
+      return downloadIcs($("[data-event-editor]").dataset.event);
     if (e.target.closest("[data-duplicate]"))
       return duplicateEvent($("[data-event-editor]").dataset.event);
   });

@@ -248,21 +248,39 @@ await T('a registration with an eventId belongs to that event and no other',asyn
   await p.close();
 });
 
-await T('legacy registrations are shown and FLAGGED, never dropped',async()=>{
-  const p=await open({regs:[
-    {id:'r1',eventId:'e-oct',full_name:'Linked Lily',email:'l@x.com',status:'registered'},
-    {id:'r2',event:'PAAIPE AI Exchange — October 2026',full_name:'Legacy Leo',email:'g@x.com'},
-    {id:'r3',event:'AI Exchange — November 2026',full_name:'Other Olive',email:'o@x.com'}]});
+await T('the Registrations tab reads the admin API for this event, not Firestore',async()=>{
+  const p=await ctx.newPage();
+  const fbTok=`export * from '/assets/js/paaipe-firebase-real.js';
+    export async function currentAgent(){return {uid:'a1',email:'admin@upupapp.asia',status:'guest'}}
+    export async function isAdminNow(){return true}
+    export async function signOutNow(){}
+    export async function idTokenForRequest(){ return 'test-id-token' }`;
+  await p.route('**/assets/js/paaipe-firebase-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_FB}));
+  await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbTok}));
+  await p.route('**/assets/js/paaipe-events-data-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_DATA}));
+  await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub()}));
+  await p.route('http://127.0.0.1:8091/**',async route=>{
+    const url=route.request().url();
+    if(!/\/v1\/admin\/events\/e-oct\/registrations/.test(url))
+      return route.fulfill({status:404,body:'wrong path'});
+    await route.fulfill({
+      status:200,contentType:'application/json',
+      body:JSON.stringify([
+        {id:'r1',eventId:'e-oct',full_name:'Linked Lily',email:'l@x.com',status:'registered'},
+        {id:'r2',full_name:'Api Leo',email:'g@x.com'},
+      ]),
+    });
+  });
+  await p.goto(`${BASE}/admin-events.html`,{waitUntil:'load'});
+  await p.waitForSelector('html[data-admin-events]',{timeout:9000});
+  await p.click('tr[data-event="e-oct"] [data-edit-event]');
+  await p.waitForSelector('[data-event-tabs] button',{timeout:9000});
   await p.click('[data-tab="registrations"]');
   await p.waitForSelector('[data-tabpanel="registrations"] table',{timeout:9000});
   const t=await p.locator('[data-tabpanel="registrations"]').innerText();
-  ok(/Linked Lily/.test(t),'the linked one');
-  ok(/Legacy Leo/.test(t),'the legacy one must NOT vanish');
-  ok(!/Other Olive/.test(t),"but another event's registrant must not appear");
-  ok(/UNLINKED/.test(t),'the legacy one is flagged');
-  ok(/predate event ids/i.test(t),'and the reason is on the page');
-  eq(await p.locator('[data-link-reg="r2"]').count(),1,'with a way to fix it');
-  eq(await p.locator('[data-link-reg="r1"]').count(),0,'and none offered for the one already linked');
+  ok(/Linked Lily/.test(t),'API row');
+  ok(/Api Leo/.test(t),'second API row is kept, not title-matched away');
+  ok(!/Other Olive/.test(t),'Firestore stub rows must not appear');
   await p.close();
 });
 

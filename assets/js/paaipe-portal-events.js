@@ -8,10 +8,10 @@
  * Back and refresh restore the same event. Past list deep-links here.
  *
  * Feedback talks to Clarence's live Slice 3 routes in paaipe-api.js.
- * Feedback window + certificate GET/email are OpenAPI draft: probe only, treat
- * as live on HTTP 200/401, otherwise honest not-wired. No POST issue, no
- * invented download API. Downloads use certificate.pdfUrl/pngUrl on
- * media.paaipe.org when the GET is live and issued.
+ * Window + certificate GET/email are LIVE (certificates-20260919T051814Z).
+ * Probe still treats only 200/401 as deployed. Inbox delivery is not wired —
+ * send failures stay honest. No POST issue, no invented download API.
+ * Downloads use certificate.pdfUrl/pngUrl on media.paaipe.org when issued.
  *
  * Partner apply reuses mountPartnerCta / data-partner-cta. No second flow.
  */
@@ -483,7 +483,7 @@ function certActions({
     : `<button type="button" class="btn btn-ghost btn-sm" data-cert-email disabled
       title="${notWired
         ? "Certificate email is not wired yet. The re-send route is not live on this host (no 200/401)."
-        : "Email is available after the certificate is issued."}">Email me the certificate</button>`;
+        : "Email is available after the certificate is issued. Inbox delivery is not wired yet — failures stay honest."}">Email me the certificate</button>`;
   const reg = registerHref
     ? `<a class="btn btn-gold btn-sm" href="${esc(registerHref)}">Register</a>`
     : "";
@@ -649,8 +649,8 @@ async function sendCertificateEmail(eventId) {
     const result = await postMeEventCertificateEmail(eventId, { token });
     const when = result?.emailedAt ? formatSubmittedAt({ submittedAt: result.emailedAt }) : "";
     show(when
-      ? `Re-sent ${when}. The API confirmed emailedAt.`
-      : "Re-sent. The API confirmed emailedAt.");
+      ? `The API accepted the re-send (${when}). Inbox delivery is not wired yet — nothing was assumed delivered.`
+      : "The API accepted the re-send. Inbox delivery is not wired yet — nothing was assumed delivered.");
     if (note) note.classList.add("ok");
   } catch (e) {
     if (btn) btn.disabled = false;
@@ -659,7 +659,11 @@ async function sendCertificateEmail(eventId) {
       return;
     }
     if (e?.status === 404) {
-      show("No certificate is available to email. The route may not be live, or none exists.");
+      show("No certificate is available to email.");
+      return;
+    }
+    if (e?.status === 501 || e?.status === 502) {
+      show("Certificate email delivery is not wired yet. Nothing was sent.");
       return;
     }
     show(e?.message || "Could not email the certificate. Nothing was assumed sent.");

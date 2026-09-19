@@ -189,6 +189,8 @@ await T("contract paths are exact — admin + public library", () => {
      "/v1/me/events/2026-10-ai-exchange/certificate", "me certificate");
   eq(api.meEventCertificateEmailPath("2026-10-ai-exchange"),
      "/v1/me/events/2026-10-ai-exchange/certificate/email", "me certificate email");
+  eq(api.adminEventCertificatesPath("2026-10-ai-exchange"),
+     "/v1/admin/events/2026-10-ai-exchange/certificates", "admin certificates list");
   ok(api.isDraftRouteLive(200) && api.isDraftRouteLive(401), "200/401 are live");
   ok(!api.isDraftRouteLive(404) && !api.isDraftRouteLive(403), "404/403 are not live");
   let threw = false;
@@ -1473,9 +1475,11 @@ await T("draft window + certificate: 200/401 live, 404 not-wired, media URLs onl
   ok(/\/certificate\/email/.test(src), "documented email POST");
   ok(!/certificate\/issue/.test(src), "no POST issue");
   ok(!/certificate\/download/.test(src), "no download API");
-  ok(!/\/v1\/admin\/events\/.+\/feedback/.test(src.split("\n").filter(l =>
-    !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n")),
-    "portal client does not call admin PUT questions");
+  const portal = read("assets/js/paaipe-portal-events.js");
+  ok(!/adminEventFeedback|\/admin\/events\/.+\/feedback/.test(portal),
+    "portal details does not call admin PUT questions");
+  ok(!/adminEventCertificatesPath|\/admin\/events\/.+\/certificates/.test(portal),
+    "portal details does not call admin certificates list");
   eq(api.mediaFileUrl("https://media.paaipe.org/certificates/a.pdf"),
     "https://media.paaipe.org/certificates/a.pdf", "media ok");
   eq(api.mediaFileUrl("https://api.paaipe.org/v1/me/events/x/certificate/download"), "", "no api download");

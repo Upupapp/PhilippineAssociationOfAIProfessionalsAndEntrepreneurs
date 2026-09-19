@@ -305,7 +305,7 @@ await T("live certificate GET enables media.paaipe.org download; email POST only
   eq(href, "https://media.paaipe.org/certificates/cert-1.pdf", "download is media URL");
   ok(!await p.locator("[data-cert-email]").isDisabled(), "email enabled when issued + live");
   await p.locator("[data-cert-email]").click();
-  await p.waitForFunction(() => /^Re-sent/i.test(document.querySelector("[data-cert-msg]")?.textContent || ""));
+  await p.waitForFunction(() => /API accepted the re-send/i.test(document.querySelector("[data-cert-msg]")?.textContent || ""));
   ok(hits.some(u => /POST .*\/certificate\/email/.test(u)), "email POST only when live");
   ok(!hits.some(u => /certificate\/(issue|download)/.test(u)), "still no issue/download API");
   await ctx.close();

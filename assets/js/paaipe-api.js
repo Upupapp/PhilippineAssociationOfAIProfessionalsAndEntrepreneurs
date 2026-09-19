@@ -92,10 +92,10 @@
  *   GET  /v1/events/{eventId}/feedback/responses/{registrationId} Bearer
  *   POST responses 403 when the BE says the window is closed / not open.
  *
- * Feedback window + Certificate (OpenAPI DRAFT — not live until 200/401):
- *   GET  /v1/events/{eventId}/feedback/window                    public
+ * Feedback window + Certificate (LIVE — certificates-20260919T051814Z):
+ *   GET  /v1/events/{eventId}/feedback/window                    public (200)
  *        { opensAt, closesAt, state: locked|open|closed, timezone: Asia/Manila }
- *   GET  /v1/me/events/{eventId}/certificate                     Bearer
+ *   GET  /v1/me/events/{eventId}/certificate                     Bearer (401 without)
  *        { state, registered, feedbackSubmitted, feedbackWindow, certificate? }
  *        state: not_registered | awaiting_feedback_open | feedback_open
  *               | issuing | issued | closed_no_cert
@@ -105,13 +105,15 @@
  *        issuing keeps Download disabled (rare; v1 usually sync → issued).
  *        Leftover `ready` (not in the frozen enum) → issued when certificate
  *        is present, else issuing.
- *   POST /v1/me/events/{eventId}/certificate/email               Bearer re-send
+ *   POST /v1/me/events/{eventId}/certificate/email               Bearer (401 without)
  *        200 { emailedAt } or a full certificate payload
  *        404 none · 409 not issued yet
+ *        Inbox delivery is still not wired — do not treat 200 as mail in inbox
+ *        if the host later returns 501/502. Show the API result honestly.
+ *   GET  /v1/admin/events/{eventId}/certificates                 admin list
+ *        Path helper only. No admin certificates surface in this PR.
  * Download uses certificate.pdfUrl / pngUrl on media.paaipe.org — no download API.
  * Issue is server-side on feedback submit — FE does not POST issue.
- * 404 on a draft route means it is not deployed. Do not treat that as a state.
- * Only HTTP 200 or 401 means a draft route is live.
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
@@ -396,6 +398,11 @@ export function meEventCertificateEmailPath(eventId) {
   return `/v1/me/events/${encodeURIComponent(eventId)}/certificate/email`;
 }
 
+/** Admin list. No portal/admin UI in this PR — path only. */
+export function adminEventCertificatesPath(eventId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/certificates`;
+}
+
 /** Draft OpenAPI routes are live only when the host answers 200 or 401. */
 export function isDraftRouteLive(status) {
   return status === 200 || status === 401;
@@ -661,6 +668,10 @@ function statusError(status, bodyText, { method, path } = {}) {
       : /feedback\/responses/.test(path || "")
       ? "A response already exists for this registration."
       : "This record already exists.";
+  } else if (status === 501 || status === 502) {
+    detail = /\/certificate\/email/.test(path || "")
+      ? "Certificate email delivery is not wired yet. Nothing was sent."
+      : `The API is not ready (${status}).`;
   } else if (trimmed && trimmed.length < 280 && !/^[\s{[]/.test(trimmed)) {
     detail = trimmed.replace(/\.?$/, ".");
   } else {

@@ -1074,9 +1074,7 @@ await T("orgs / partners / contacts helpers use the live contract", async () => 
 
   const src = read("assets/js/paaipe-api.js");
   ok(!/\/v1\/admin\/partner-applications\/.+\/accept/.test(src), "no invented accept sub-route");
-  ok(!/POST.*admin\/partners/.test(src.split("\n").filter(l =>
-    !l.trim().startsWith("*") && !l.trim().startsWith("//")).join("\n"))
-    || !/adminPartnersPath\(\),\s*\{\s*method:\s*"POST"/.test(src),
+  ok(!/adminPartnersPath\(\),\s*\{\s*method:\s*"POST"/.test(src),
      "no invented POST /v1/admin/partners");
 });
 

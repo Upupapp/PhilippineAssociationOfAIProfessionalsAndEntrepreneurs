@@ -123,7 +123,7 @@ await T('a CONFIRMED sponsor appears publicly',async()=>{
   const p=await open({sponsors:[{id:'s1',eventId:EV.id,organizationId:'gethired',tier:'presenting',
     status:'confirmed',organization:ORGS[0]}]});
   ok(await p.locator('[data-sponsors]').isVisible(),'the block is shown');
-  ok(/GetHired/i.test(await p.locator('[data-sponsors]').innerText()),'named');
+  ok(await p.locator('[data-sponsors] img[alt*="GetHired"]').count(),'named on the logo');
   eq(await p.locator('[data-sponsors] img').count(),1,'with its logo');
   await p.close();
 });

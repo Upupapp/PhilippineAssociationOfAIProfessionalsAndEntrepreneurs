@@ -57,3 +57,11 @@ a[data-event-open]:hover{color:var(--royal)}
   .ed-tab{padding:10px 10px;font-size:13px}
   .ed-check b{overflow-wrap:anywhere}
 }
+/* Feedback thank-you — native dialog, same navy/gold pills as Event Details. */
+.ed-thanks{border:0;padding:0;border-radius:18px;width:min(440px,calc(100vw - 32px));
+  background:#fff;color:var(--ink);box-shadow:0 24px 64px rgba(0,16,51,.28)}
+.ed-thanks::backdrop{background:rgba(3,15,45,.55)}
+.ed-thanks-body{padding:22px 24px 20px}
+.ed-thanks h2{font-size:20px;margin:0 0 8px}
+.ed-thanks p{color:var(--muted);font-size:14.5px;max-width:46ch}
+.ed-thanks .ed-acts{margin-top:18px}

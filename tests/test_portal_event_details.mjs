@@ -37,6 +37,8 @@ await T("URL helper and recap markup order", () => {
   ok(!/\/v1\/.*certificat/.test(js), "portal module uses helpers, not path strings");
   ok(!/certificate\/issue|certificate\/download/.test(js), "no issue or download API");
   ok(js.includes("not wired"), "honest disabled copy");
+  ok(js.includes("openFeedbackThanks"), "thank-you after feedback 201");
+  ok(js.includes("feedbackCertificateFromResponse"), "POST certificate pass-through");
 });
 
 const fbStub = `export * from '/assets/js/paaipe-firebase-real.js';
@@ -103,6 +105,7 @@ await T("feedback window is +1h after start through noon PHT next day", async ()
       octLocked: m.feedbackWindowState(oct, new Date("2026-09-19T12:00:00+08:00")).state,
       href: m.portalEventHref("2026-10-ai-exchange"),
       hrefFb: m.portalEventHref("2026-09-ai-exchange", "feedback"),
+      hrefCert: m.portalEventHref("2026-10-ai-exchange", "certificate"),
     };
   });
   eq(got.opens, "2026-09-15T13:00:00.000Z", "Sep 15 9:00 PM PHT");
@@ -114,6 +117,7 @@ await T("feedback window is +1h after start through noon PHT next day", async ()
   eq(got.octLocked, "locked", "October still locked");
   eq(got.href, "portal-events.html#event=2026-10-ai-exchange", "canonical");
   eq(got.hrefFb, "portal-events.html#event=2026-09-ai-exchange&tab=feedback", "feedback tab");
+  eq(got.hrefCert, "portal-events.html#event=2026-10-ai-exchange&tab=certificate", "certificate tab");
   await ctx.close();
 });
 
@@ -231,6 +235,157 @@ await T("draft routes are probed; 404 is not-wired; no issue/download/email POST
   ok(apiHits.some(u => /GET .*\/me\/events\/.+\/certificate/.test(u)), "me certificate GET probed");
   ok(!apiHits.some(u => /POST .*\/certificate/.test(u)), "no email POST while 404");
   ok(!apiHits.some(u => /certificate\/(issue|download)/.test(u)), "no invented issue/download");
+});
+
+await T("feedbackCertificateFromResponse never invents; thank-you CTA writes tab=certificate", async () => {
+  const { p, ctx } = await open("portal-events.html#event=2026-10-ai-exchange&tab=feedback");
+  await p.waitForSelector("[data-ed-root]");
+  const got = await p.evaluate(async () => {
+    const m = await import("/assets/js/paaipe-portal-events.js");
+    const none = [
+      m.feedbackCertificateFromResponse(null),
+      m.feedbackCertificateFromResponse({}),
+      m.feedbackCertificateFromResponse({ certificate: null }),
+      m.feedbackCertificateFromResponse({ certificate: "nope" }),
+    ];
+    const raw = { id: "cert-1", pdfUrl: "https://media.paaipe.org/certificates/c.pdf" };
+    const pass = m.feedbackCertificateFromResponse({ certificate: raw });
+    const dlgNull = m.openFeedbackThanks("2026-10-ai-exchange", null);
+    const noFile = !dlgNull?.querySelector("[data-ed-thanks-file]");
+    const primary = dlgNull?.querySelector("[data-ed-thanks-cert]")?.getAttribute("href") || "";
+    const copy = dlgNull?.querySelector("#ed-thanks-copy")?.textContent || "";
+    dlgNull?.close();
+    const dlgFile = m.openFeedbackThanks("2026-10-ai-exchange", raw);
+    const fileHref = dlgFile?.querySelector("[data-ed-thanks-file]")?.getAttribute("href") || "";
+    dlgFile?.close();
+    const dlgFake = m.openFeedbackThanks("2026-10-ai-exchange", { pdfUrl: "https://evil.example/c.pdf" });
+    const noFake = !dlgFake?.querySelector("[data-ed-thanks-file]");
+    dlgFake?.close();
+    return { none, same: pass === raw, noFile, primary, copy, fileHref, noFake };
+  });
+  ok(got.none.every(v => v == null), "null/missing/non-object stay null");
+  ok(got.same, "real certificate object is passed through");
+  ok(got.noFile, "no file CTA when certificate is null");
+  eq(got.primary, "portal-events.html#event=2026-10-ai-exchange&tab=certificate", "URL-sweep href");
+  ok(/certificate/i.test(got.copy), "thank-you points at the certificate");
+  eq(got.fileHref, "https://media.paaipe.org/certificates/c.pdf", "media URL only");
+  ok(got.noFake, "non-media URL is not a secondary CTA");
+  await p.evaluate(async () => {
+    const m = await import("/assets/js/paaipe-portal-events.js");
+    m.openFeedbackThanks("2026-10-ai-exchange", null);
+  });
+  ok(await p.locator("[data-ed-thanks]").evaluate(el => el.open), "dialog open");
+  await p.keyboard.press("Escape");
+  ok(!await p.locator("[data-ed-thanks]").evaluate(el => el.open), "Escape closes");
+  eq(await p.getAttribute("[data-ed-root]", "data-ed-tab"), "feedback", "Escape stays on Feedback");
+  await p.evaluate(async () => {
+    const m = await import("/assets/js/paaipe-portal-events.js");
+    m.openFeedbackThanks("2026-10-ai-exchange", null);
+  });
+  await p.locator("[data-ed-thanks-cert]").click();
+  await p.waitForFunction(() => /tab=certificate/.test(location.hash));
+  ok(/event=2026-10-ai-exchange/.test(p.url()), "same event");
+  ok(/tab=certificate/.test(p.url()), "certificate tab after primary CTA");
+  eq(await p.getAttribute("[data-ed-root]", "data-ed-tab"), "certificate", "panel");
+  ok(!await p.locator("[data-ed-thanks]").evaluate(el => el.open).catch(() => false), "dialog closed");
+  await ctx.close();
+});
+
+await T("feedback 201 with certificate:null still shows thank-you + Certificate CTA", async () => {
+  const hits = [];
+  let posted = false;
+  const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  await p.addInitScript(() => {
+    localStorage.setItem("paaipe.registrationReceipt.v1", JSON.stringify({
+      "2026-10-ai-exchange": { registrationId: "reg-test-1", email: "agent@example.com", at: 1 },
+    }));
+  });
+  await p.route("**/assets/js/paaipe-firebase-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_FB }));
+  await p.route("**/assets/js/paaipe-firebase.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: fbStub }));
+  await p.route("**/assets/js/paaipe-events-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
+  await p.route("**/assets/js/paaipe-events-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: dataStub }));
+  await p.route("https://api.paaipe.org/**", async route => {
+    const url = route.request().url();
+    const method = route.request().method();
+    hits.push(`${method} ${url}`);
+    if (/\/feedback\/window/.test(url)) {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({
+          state: "open",
+          opensAt: "2026-10-13T13:00:00.000Z",
+          closesAt: "2026-10-14T04:00:00.000Z",
+          timezone: "Asia/Manila",
+        }),
+      });
+      return;
+    }
+    if (/\/feedback\/questions/.test(url)) {
+      await route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({
+          questions: [{
+            id: "2026-10-ai-exchange_overall",
+            questionKey: "overall",
+            prompt: "Overall, how was this session?",
+            type: "1-5",
+            required: true,
+            active: true,
+            order: 0,
+          }],
+        }),
+      });
+      return;
+    }
+    if (/\/feedback\/responses/.test(url) && method === "POST") {
+      posted = true;
+      await route.fulfill({
+        status: 201, contentType: "application/json",
+        body: JSON.stringify({
+          id: "fb-1",
+          registrationId: "reg-test-1",
+          answers: { overall: 5 },
+          certificate: null,
+        }),
+      });
+      return;
+    }
+    if (/\/feedback\/responses/.test(url) && method === "GET") {
+      await route.fulfill({
+        status: posted ? 200 : 404,
+        contentType: "application/json",
+        body: posted
+          ? JSON.stringify({
+            id: "fb-1",
+            registrationId: "reg-test-1",
+            answers: { overall: 5 },
+            submittedAt: "2026-10-13T14:00:00.000Z",
+          })
+          : "not found",
+      });
+      return;
+    }
+    await route.fulfill({ status: 404, body: "not found" });
+  });
+  await p.goto(`${BASE}/portal-events.html#event=2026-10-ai-exchange&tab=feedback`, { waitUntil: "load" });
+  await p.waitForSelector("[data-efb-form]", { timeout: 9000 });
+  await p.locator('[data-efb-choice][data-val="5"]').click();
+  await p.locator("[data-efb-form] button[type=submit]").click();
+  await p.waitForSelector("[data-ed-thanks][open]", { timeout: 9000 });
+  ok(hits.some(u => /POST .*\/feedback\/responses/.test(u)), "member POST fired");
+  ok(!await p.locator("[data-ed-thanks-file]").count(), "no file CTA when certificate is null");
+  const href = await p.getAttribute("[data-ed-thanks-cert]", "href");
+  eq(href, "portal-events.html#event=2026-10-ai-exchange&tab=certificate", "primary URL-sweep");
+  await p.locator("[data-ed-thanks-cert]").click();
+  await p.waitForFunction(() => /tab=certificate/.test(location.hash));
+  eq(await p.getAttribute("[data-ed-root]", "data-ed-tab"), "certificate", "landed on Certificate");
+  ok(!hits.some(u => /certificate\/(issue|download)/.test(u)), "submit did not invent issue/download");
+  await ctx.close();
 });
 
 await T("live certificate GET enables media.paaipe.org download; email POST only then", async () => {

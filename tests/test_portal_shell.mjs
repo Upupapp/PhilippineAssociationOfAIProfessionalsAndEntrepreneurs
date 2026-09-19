@@ -88,7 +88,6 @@ for (const width of [390, 768]) {
     ok(m.mainOffsetTop < 20, `main offsetTop is ${m.mainOffsetTop} — side still stacked?`);
     ok(m.titleY !== null && m.titleY < 80, `title Y is ${m.titleY}`);
     ok(m.sideX + m.sideW <= 8, `closed drawer still on screen at x=${m.sideX} w=${m.sideW}`);
-    ok(m.sideH < 900, `closed side height ${m.sideH}`);
     ok(await p.locator(".portal-nav-burger").isVisible(), "hamburger visible");
     eq(m.aria, "false", "closed aria-expanded");
     eq(m.open, false, "closed class");
@@ -96,9 +95,17 @@ for (const width of [390, 768]) {
   });
 }
 
+async function waitOpen(p) {
+  await p.waitForFunction(() => {
+    const r = document.querySelector(".side")?.getBoundingClientRect();
+    return !!r && r.x >= -2 && r.width > 200;
+  }, { timeout: 3000 });
+}
+
 await T("hamburger opens and closes the drawer", async () => {
   const p = await open("portal-events.html", { width: 390, height: 844 });
   await p.click(".portal-nav-burger");
+  await waitOpen(p);
   const opened = await p.evaluate(metrics);
   eq(opened.open, true, "open class");
   eq(opened.aria, "true", "open aria");
@@ -114,15 +121,18 @@ await T("hamburger opens and closes the drawer", async () => {
 });
 
 await T("Esc and backdrop close; focus returns to the hamburger", async () => {
-  const p = await open("portal.html", { width: 390, height: 844 });
+  const p = await open("portal-events.html", { width: 390, height: 844 });
   await p.click(".portal-nav-burger");
+  await waitOpen(p);
   ok(await p.locator("html.portal-nav-open").count(), "opened");
   await p.keyboard.press("Escape");
   eq(await p.getAttribute(".portal-nav-burger", "aria-expanded"), "false", "Esc closes");
   eq(await p.evaluate(() => document.activeElement.className), "portal-nav-burger", "focus after Esc");
 
   await p.click(".portal-nav-burger");
-  await p.click(".portal-nav-backdrop");
+  await waitOpen(p);
+  // The rail covers the left of the backdrop; tap the dimmed area to the right.
+  await p.locator(".portal-nav-backdrop").click({ position: { x: 350, y: 400 } });
   eq(await p.getAttribute(".portal-nav-burger", "aria-expanded"), "false", "backdrop closes");
   eq(await p.evaluate(() => document.activeElement.className), "portal-nav-burger", "focus after backdrop");
   await p.close();

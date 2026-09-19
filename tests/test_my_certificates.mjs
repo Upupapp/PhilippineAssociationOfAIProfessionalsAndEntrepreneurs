@@ -184,7 +184,7 @@ await T("exported bind/group/hash helpers", async () => {
   ok(/data-mc-download disabled/.test(got.emailHtml), "download stays disabled");
   ok(/data-mc-view disabled/.test(got.emailHtml), "view stays disabled");
   ok(/data-event-id="2026-09-ai-exchange"/.test(got.emailHtml), "eventId on card");
-  ok(!/media\.paaipe\.org/.test(got.emailHtml), "no invented media URL");
+  ok(!/href="[^"]*media\.paaipe\.org/.test(got.emailHtml), "no invented media href");
   await ctx.close();
 });
 

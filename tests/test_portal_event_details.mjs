@@ -39,6 +39,8 @@ await T("URL helper and recap markup order", () => {
   ok(js.includes("not wired"), "honest disabled copy");
   ok(js.includes("openFeedbackThanks"), "thank-you after feedback 201");
   ok(js.includes("feedbackCertificateFromResponse"), "POST certificate pass-through");
+  ok(js.includes("function registerFromPortalHref"), "portal register helper");
+  ok(html.includes("from=portal"), "list Register marks portal origin");
 });
 
 const fbStub = `export * from '/assets/js/paaipe-firebase-real.js';
@@ -56,6 +58,7 @@ const dataStub = `
   export async function getEvent(){ return null }
   export async function listEvents(){ return [] }
   export async function myApplications(){ return new Map() }
+  export async function listEventSponsors(){ return [] }
 `;
 
 const br = await chromium.launch();
@@ -118,6 +121,33 @@ await T("feedback window is +1h after start through noon PHT next day", async ()
   eq(got.href, "portal-events.html#event=2026-10-ai-exchange", "canonical");
   eq(got.hrefFb, "portal-events.html#event=2026-09-ai-exchange&tab=feedback", "feedback tab");
   eq(got.hrefCert, "portal-events.html#event=2026-10-ai-exchange&tab=certificate", "certificate tab");
+  const extras = await p.evaluate(async () => {
+    const m = await import("/assets/js/paaipe-portal-events.js");
+    const oct = m.catalogEvent("2026-10-ai-exchange");
+    const sep = m.catalogEvent("2026-09-ai-exchange");
+    const liveAt = new Date("2026-10-13T20:30:00+08:00");
+    return {
+      reg: m.registerFromPortalHref(oct.registerHref, oct.id),
+      gcal: m.googleCalendarHref(oct),
+      share: m.shareAssets(oct).any,
+      about: Boolean(oct.description && m.expectList(oct).length && m.programRows(oct).length),
+      live: m.isEventLive(oct, liveAt),
+      phaseLive: m.detailPhase(oct, { registered: true }, liveAt),
+      phaseReg: m.detailPhase(oct, { registered: true }, new Date("2026-09-19T12:00:00+08:00")),
+      past: m.headerStatus(sep, { registered: true }),
+      statusLive: m.headerStatus(oct, { registered: true }, liveAt),
+    };
+  });
+  eq(extras.reg, "register-2026-10-ai-exchange.html?from=portal&event=2026-10-ai-exchange", "portal register");
+  ok(/calendar\.google\.com/.test(extras.gcal), "google calendar");
+  ok(/20261013T120000Z\/20261013T133000Z/.test(extras.gcal), "google dates UTC");
+  ok(extras.share, "October share banners");
+  ok(extras.about, "public about/expect/program ported");
+  eq(extras.live, true, "live during session");
+  eq(extras.phaseLive, "live", "live wins over registered");
+  eq(extras.phaseReg, "registered", "registered before start");
+  eq(extras.past, "Past", "September past");
+  eq(extras.statusLive, "Live", "Live pill");
   await ctx.close();
 });
 
@@ -160,6 +190,16 @@ await T("click upcoming event stays in portal and writes #event=", async () => {
   ok(!/event-2026-10/.test(p.url()), "not the marketing page");
   eq(await p.locator("[data-ed-tab].on").innerText(), "Overview", "Overview tab");
   ok(await p.locator("[data-partner-cta]").count(), "Partner CTA mount on Overview");
+  ok(await p.locator("[data-ed-head]").count(), "header band");
+  eq(await p.getAttribute("[data-ed-root]", "data-ed-phase"), "registered", "October listed registered");
+  ok(await p.locator('[data-ed-sec="about"][data-ed-open="1"]').count(), "About expanded");
+  ok(await p.locator('[data-ed-sec="schedule"][data-ed-open="1"]').count(), "Schedule expanded");
+  ok(await p.locator('[data-ed-sec="partners"][data-ed-open="1"]').count(), "Partners expanded");
+  ok(await p.locator('[data-ed-sec="share"][data-ed-open="1"]').count(), "Share when banners exist");
+  ok(await p.locator('[data-ed-sec="calendar"][data-ed-open="1"]').count(), "Calendar expanded");
+  ok(await p.locator("[data-ed-head] a[href*='from=portal']").count() === 0, "October has no Register");
+  ok(/calendar\.google\.com/.test(await p.locator('[data-ed-sec="calendar"] a').first().getAttribute("href") || ""),
+    "Google calendar in Overview");
   await ctx.close();
 });
 
@@ -216,6 +256,25 @@ await T("past recap Feedback/Certificate deep-link into Details tabs", async () 
   await p.waitForSelector("[data-ed-root]");
   ok(/event=2026-09-ai-exchange/.test(p.url()), "september");
   ok(/tab=certificate/.test(p.url()), "certificate tab");
+  await ctx.close();
+});
+
+await T("November header Register carries from=portal; sections stay open until clicked", async () => {
+  const { p, ctx } = await open("portal-events.html#event=2026-11-ai-exchange");
+  await p.waitForSelector("[data-ed-root]");
+  eq(await p.getAttribute("[data-ed-root]", "data-ed-phase"), "upcoming", "not registered");
+  const reg = p.locator("[data-ed-head] a", { hasText: "Register" });
+  ok(await reg.count(), "Register gold in header");
+  const href = await reg.getAttribute("href");
+  ok(/from=portal/.test(href), `from=portal: ${href}`);
+  ok(/event=2026-11-ai-exchange/.test(href), `event id: ${href}`);
+  eq(await p.locator('[data-ed-sec="share"]').count(), 0, "no share without banners");
+  const about = p.locator('[data-ed-sec="about"]');
+  eq(await about.getAttribute("data-ed-open"), "1", "starts open");
+  await about.locator("[data-ed-toggle]").click();
+  eq(await about.getAttribute("data-ed-open"), "0", "click collapses");
+  await about.locator("[data-ed-toggle]").click();
+  eq(await about.getAttribute("data-ed-open"), "1", "click expands");
   await ctx.close();
 });
 

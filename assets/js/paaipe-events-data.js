@@ -1,8 +1,8 @@
 /* PAAIPE — events, organizations and sponsorships.
  *
- * Organizations and partner applications are hard-cut to api.paaipe.org.
- * Events, sponsors, recordings and feedback still read Firestore.
- * Firebase is Auth/users (Bearer) only on the org/application path.
+ * Organizations, event partners and partner applications are hard-cut to
+ * api.paaipe.org. Events, recordings and feedback still read Firestore.
+ * Firebase is Auth/users (Bearer) only on the org/partner/application path.
  *
  * WHAT THIS MEANS FOR SECRECY. Anything a browser can fetch is public, so the
  * boundary is firestore.rules, not a render step: a draft event is unreadable, a
@@ -16,6 +16,8 @@ import {
   postMeOrganization,
   patchMeOrganization,
   listAdminOrganizations,
+  listApiEventPartners,
+  listAdminEventPartners,
   postPartnerApplication,
   listAdminPartnerApplications,
 } from "/assets/js/paaipe-api.js";
@@ -389,24 +391,25 @@ export async function saveMyOrganization({ id, name, website, token, fetchImpl }
   return { id: created, name: n, website: w, status: "inactive" };
 }
 
-/** Sponsorships for an event, each joined to its organization so a caller never
- *  has to know the join. Rules already hide anything not confirmed from the
- *  public, so a visitor simply receives fewer rows - not a filtered list they
- *  could unfilter. */
-export async function listEventSponsors(eventId, { asAdmin = false } = {}) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const col = F.collection(await db(), COL.sponsors);
-  // Same trap as events: without the status constraint the whole query is
-  // refused, and the page shows NO sponsors rather than the confirmed ones.
-  const q = asAdmin
-    ? F.query(col, F.where("eventId", "==", eventId))
-    : F.query(col, F.where("eventId", "==", eventId),
-                   F.where("status", "in", PUBLIC_SPONSOR_STATUSES));
-  const rows = (await F.getDocs(q)).docs.map(d => ({ id: d.id, ...d.data() }));
-  if (!rows.length) return [];
-  const orgs = new Map((await listOrganizations({ asAdmin })).map(o => [o.id, o]));
-  return rows
-    .map(r => ({ ...r, organization: orgs.get(r.organizationId) || null }))
+/** Event partners from the API, each joined to its organization.
+ *  Public: GET /v1/events/{eventId}/partners.
+ *  Admin:  GET /v1/admin/events/{eventId}/partners.
+ *  Writes are PUT /v1/admin/partners — not this helper. */
+export async function listEventSponsors(eventId, { asAdmin = false, token, fetchImpl } = {}) {
+  const partners = asAdmin
+    ? await listAdminEventPartners(eventId, { token: await bearerToken({ token }), fetchImpl })
+    : await listApiEventPartners(eventId, { fetchImpl });
+  const visible = asAdmin
+    ? partners
+    : partners.filter(r => PUBLIC_SPONSOR_STATUSES.includes(String(r.status || "").toLowerCase()));
+  if (!visible.length) return [];
+  const orgs = new Map((await listOrganizations({ asAdmin, token, fetchImpl })).map(o => [o.id, o]));
+  return visible
+    .map(r => ({
+      ...r,
+      order: r.displayOrder,
+      organization: orgs.get(r.organizationId) || null,
+    }))
     .sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
 }
 

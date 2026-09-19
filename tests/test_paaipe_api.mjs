@@ -962,7 +962,10 @@ await T("orgs / partners / contacts helpers use the live contract", async () => 
       });
     }
     if (url.endsWith("/v1/admin/partners")) {
-      return new Response(JSON.stringify(LIVE_EVENT_PARTNERS), {
+      const payload = (opts.method || "GET") === "PUT"
+        ? LIVE_EVENT_PARTNERS.partners[0]
+        : LIVE_EVENT_PARTNERS;
+      return new Response(JSON.stringify(payload), {
         status: 200, headers: { "content-type": "application/json" },
       });
     }
@@ -1072,10 +1075,56 @@ await T("orgs / partners / contacts helpers use the live contract", async () => 
   const oneContact = await api.getAdminContact("c1", { token: "tok-admin", fetchImpl });
   eq(oneContact.id, "c1", "contact get");
 
+  const listed = await api.listAdminPartners({ token: "tok-admin", fetchImpl });
+  eq(listed[0].organizationId, "gethired", "admin partners list");
+  const adminPartnersGet = hits.find(h => h.url.endsWith("/v1/admin/partners") && h.method === "GET");
+  eq(adminPartnersGet.headers.Authorization, "Bearer tok-admin", "admin partners Bearer");
+
+  const put = await api.putAdminPartners({
+    id: "2026-09-gethired",
+    eventId: "2026-09-ai-exchange",
+    organizationId: "gethired",
+    tier: "community",
+    status: "confirmed",
+    displayOrder: 1,
+    contributionType: "cash",
+    deliverablesDone: [0],
+    order: 7,
+  }, { token: "tok-admin", fetchImpl });
+  eq(put.organizationId, "gethired", "PUT partner returned");
+  const putHit = hits.find(h => h.url.endsWith("/v1/admin/partners") && h.method === "PUT");
+  eq(putHit.method, "PUT", "partners write is PUT");
+  eq(putHit.headers.Authorization, "Bearer tok-admin", "PUT Bearer");
+  const putBody = JSON.parse(putHit.body);
+  eq(putBody.id, "2026-09-gethired", "PUT id");
+  eq(putBody.eventId, "2026-09-ai-exchange", "PUT eventId");
+  eq(putBody.organizationId, "gethired", "PUT organizationId");
+  eq(putBody.tier, "community", "PUT tier");
+  eq(putBody.status, "confirmed", "PUT status");
+  eq(putBody.displayOrder, 1, "PUT displayOrder");
+  ok(!("contributionType" in putBody), "PUT must not invent contributionType");
+  ok(!("deliverablesDone" in putBody), "PUT must not invent deliverablesDone");
+  ok(!("order" in putBody), "PUT maps order → displayOrder only");
+
+  const scoped = await api.listAdminEventPartners("2026-09-ai-exchange", {
+    token: "tok-admin", fetchImpl,
+  });
+  eq(scoped[0].id, "2026-09-gethired", "admin event partners GET");
+
+  const mapped = api.eventPartnerWritePayload({
+    eventId: "e1", organizationId: "o1", tier: "presenting", status: "proposed", order: 20,
+  });
+  eq(mapped.displayOrder, 20, "order maps to displayOrder");
+  eq(Object.keys(mapped).sort().join(","),
+     "displayOrder,eventId,organizationId,status,tier", "GET-shape keys only");
+
   const src = read("assets/js/paaipe-api.js");
   ok(!/\/v1\/admin\/partner-applications\/.+\/accept/.test(src), "no invented accept sub-route");
   ok(!/adminPartnersPath\(\),\s*\{\s*method:\s*"POST"/.test(src),
      "no invented POST /v1/admin/partners");
+  ok(!/adminPartnersPath\(\),\s*\{\s*method:\s*"PATCH"/.test(src),
+     "no invented PATCH /v1/admin/partners");
+  ok(!/\/v1\/admin\/partners\/\$\{/.test(src), "no invented per-id partners path");
 });
 
 await T("portal + admin data modules hard-cut off Firestore", () => {
@@ -1130,8 +1179,18 @@ await T("orgs / partners / contacts modules hard-cut off Firestore", () => {
   ok(/postPartnerApplication/.test(submit), "apply POSTs the API");
   ok(!/setDoc|COL\.partners/.test(submit), "apply must not write Firestore");
   ok(/listAdminPartnerApplications/.test(listApps), "admin apps → API");
+  const listSponsors = evData.slice(
+    evData.indexOf("export async function listEventSponsors"),
+    evData.indexOf("export async function getRecording")
+  );
+  ok(/listApiEventPartners/.test(listSponsors), "public event partners → API");
+  ok(/listAdminEventPartners/.test(listSponsors), "admin event partners → API");
+  ok(!/getDocs|COL\.sponsors/.test(listSponsors), "sponsors list must not query Firestore");
   ok(/patchAdminOrganization/.test(orgs), "orgs page PATCHes the API");
+  ok(/putAdminPartners/.test(orgs), "orgs page PUTs /v1/admin/partners");
   ok(!/COL\.organizations/.test(orgs), "orgs page must not write the orgs collection");
+  ok(!/COL\.sponsors/.test(orgs), "orgs page must not write the sponsors collection");
+  ok(!/putAdminEventPartners/.test(orgs), "orgs writes must not use the 404 event-scoped PUT");
   ok(/listAdminPartnerApplications/.test(partners), "partners inbox lists via API");
   ok(/patchAdminPartnerApplication/.test(partners), "partners inbox PATCHes via API");
   ok(!/COL\.partners/.test(partners), "partners inbox must not write the applications collection");
@@ -1144,6 +1203,26 @@ await T("orgs / partners / contacts modules hard-cut off Firestore", () => {
   );
   ok(/postAdminOrganization/.test(createOrg), "event org create uses API");
   ok(!/COL\.organizations/.test(createOrg), "event org create must not write Firestore orgs");
+  const writeSp = events.slice(
+    events.indexOf("async function writeSponsor"),
+    events.indexOf("async function saveSponsorRow")
+  );
+  ok(/putAdminPartners/.test(writeSp), "writeSponsor PUTs /v1/admin/partners");
+  ok(!/COL\.sponsors|addDoc/.test(writeSp), "writeSponsor must not write Firestore sponsors");
+  ok(!/putAdminEventPartners/.test(writeSp), "writeSponsor must not use the 404 event-scoped PUT");
+  const saveSp = events.slice(
+    events.indexOf("async function saveSponsorRow"),
+    events.indexOf("async function removeSponsorRow")
+  );
+  ok(/putAdminPartners/.test(saveSp), "saveSponsorRow PUTs /v1/admin/partners");
+  ok(!/setDoc|COL\.sponsors/.test(saveSp), "saveSponsorRow must not write Firestore sponsors");
+  ok(!/contributionType|deliverablesDone/.test(saveSp), "save must not invent Firestore-only fields");
+  const remSp = events.slice(
+    events.indexOf("async function removeSponsorRow"),
+    events.indexOf("async function linkRegistration")
+  );
+  ok(!/deleteDoc|COL\.sponsors/.test(remSp), "remove must not invent DELETE");
+  ok(/404/.test(remSp), "remove is honest about missing DELETE");
   const loadApps = events.slice(
     events.indexOf("async function loadApplicationsTab"),
     events.indexOf("async function loadRegistrationsTab")
@@ -1154,7 +1233,9 @@ await T("orgs / partners / contacts modules hard-cut off Firestore", () => {
     events.indexOf("let EVENT_REPORT")
   );
   ok(/listAdminPartnerApplications/.test(loadCounts), "application badge uses API");
+  ok(/listAdminEventPartners/.test(loadCounts), "sponsor badge uses API");
   ok(!/COL\.partners/.test(loadCounts), "application badge must not count Firestore");
+  ok(!/COL\.sponsors/.test(loadCounts), "sponsor badge must not count Firestore");
 });
 
 const REAL_FB = read("assets/js/paaipe-firebase.js");

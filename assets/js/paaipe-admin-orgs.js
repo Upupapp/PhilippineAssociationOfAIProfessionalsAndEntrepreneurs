@@ -1,13 +1,13 @@
 /* PAAIPE admin — organizations and event sponsorships.
  *
- * Organizations list/edit: GET/PATCH /v1/admin/organizations.
- * Event Partners (sponsors) stay on Firestore — not in this API contract.
+ * Organizations: GET/POST /v1/admin/organizations, GET/PATCH …/{id} (approve).
+ * Event partners: GET /v1/admin/events/{eventId}/partners;
+ *   writes are PUT /v1/admin/partners (collection). PATCH/POST/DELETE 404.
  *
- * Two rules from the brief are enforced here AND in firestore.rules, because a
- * limit that lives only in a form is a limit the next form forgets:
+ * Two rules from the brief are enforced here, because a limit that lives only
+ * in a form is a limit the next form forgets:
  *   - at most one PRESENTING and three SUPPORTING sponsors per event
- *   - an organization with sponsorships cannot be deleted, only deactivated
- * The second is absolute: the rules refuse delete outright, for everyone.
+ *   - an organization is not deleted in v1 — deactivate instead
  */
 import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import { renderAdminNav, renderAdminTop, renderCrumbs } from "/assets/js/paaipe-admin.js";
@@ -16,7 +16,7 @@ import {
   listOrganizations, listEvents, listEventSponsors, groupSponsors,
 } from "/assets/js/paaipe-events-data.js";
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
-import { patchAdminOrganization } from "/assets/js/paaipe-api.js";
+import { patchAdminOrganization, putAdminPartners } from "/assets/js/paaipe-api.js";
 import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
 import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
 
@@ -201,11 +201,23 @@ async function saveSponsor(id) {
 
   $$("button", tr).forEach(b => b.disabled = true);
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    await F.setDoc(F.doc(await db(), COL.sponsors, id), patch, { merge: true });
     const row = SPONSORS.find(s => s.id === id);
+    const token = await idTokenForRequest();
+    const saved = await putAdminPartners({
+      id,
+      eventId: EVENT_ID,
+      organizationId: row?.organizationId,
+      tier: patch.tier,
+      status: patch.status,
+      displayOrder: patch.displayOrder,
+    }, { token });
     const org = row?.organization?.name || id;
-    Object.assign(row, patch);
+    Object.assign(row, patch, {
+      displayOrder: saved?.displayOrder ?? patch.displayOrder,
+      order: saved?.displayOrder ?? patch.displayOrder,
+      status: saved?.status || patch.status,
+      tier: saved?.tier || patch.tier,
+    });
     await logActivity("sponsor.update", `${org}: ${patch.tier}/${patch.status}`, EVENT_ID);
     renderSponsorAdmin();
     flash([SPONSOR_STATUS.CONFIRMED, SPONSOR_STATUS.DELIVERED].includes(patch.status)
@@ -213,7 +225,9 @@ async function saveSponsor(id) {
       : `Saved. ${org} is no longer shown publicly.`, true);
   } catch (ex) {
     $$("button", tr).forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied" ? "The rules refused that change." : `Could not save: ${ex?.message || ex}`);
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that change. Your account may not be on the admin allow-list."
+      : `Could not save: ${ex?.message || ex}`);
   }
 }
 

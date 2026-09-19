@@ -63,28 +63,27 @@
  *   GET  /v1/admin/events/{eventId}/feedback/responses/{registrationId}  admin one (401)
  *   DELETE and a reports table 404 — do not invent them. Reports stay FE-computed.
  *
- * Organizations / partners / contacts (deploy orgs-contacts-20260919T043103Z).
- * Public (no Bearer):
- *   GET  /v1/organizations              → { organizations } (active shown)
- *   GET  /v1/organizations/{id}         404 if missing
- *   GET  /v1/events/{eventId}/partners  → { partners }
- *   POST /v1/partner-applications       400 without eventId + companyName
- * Member (Bearer):
- *   GET  /v1/me/organizations
- *   POST /v1/me/organizations
- *   PATCH /v1/me/organizations/{id}
- *   DELETE is 405 — organizations are not deleted in v1.
+ * Organizations / partners / contacts — Aryhan Slice 2 lock (exact verbs).
+ * Public / me:
+ *   GET  /v1/organizations
+ *   GET  /v1/organizations/{id}
+ *   GET/PATCH /v1/me/organizations…   (POST /v1/me/organizations exists for create)
+ *   GET  /v1/events/{eventId}/partners
+ *   POST /v1/partner-applications
  * Admin (Bearer + ADMIN_EMAILS; 401 without):
  *   GET/POST /v1/admin/organizations
- *   GET/PATCH /v1/admin/organizations/{id}
- *   GET  /v1/admin/partners
+ *   GET/PATCH /v1/admin/organizations/{id}  (approve = PATCH status)
+ *   GET  /v1/admin/partner-applications
+ *   GET/PATCH /v1/admin/partner-applications/{id}
+ *     Accept is PATCH { status: "accepted" }. /accept and /activate are 404.
+ *   GET/PUT /v1/admin/partners
+ *     PUT collection is the write (401 without Bearer). PATCH/POST/DELETE 404.
+ *     PUT /v1/admin/partners/{id} 404 — do not invent it.
  *   GET  /v1/admin/events/{eventId}/partners
- *   GET/PATCH /v1/admin/partner-applications
- *   GET/PATCH /v1/admin/partner-applications/{id}  (accept activates org)
+ *     PUT on this path is 404 live — writes use PUT /v1/admin/partners.
  *   GET  /v1/admin/contacts
  *   GET  /v1/admin/contacts/{id}
- * Contacts are read-only. POST/PATCH/DELETE contacts 404 — do not invent them.
- * POST /v1/admin/partners and partner-application accept sub-routes 404.
+ * Contacts are read-only. Do not invent contact writes.
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
@@ -1091,6 +1090,24 @@ export function partnerApplicationPatchPayload(src = {}) {
   return out;
 }
 
+/** Body for PUT /v1/admin/partners. GET shape only — no invented fields. */
+export function eventPartnerWritePayload(src = {}, eventHint) {
+  const out = {};
+  if (src.id) out.id = String(src.id);
+  const eventId = src.eventId || eventHint;
+  if (eventId) out.eventId = String(eventId);
+  if ("organizationId" in src && src.organizationId) out.organizationId = String(src.organizationId);
+  if ("tier" in src && src.tier) out.tier = src.tier;
+  if ("status" in src && src.status) out.status = src.status;
+  if ("displayOrder" in src && Number.isFinite(Number(src.displayOrder))) {
+    out.displayOrder = Number(src.displayOrder);
+  } else if ("order" in src && Number.isFinite(Number(src.order))) {
+    out.displayOrder = Number(src.order);
+  }
+  if ("note" in src) out.note = src.note || null;
+  return out;
+}
+
 function normalizeOrganization(row) {
   if (!row || typeof row !== "object") return null;
   const id = row.id || row.organizationId;
@@ -1292,6 +1309,29 @@ export async function listAdminEventPartners(eventId, opts = {}) {
     .map(r => normalizeEventPartner(r, eventId))
     .filter(Boolean)
     .sort((a, b) => (a.displayOrder || 0) - (b.displayOrder || 0));
+}
+
+/** Aryhan lock: GET/PUT /v1/admin/partners. Not PATCH. */
+export async function putAdminPartners(fields, opts = {}) {
+  const data = await paaipeApiRequest(adminPartnersPath(), {
+    method: "PUT",
+    body: eventPartnerWritePayload(fields),
+    ...opts,
+  });
+  return normalizeEventPartner(asResource(data) || data, fields.eventId) || data;
+}
+
+/**
+ * Locked verb GET/PUT /v1/admin/events/{eventId}/partners.
+ * Live PUT on this path is 404 — callers that need a write use putAdminPartners.
+ */
+export async function putAdminEventPartners(eventId, fields, opts = {}) {
+  const data = await paaipeApiRequest(adminEventPartnersPath(eventId), {
+    method: "PUT",
+    body: eventPartnerWritePayload(fields, eventId),
+    ...opts,
+  });
+  return normalizeEventPartner(asResource(data) || data, eventId) || data;
 }
 
 export async function listAdminPartnerApplications(opts = {}) {

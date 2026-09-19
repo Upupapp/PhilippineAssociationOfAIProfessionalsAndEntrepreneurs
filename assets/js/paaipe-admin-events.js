@@ -18,9 +18,9 @@
  * Event create / content / settings / duplicate / the admin list / the
  * calendar file go to api.paaipe.org. Feedback questions and responses
  * go to the Feedback API. Reports stay FE-computed from that payload.
- * Organizations and partner applications go to the API. Sponsors,
- * activity log, and Zoom private stay on Firestore until the partners
- * PUT slice. Email drafts stay in this browser (never Firestore).
+ * Organizations, partner applications, and event partners go to the API
+ * (GET/PUT /v1/admin/partners for writes). Activity log and Zoom private
+ * stay on Firestore. Email drafts stay in this browser (never Firestore).
  * Email send is still 501.
  */
 import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
@@ -28,7 +28,8 @@ import {
   listAdminEvents, postAdminEventDuplicate, patchAdminEvent, patchAdminEventContent,
   listAdminEventRegistrations, eventSettingsPayload, eventContentPayload,
   getAdminEventCalendarIcs,
-  listAdminPartnerApplications, postAdminOrganization,
+  listAdminPartnerApplications, listAdminEventPartners, postAdminOrganization,
+  putAdminPartners,
 } from "/assets/js/paaipe-api.js";
 import {
   renderAdminNav, renderAdminTop, renderCrumbs, renderStateChip, setNavBadge,
@@ -528,14 +529,12 @@ function loadTab(key) {
  *  its tab is first clicked - a badge that only appears after you click the tab
  *  is a badge that never told you anything. */
 async function loadTabCounts(id) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  const database = await db();
-  const countOf = async (col, ...clauses) => {
-    try {
-      return (await F.getCountFromServer(F.query(F.collection(database, col), ...clauses))).data().count;
-    } catch { return null; }   // null renders as no badge, never as zero
-  };
-  setTabCount("sponsors", await countOf(COL.sponsors, F.where("eventId", "==", id)));
+  try {
+    const token = await idTokenForRequest();
+    setTabCount("sponsors", (await listAdminEventPartners(id, { token })).length);
+  } catch {
+    setTabCount("sponsors", null);
+  }
   try {
     const token = await idTokenForRequest();
     const apps = await listAdminPartnerApplications({ token });
@@ -1184,10 +1183,8 @@ async function paintUploadBox() {
  * the deliverables checklist, plus adding one - either an organization PAAIPE
  * already knows or a new one created inline.
  *
- * REMOVING HERE REMOVES THE SPONSORSHIP, NEVER THE ORGANIZATION. An organization
- * is shared: it is credited on other events and on the public Partners page, so
- * deleting it from inside one event would be one event reaching into all the
- * others. The rules refuse an organization delete outright for the same reason.
+ * DELETE /v1/admin/partners is 404 — Remove is honest about that and does not
+ * invent a write. An organization is shared and is never deleted from here.
  */
 let SPONSORS = [], ORGS = [];
 
@@ -1220,7 +1217,7 @@ function sponsorRow(s) {
         : esc(o?.website || "no website on record")}</small>
       ${broken ? `<div class="join-warn">Broken join - fix the organization link or recreate the row.</div>` : ""}
       <div class="deliv">${(DELIVERABLES[s.tier] || []).map((d, i) =>
-        `<label><input type="checkbox" data-dv="${i}"${done.includes(i) ? " checked" : ""}>${esc(d)}</label>`).join("")}</div>
+        `<label><input type="checkbox" data-dv="${i}" disabled${done.includes(i) ? " checked" : ""}>${esc(d)}</label>`).join("")}</div>
     </div>
     <div class="sprow-meta">
       <span class="stchip ${statusClass}">${esc(s.status)}</span>
@@ -1234,8 +1231,8 @@ function sponsorRow(s) {
         `<option value="${v}"${s.status === v ? " selected" : ""}>${v}</option>`).join("")}
       </select>
     </div>
-    <div class="sprow-extra"><input data-sp-contrib value="${esc(s.contributionType || "")}" placeholder="cash / in-kind"
-        maxlength="60">
+    <div class="sprow-extra"><input data-sp-contrib value="${esc(s.contributionType || "")}" placeholder="not on API yet"
+        maxlength="60" disabled title="Contribution type is not on the partners API.">
       <input data-sp-order type="number" value="${Number(s.order ?? s.displayOrder ?? 100)}"
         aria-label="Display order"></div>
     <div class="sprow-acts"><button type="button" class="btn btn-gold btn-sm" data-sp-save>Save</button>
@@ -1325,7 +1322,8 @@ function renderSponsorsTab() {
       <h3 class="ehead">Placement preview</h3>
       ${placementPreview()}
       <p class="note quiet">Same grouping as the public page. Only <b>confirmed</b> and <b>delivered</b>
-        with a resolved organization appear here.</p>
+        with a resolved organization appear here. Contribution type and deliverables are not on
+        the API yet — they are shown, not saved. Partners cannot be deleted in v1; change status instead.</p>
     </section>`;
 }
 
@@ -1611,23 +1609,42 @@ async function createOrgAndSponsor() {
 }
 
 async function writeSponsor({ organizationId, tier }) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
   try {
-    const row = {
-      eventId: CURRENT.id, organizationId, tier,
-      status: SPONSOR_STATUS.PROPOSED, order: (SPONSORS.length + 1) * 10,
-      contributionType: "", deliverablesDone: [],
-    };
-    const ref = await F.addDoc(F.collection(await db(), COL.sponsors), row);
-    SPONSORS.push({ id: ref.id, ...row });
+    const token = await idTokenForRequest();
+    const displayOrder = (SPONSORS.length + 1) * 10;
+    const saved = await putAdminPartners({
+      eventId: CURRENT.id,
+      organizationId,
+      tier,
+      status: SPONSOR_STATUS.PROPOSED,
+      displayOrder,
+    }, { token });
+    const id = saved?.id;
+    if (!id) {
+      throw Object.assign(
+        new Error("The API did not return an id. Nothing was assumed."),
+        { code: "api/invalid-response" }
+      );
+    }
+    SPONSORS.push({
+      id,
+      eventId: CURRENT.id,
+      organizationId,
+      tier: saved.tier || tier,
+      status: saved.status || SPONSOR_STATUS.PROPOSED,
+      displayOrder: saved.displayOrder ?? displayOrder,
+      order: saved.displayOrder ?? displayOrder,
+      note: saved.note ?? null,
+    });
     await logActivity("sponsor.create",
       `${ORGS.find(o => o.id === organizationId)?.name || organizationId}: ${tier}/proposed`, CURRENT.id);
     renderSponsorsTab();
     setTabCount("sponsors", SPONSORS.length);
-    flash("Added as PROPOSED — the rules refuse to serve a proposed Partner on this event, so nothing is " +
-          "public until you set it to confirmed.", true);
+    flash("Added as PROPOSED — a proposed Partner stays off the public event page until confirmed.", true);
   } catch (ex) {
-    flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not add: ${ex?.message || ex}`);
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that."
+      : `Could not add: ${ex?.message || ex}`);
   }
 }
 
@@ -1641,14 +1658,24 @@ async function saveSponsorRow(id) {
   const patch = {
     tier,
     status: $("[data-sp-status]", row).value,
-    contributionType: $("[data-sp-contrib]", row).value.trim(),
-    order: Number($("[data-sp-order]", row).value) || 100,
-    deliverablesDone: $$("[data-dv]", row).filter(c => c.checked).map(c => Number(c.dataset.dv)),
+    displayOrder: Number($("[data-sp-order]", row).value) || 100,
   };
-  const F = await import(`${SDK}/firebase-firestore.js`);
   try {
-    await F.setDoc(F.doc(await db(), COL.sponsors, id), patch, { merge: true });
-    Object.assign(s, patch);
+    const token = await idTokenForRequest();
+    const saved = await putAdminPartners({
+      id,
+      eventId: CURRENT.id,
+      organizationId: s.organizationId,
+      tier: patch.tier,
+      status: patch.status,
+      displayOrder: patch.displayOrder,
+    }, { token });
+    Object.assign(s, {
+      tier: saved?.tier || patch.tier,
+      status: saved?.status || patch.status,
+      displayOrder: saved?.displayOrder ?? patch.displayOrder,
+      order: saved?.displayOrder ?? patch.displayOrder,
+    });
     await logActivity("sponsor.update",
       `${ORGS.find(o => o.id === s.organizationId)?.name || s.organizationId}: ${patch.tier}/${patch.status}`,
       CURRENT.id);
@@ -1657,29 +1684,15 @@ async function saveSponsorRow(id) {
       ? "Saved. Still proposed, so it stays off the public page."
       : "Saved. This Partner now appears on the public event page.", true);
   } catch (ex) {
-    flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not save: ${ex?.message || ex}`);
+    flash(ex?.code === "permission-denied" || ex?.code === "api/forbidden"
+      ? "The API refused that."
+      : `Could not save: ${ex?.message || ex}`);
   }
 }
 
-/** Remove the SPONSORSHIP. The organization is shared - other events credit it
- *  and the public Partners page lists it - so nothing here touches it. */
-async function removeSponsorRow(id) {
-  const s = SPONSORS.find(x => x.id === id);
-  const name = ORGS.find(o => o.id === s?.organizationId)?.name || "this organization";
-  if (!confirm(`Remove ${name} from ${CURRENT?.title || "this event"}?\n\n` +
-               `The organization itself is kept — it is credited on other events and on the ` +
-               `public Partners page.`)) return;
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  try {
-    await F.deleteDoc(F.doc(await db(), COL.sponsors, id));
-    SPONSORS = SPONSORS.filter(x => x.id !== id);
-    await logActivity("sponsor.remove", `${name} from ${CURRENT.id}`, CURRENT.id);
-    renderSponsorsTab();
-    setTabCount("sponsors", SPONSORS.length);
-    flash(`${name} is no longer a Partner on this event. The organization is untouched.`, true);
-  } catch (ex) {
-    flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not remove: ${ex?.message || ex}`);
-  }
+/** DELETE /v1/admin/partners is 404. Do not invent a write. */
+async function removeSponsorRow(_id) {
+  flash("Removing a partner is not available on the API yet (DELETE /v1/admin/partners is 404). Change the status instead. Nothing was changed.");
 }
 
 /** Linking is not on the API (PATCH /v1/admin/registrations/{id} accepts

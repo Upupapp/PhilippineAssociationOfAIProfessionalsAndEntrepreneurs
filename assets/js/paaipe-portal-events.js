@@ -1,6 +1,7 @@
 /* PAAIPE — Agent Portal Event Details (Overview / Feedback / Certificate).
  *
- * URL scheme (locked, URL-sweep — keep the hash, do not add portal-event.html):
+ * URL scheme lives in paaipe-portal-event-url.js. Ericson UI bar is unlocked
+ * on the live #37 form (dedicated portal-event.html only if that page ships):
  *   portal-events.html#event=<id>
  *   portal-events.html#event=<id>&tab=feedback
  *   portal-events.html#event=<id>&tab=certificate

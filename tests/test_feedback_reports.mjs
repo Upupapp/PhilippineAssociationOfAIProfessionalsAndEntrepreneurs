@@ -8,6 +8,7 @@ import { readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
 const REAL_FB=readFileSync(`${ROOT}/assets/js/paaipe-firebase.js`,'utf8');
 const REAL_DATA=readFileSync(`${ROOT}/assets/js/paaipe-events-data.js`,'utf8');
+const REAL_API=readFileSync(`${ROOT}/assets/js/paaipe-api.js`,'utf8');
 const REAL_FEED=readFileSync(`${ROOT}/assets/js/paaipe-feedback.js`,'utf8');
 const RULES=readFileSync(`${ROOT}/firestore.rules`,'utf8');
 let pass=0,fail=0;
@@ -44,7 +45,8 @@ const REGS=[
 const fbStub=`export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {uid:'a1',email:'admin@upupapp.asia',status:'agent'}}
   export async function isAdminNow(){return true}
-  export async function signOutNow(){}`;
+  export async function signOutNow(){}
+  export async function idTokenForRequest(){ return 'test-id-token' }`;
 const memberStub=`export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {uid:'u1',email:'ada@x.com',status:'agent'}}
   export async function isAdminNow(){return false}
@@ -60,6 +62,9 @@ const dataStub=`
   export async function listEventSponsors(){ return [{id:'s1',eventId:'2026-10-ai-exchange',tier:'community',status:'confirmed',organization:{name:'Servana'}}] }
   export async function listPartnerApplicationsFor(){ return [{id:'a1',eventId:'2026-10-ai-exchange',status:'new'}] }
   export async function listAllRegistrations(){ return ${JSON.stringify(REGS)} }`;
+const apiStub=`
+  export * from '/assets/js/paaipe-api-real.js';
+  export async function listAdminEvents(){ return ${JSON.stringify(EVS)} }`;
 
 const feedStub=({questions=QS, responses=[], qFail=false, rFail=false}={})=>`
   export * from '/assets/js/paaipe-feedback-real.js';
@@ -82,6 +87,8 @@ async function routeAdmin(p, {feed}={}){
   await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbStub}));
   await p.route('**/assets/js/paaipe-events-data-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_DATA}));
   await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub}));
+  await p.route('**/assets/js/paaipe-api-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_API}));
+  await p.route('**/assets/js/paaipe-api.js',r=>r.fulfill({contentType:'text/javascript',body:apiStub}));
   await p.route('**/assets/js/paaipe-feedback-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_FEED}));
   await p.route('**/assets/js/paaipe-feedback.js',r=>r.fulfill({contentType:'text/javascript',body:feed||feedStub()}));
 }

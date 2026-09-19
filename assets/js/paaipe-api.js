@@ -34,11 +34,20 @@
  * GET /v1/admin/sessions and GET /v1/admin/micros 404 — do not call them.
  * DELETE / PUT on those resources 404 — do not invent them.
  *
- * Also:
- *   PATCH /v1/admin/events/{id}
- *   GET   /v1/admin/events/{eventId}/registrations   optional ?status=
+ * Events (Clarence 2026-09-19, live-confirmed):
+ *   GET   /v1/events                                → { events }  (public, no Bearer)
+ *   GET   /v1/admin/events                          → { events: AdminEvent[] }
+ *   POST  /v1/admin/events                          → EventCreate → AdminEvent (201)
+ *   PATCH /v1/admin/events/{id}/content             content only
+ *   PATCH /v1/admin/events/{id}                     settings only
+ *   POST  /v1/admin/events/{id}/duplicate
+ *   GET   /v1/admin/events/{id}/content             404 — PATCH only; do not call
+ *   GET   /v1/admin/events/{eventId}/registrations  optional ?status=
  *   GET   /v1/admin/registrations/{id}
- *   PATCH /v1/admin/registrations/{id}               body { status } only
+ *   PATCH /v1/admin/registrations/{id}              body { status } only
+ *
+ * Email send is still 501. Sponsors, partners, orgs, activity log, Zoom
+ * private join, and Feedback/Reports are not on this API — do not invent them.
  *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
@@ -58,12 +67,35 @@ export const PAAIPE_API_OVERRIDE_KEY = "PAAIPE_API_BASE";
 export const PAAIPE_API_QUERY_PARAM = "paaipe_api";
 
 export const EVENT_SETTINGS_FIELDS = [
+  "capacity",
   "registrationOpensAt",
   "registrationClosesAt",
   "whoCanRegister",
   "waitlistEnabled",
   "questionsEnabled",
   "status",
+  "hasZoom",
+];
+
+export const EVENT_CONTENT_FIELDS = [
+  "title",
+  "slug",
+  "series",
+  "topic",
+  "description",
+  "whatToExpect",
+  "date",
+  "startTime",
+  "endTime",
+  "format",
+  "speakers",
+  "program",
+  "gallery",
+  "coverUrl",
+  "bannerSquareUrl",
+  "bannerWideUrl",
+  "bannerSourceUrl",
+  "confirmationEmailText",
 ];
 
 const REG_STATUSES = new Set(["registered", "attended", "no_show", "cancelled"]);
@@ -110,8 +142,24 @@ export const PAAIPE_API_BASE = resolvePaaipeApiBase({
   storageValue: currentStorage(),
 });
 
+export function eventsPath() {
+  return "/v1/events";
+}
+
+export function adminEventsPath() {
+  return "/v1/admin/events";
+}
+
 export function adminEventPath(id) {
   return `/v1/admin/events/${encodeURIComponent(id)}`;
+}
+
+export function adminEventContentPath(id) {
+  return `/v1/admin/events/${encodeURIComponent(id)}/content`;
+}
+
+export function adminEventDuplicatePath(id) {
+  return `/v1/admin/events/${encodeURIComponent(id)}/duplicate`;
 }
 
 export function adminEventRegistrationsPath(eventId, { status } = {}) {
@@ -183,6 +231,14 @@ export function adminMicroPath(id) {
 
 export function eventSettingsPayload(src = {}) {
   const out = {};
+  if ("capacity" in src) {
+    const n = src.capacity;
+    if (n === "" || n == null) out.capacity = null;
+    else {
+      const num = Number(n);
+      out.capacity = Number.isFinite(num) ? num : null;
+    }
+  }
   if ("registrationOpensAt" in src) out.registrationOpensAt = src.registrationOpensAt || null;
   if ("registrationClosesAt" in src) out.registrationClosesAt = src.registrationClosesAt || null;
   if ("whoCanRegister" in src) out.whoCanRegister = src.whoCanRegister;
@@ -191,6 +247,34 @@ export function eventSettingsPayload(src = {}) {
     out.questionsEnabled = Array.isArray(src.questionsEnabled) ? src.questionsEnabled : [];
   }
   if ("status" in src && src.status) out.status = src.status;
+  if ("hasZoom" in src) out.hasZoom = src.hasZoom === true;
+  return out;
+}
+
+function copyIfPresent(out, src, key) {
+  if (key in src) out[key] = src[key];
+}
+
+export function eventContentPayload(src = {}) {
+  const out = {};
+  for (const key of [
+    "title", "slug", "series", "topic", "description",
+    "date", "startTime", "endTime", "format",
+    "coverUrl", "bannerSquareUrl", "bannerWideUrl", "bannerSourceUrl",
+    "confirmationEmailText",
+  ]) copyIfPresent(out, src, key);
+  if ("whatToExpect" in src) {
+    out.whatToExpect = Array.isArray(src.whatToExpect) ? src.whatToExpect : [];
+  }
+  if ("speakers" in src) out.speakers = Array.isArray(src.speakers) ? src.speakers : [];
+  if ("program" in src) out.program = Array.isArray(src.program) ? src.program : [];
+  if ("gallery" in src) out.gallery = Array.isArray(src.gallery) ? src.gallery : [];
+  return out;
+}
+
+export function eventCreatePayload(src = {}) {
+  const out = { ...eventContentPayload(src), ...eventSettingsPayload(src) };
+  if (src.id) out.id = String(src.id);
   return out;
 }
 
@@ -299,6 +383,7 @@ function asList(data, namedKey) {
   if (Array.isArray(data?.sessions)) return data.sessions;
   if (Array.isArray(data?.micros)) return data.micros;
   if (Array.isArray(data?.playlists)) return data.playlists;
+  if (Array.isArray(data?.events)) return data.events;
   if (Array.isArray(data?.registrations)) return data.registrations;
   if (Array.isArray(data?.items)) return data.items;
   if (Array.isArray(data?.data)) return data.data;
@@ -328,7 +413,7 @@ export async function paaipePublicGet(path, opts = {}) {
 function asResource(data) {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   if (data.id) return data;
-  for (const key of ["session", "micro", "playlist", "item"]) {
+  for (const key of ["session", "micro", "playlist", "item", "event"]) {
     const inner = data[key];
     if (inner && typeof inner === "object" && !Array.isArray(inner) && inner.id) return inner;
   }
@@ -531,12 +616,78 @@ function asRegistration(data, eventHint) {
   return normalizeRegistration(data, eventHint);
 }
 
+function sortEventsByDate(rows) {
+  return [...rows].sort((a, b) => String(a?.date || "").localeCompare(String(b?.date || "")));
+}
+
+export function normalizeAdminEvent(row) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+  const id = row.id || row.eventId;
+  if (!id) return null;
+  return { ...row, id: String(id) };
+}
+
+function asAdminEvent(data) {
+  if (!data || typeof data !== "object") return null;
+  if (data.event && typeof data.event === "object" && !Array.isArray(data.event)) {
+    return normalizeAdminEvent(data.event);
+  }
+  return normalizeAdminEvent(data);
+}
+
+function requireAdminEvent(data) {
+  const row = asAdminEvent(data);
+  if (!row) {
+    throw Object.assign(
+      new Error("The API did not return an event. Nothing was assumed."),
+      { code: "api/invalid-response" }
+    );
+  }
+  return row;
+}
+
+/** Public GET /v1/events. No Bearer. Not wired to portal reads in this slice. */
+export async function listApiEvents(opts) {
+  const data = await paaipePublicGet(eventsPath(), opts);
+  return sortEventsByDate(withIds(asList(data, "events")).map(normalizeAdminEvent).filter(Boolean));
+}
+
+export async function listAdminEvents(opts) {
+  const data = await paaipeApiRequest(adminEventsPath(), opts);
+  return sortEventsByDate(withIds(asList(data, "events")).map(normalizeAdminEvent).filter(Boolean));
+}
+
+export async function postAdminEvent(fields, opts) {
+  const data = await paaipeApiRequest(adminEventsPath(), {
+    method: "POST",
+    body: eventCreatePayload(fields),
+    ...opts,
+  });
+  return requireAdminEvent(data);
+}
+
 export async function patchAdminEvent(id, fields, opts) {
   return paaipeApiRequest(adminEventPath(id), {
     method: "PATCH",
     body: eventSettingsPayload(fields),
     ...opts,
   });
+}
+
+export async function patchAdminEventContent(id, fields, opts) {
+  return paaipeApiRequest(adminEventContentPath(id), {
+    method: "PATCH",
+    body: eventContentPayload(fields),
+    ...opts,
+  });
+}
+
+export async function postAdminEventDuplicate(id, opts) {
+  const data = await paaipeApiRequest(adminEventDuplicatePath(id), {
+    method: "POST",
+    ...opts,
+  });
+  return requireAdminEvent(data);
 }
 
 export async function listAdminEventRegistrations(eventId, { status, ...opts } = {}) {

@@ -14,10 +14,16 @@
  *   no client may read, because Firestore rules cannot hide a single field. This
  *   editor can write it and can NEVER show it back: reading it here would put it
  *   in a page, and a page is the thing we are keeping it out of.
+ *
+ * Event create / content / settings / duplicate / the admin list go to
+ * api.paaipe.org. Sponsors, partners, orgs, activity log, Zoom private,
+ * Feedback and Reports stay on Firestore until those routes exist. Email
+ * send is still 501.
  */
 import { currentAgent, isAdminNow, signOutNow, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import {
-  patchAdminEvent, listAdminEventRegistrations, eventSettingsPayload,
+  listAdminEvents, postAdminEventDuplicate, patchAdminEvent, patchAdminEventContent,
+  listAdminEventRegistrations, eventSettingsPayload, eventContentPayload,
 } from "/assets/js/paaipe-api.js";
 import {
   renderAdminNav, renderAdminTop, renderCrumbs, renderStateChip, setNavBadge,
@@ -25,7 +31,7 @@ import {
 import { firebaseConfig, DATABASE_ID } from "/assets/js/paaipe-firebase.js";
 import {
   COL, EVENT_STATUS, PARTNER_STATUS, SPONSOR_STATUS, TIER, TIER_LIMITS,
-  SUPPORT_TYPES, GALLERY_MAX, galleryOf, listEvents, listEventSponsors,
+  SUPPORT_TYPES, GALLERY_MAX, galleryOf, listEventSponsors,
   listOrganizations, matchOrganization, registrationMatchesEvent, isUnlinked,
   listPartnerApplicationsFor, listAllRegistrations,
   registrationState, eventDateLong, eventDateTimeLine, eventStatusShort, groupSponsors,
@@ -711,22 +717,19 @@ function readForm() {
   return patch;
 }
 
-const SETTINGS_KEYS = [
-  "registrationOpensAt", "registrationClosesAt",
-  "whoCanRegister", "waitlistEnabled", "questionsEnabled",
-];
-
-function withoutSettings(patch) {
-  const out = { ...patch };
-  for (const k of SETTINGS_KEYS) delete out[k];
-  return out;
+function applyLocalEvent(id, patch) {
+  const ev = EVENTS.find(e => e.id === id);
+  if (ev) Object.assign(ev, patch);
 }
 
-async function writeEvent(id, patch, action, details) {
-  const F = await import(`${SDK}/firebase-firestore.js`);
-  await F.setDoc(F.doc(await db(), COL.events, id), patch, { merge: true });
-  Object.assign(EVENTS.find(e => e.id === id), patch);
-  await logActivity(action, details, id);
+function saveErrorMessage(ex) {
+  if (ex?.code === "permission-denied")
+    return "The rules refused that change. Check the title, slug and status.";
+  if (ex?.code === "api/forbidden")
+    return "The API refused that change. Your account may not be on the admin allow-list.";
+  if (ex?.code === "api/unauthorized" || ex?.code === "not-signed-in")
+    return "Sign-in expired or missing. Nothing was changed.";
+  return `Could not save: ${ex?.message || ex}`;
 }
 
 async function saveEvent(id) {
@@ -743,35 +746,41 @@ async function saveEvent(id) {
     const ev = EVENTS.find(e => e.id === id) || CURRENT;
     const token = await idTokenForRequest();
     const settings = eventSettingsPayload({ ...patch, status: ev?.status });
+    const content = eventContentPayload(patch);
     await patchAdminEvent(id, settings, { token });
-    if (ev) Object.assign(ev, settings);
+    applyLocalEvent(id, settings);
 
     try {
-      await writeEvent(id, withoutSettings(patch), "event.update", patch.title);
+      await patchAdminEventContent(id, content, { token });
+      applyLocalEvent(id, content);
+    } catch (restEx) {
+      $$("button", d).forEach(b => b.disabled = false);
+      flash(`Registration settings reached the API, but the event content could not be saved: ${restEx?.message || restEx}`);
+      return;
+    }
+    await logActivity("event.update", patch.title, id);
 
-      // the Zoom link, if one was typed, into its own document
-      const zoom = $("[data-zoom]", d)?.value?.trim();
-      if (zoom) {
+    // Zoom link stays in paaipe_event_private — no API route exists yet.
+    const zoom = $("[data-zoom]", d)?.value?.trim();
+    if (zoom) {
+      try {
         const F = await import(`${SDK}/firebase-firestore.js`);
         await F.setDoc(F.doc(await db(), "paaipe_event_private", id),
           { zoomLink: zoom, updatedBy: ME }, { merge: true });
-        EVENTS.find(e => e.id === id).hasZoom = true;
+        applyLocalEvent(id, { hasZoom: true });
+        await patchAdminEvent(id, { hasZoom: true }, { token });
         await logActivity("event.zoom_link_set", "(the link itself is not logged)", id);
+      } catch (zoomEx) {
+        openEditor(id);
+        flash(`Saved, but the Zoom link could not be stored: ${zoomEx?.message || zoomEx}`);
+        return;
       }
-    } catch (restEx) {
-      $$("button", d).forEach(b => b.disabled = false);
-      flash(`Registration settings reached the API, but the rest of the event could not be saved: ${restEx?.message || restEx}`);
-      return;
     }
     openEditor(id);
-    flash("Saved. Registration settings were written to the API. The rest of the event record was saved as before.", true);
+    flash("Saved.", true);
   } catch (ex) {
     $$("button", d).forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied"
-      ? "The rules refused that change. Check the title, slug and status."
-      : ex?.code === "api/forbidden"
-        ? "The API refused that change. Your account may not be on the admin allow-list."
-        : `Could not save: ${ex?.message || ex}`);
+    flash(saveErrorMessage(ex));
   }
 }
 
@@ -781,14 +790,17 @@ async function setStatus(id, status) {
   const d = $("[data-event-editor]");
   $$("button", d).forEach(b => b.disabled = true);
   try {
-    await writeEvent(id, { status }, "event.status", `${ev.title}: ${status}`);
+    const token = await idTokenForRequest();
+    await patchAdminEvent(id, { status }, { token });
+    applyLocalEvent(id, { status });
+    await logActivity("event.status", `${ev.title}: ${status}`, id);
     openEditor(id);
     flash(status === EVENT_STATUS.DRAFT
       ? "Unpublished. The public page can no longer read this event."
       : `Saved. ${consequence(EVENTS.find(e => e.id === id))}`, true);
   } catch (ex) {
     $$("button", d).forEach(b => b.disabled = false);
-    flash(ex?.code === "permission-denied" ? "The rules refused that change." : `Could not save: ${ex?.message || ex}`);
+    flash(saveErrorMessage(ex));
   }
 }
 
@@ -866,32 +878,22 @@ function downloadIcs(ev) {
 async function duplicateEvent(id) {
   const src = EVENTS.find(e => e.id === id);
   if (!src) return;
-  const suggested = `${(src.id || "").replace(/^\d{4}-\d{2}-/, "")}-copy`;
-  const newId = prompt(
-    "Id for the new event (lower-case, letters, numbers and hyphens).\n\n" +
-    "It also needs an HTML page in the repository before the public can see it — " +
-    "publishing cannot create one on a static site.", suggested);
-  if (!newId) return;
-  if (!/^[a-z0-9][a-z0-9-]{0,80}$/.test(newId)) return flash("That id is not a valid slug.");
-  if (EVENTS.some(e => e.id === newId)) return flash("An event with that id already exists.");
+  if (!confirm(
+    `Duplicate “${src.title || "this event"}” as a new draft?\n\n` +
+    "The API creates the copy. It also needs an HTML page in the repository " +
+    "before the public can see it — publishing cannot create one on a static site."))
+    return;
 
-  const copy = { ...src };
-  delete copy.id;
-  Object.assign(copy, {
-    slug: newId, status: EVENT_STATUS.DRAFT,
-    title: `${src.title} (copy)`,
-    registrationOpensAt: null, registrationClosesAt: null,
-  });
   try {
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    await F.setDoc(F.doc(await db(), COL.events, newId), copy);
-    await logActivity("event.duplicate", `from ${src.title}`, newId);
-    EVENTS.push({ id: newId, ...copy });
+    const token = await idTokenForRequest();
+    const created = await postAdminEventDuplicate(id, { token });
+    await logActivity("event.duplicate", `from ${src.title}`, created.id);
+    EVENTS.push(created);
     EVENTS.sort((a, b) => String(a.date || "").localeCompare(String(b.date || "")));
-    openEditor(newId);
+    openEditor(created.id);
     flash("Duplicated as a DRAFT — not public until you publish it, and it needs its own page first.", true);
   } catch (ex) {
-    flash(ex?.code === "permission-denied" ? "The rules refused that." : `Could not duplicate: ${ex?.message || ex}`);
+    flash(saveErrorMessage(ex).replace("Could not save:", "Could not duplicate:"));
   }
 }
 
@@ -954,18 +956,8 @@ function applyFromLocation() {
   });
 
   try {
-    // asAdmin: the console is the one caller that must see drafts
-    EVENTS = await listEvents({ asAdmin: true });
-    // Whether a Zoom link EXISTS, so the field can show a masked placeholder.
-    // The value itself is never kept or rendered - knowing one is stored is a
-    // different fact from knowing what it is.
-    const F = await import(`${SDK}/firebase-firestore.js`);
-    await Promise.all(EVENTS.map(async ev => {
-      try {
-        const s = await F.getDoc(F.doc(await db(), "paaipe_event_private", ev.id));
-        ev.hasZoom = s.exists() && Boolean(s.data()?.zoomLink);
-      } catch { ev.hasZoom = false; }
-    }));
+    const token = await idTokenForRequest();
+    EVENTS = await listAdminEvents({ token });
   } catch (ex) {
     flash(`Could not load events: ${ex?.message || ex}`);
     document.documentElement.setAttribute("data-admin-events", "error");

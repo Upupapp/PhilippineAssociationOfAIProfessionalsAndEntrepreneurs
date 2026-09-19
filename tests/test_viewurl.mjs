@@ -237,6 +237,7 @@ await T("#tab=micros from the entry popup still opens Micros", async () => {
 });
 
 const REAL_DATA = read("assets/js/paaipe-events-data.js");
+const REAL_API = read("assets/js/paaipe-api.js");
 const orgFb = `
   export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {
@@ -281,7 +282,8 @@ const EV = { id: "e-oct", slug: "event-2026-10-ai-exchange", title: "AI Exchange
 const adminFb = `export * from '/assets/js/paaipe-firebase-real.js';
   export async function currentAgent(){return {uid:'a1',email:'admin@upupapp.asia',status:'guest'}}
   export async function isAdminNow(){return true}
-  export async function signOutNow(){}`;
+  export async function signOutNow(){}
+  export async function idTokenForRequest(){ return 'test-id-token' }`;
 const adminData = `
   export * from '/assets/js/paaipe-events-data-real.js';
   export async function listEvents(){ return ${JSON.stringify([EV])} }
@@ -289,6 +291,9 @@ const adminData = `
   export async function listEventSponsors(){ return [] }
   export async function listPartnerApplicationsFor(){ return [] }
   export async function listAllRegistrations(){ return [] }`;
+const adminApi = `
+  export * from '/assets/js/paaipe-api-real.js';
+  export async function listAdminEvents(){ return ${JSON.stringify([EV])} }`;
 
 await T("Admin event workspace writes #event= on open and #tab= on a deeper tab; refresh restores", async () => {
   const ctx = await br.newContext({ viewport: { width: 1400, height: 1000 } });
@@ -302,6 +307,10 @@ await T("Admin event workspace writes #event= on open and #tab= on a deeper tab;
     r.fulfill({ contentType: "text/javascript", body: REAL_DATA }));
   await p.route("**/assets/js/paaipe-events-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: adminData }));
+  await p.route("**/assets/js/paaipe-api-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_API }));
+  await p.route("**/assets/js/paaipe-api.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: adminApi }));
   await p.goto(`${BASE}/admin-events.html`, { waitUntil: "load" });
   await p.waitForSelector("html[data-admin-events]", { timeout: 9000 });
   await p.click('tr[data-event="e-oct"] [data-edit-event]');

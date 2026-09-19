@@ -20,6 +20,7 @@ const eq = (a, b, m) => {
 const read = p => readFileSync(`${ROOT}/${p}`, "utf8");
 
 const fb = await import(pathToFileURL(`${ROOT}/assets/js/paaipe-firebase.js`).href);
+const api = await import(pathToFileURL(`${ROOT}/assets/js/paaipe-api.js`).href);
 
 await T("200 → true; 401/403 → false", () => {
   eq(fb.isAdminFromApiStatus(200), true, "200");
@@ -36,6 +37,41 @@ await T("5xx / 404 / network-shaped status are not 'not admin'", () => {
     ok(threw.status === status, `${status} keeps the status`);
     ok(threw.code === "api/request-failed", `${status} is not a refusal`);
   }
+});
+
+await T("listAdminEvents errors map the same way (empty 200 is still admin)", async () => {
+  const listed = await api.listAdminEvents({
+    token: "tok",
+    fetchImpl: async () => new Response(JSON.stringify({ events: [] }), {
+      status: 200, headers: { "content-type": "application/json" },
+    }),
+  });
+  eq(listed.length, 0, "empty list");
+  eq(fb.isAdminFromApiStatus(200), true, "empty 200 → admin");
+
+  for (const status of [401, 403]) {
+    let err;
+    try {
+      await api.listAdminEvents({
+        token: "tok",
+        fetchImpl: async () => new Response("nope", { status }),
+      });
+    } catch (e) { err = e; }
+    ok(err && err.status === status, `${status} thrown by listAdminEvents`);
+    eq(fb.isAdminFromApiStatus(err.status), false, `${status} → not admin`);
+  }
+
+  let five;
+  try {
+    await api.listAdminEvents({
+      token: "tok",
+      fetchImpl: async () => new Response("boom", { status: 500 }),
+    });
+  } catch (e) { five = e; }
+  ok(five && five.status === 500, "500 thrown by listAdminEvents");
+  let threw;
+  try { fb.isAdminFromApiStatus(five.status); } catch (e) { threw = e; }
+  ok(threw, "500 must not collapse to 'not admin'");
 });
 
 await T("isAdminNow probes GET /v1/admin/events via listAdminEvents + Bearer", () => {

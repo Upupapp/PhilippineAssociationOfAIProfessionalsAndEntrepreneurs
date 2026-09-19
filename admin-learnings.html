@@ -26,6 +26,11 @@
           Micros
           <span class="tb" data-count-micros>0</span>
         </button>
+        <button type="button" role="tab" id="tab-playlists" data-learn-tab="playlists"
+          aria-selected="false" aria-controls="panel-playlists" tabindex="-1">
+          Playlists
+          <span class="tb" data-count-playlists>0</span>
+        </button>
       </div>
 
       <section class="card" data-learn-panel="sessions" role="tabpanel" id="panel-sessions" aria-labelledby="tab-sessions">
@@ -63,6 +68,26 @@
             <th></th>
           </tr></thead>
           <tbody data-rows="micros"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table></div>
+      </section>
+
+      <section class="card" data-learn-panel="playlists" role="tabpanel" id="panel-playlists" aria-labelledby="tab-playlists" hidden>
+        <div class="hd">
+          <h2>Playlists</h2>
+          <button type="button" class="btn btn-gold btn-sm" data-add="playlists">+ Add Playlist</button>
+        </div>
+        <p class="note" style="margin-top:-8px">A Playlist groups published Sessions or published Micros — never both.
+          Portal Learnings shows published Playlists only. Archive keeps the row here so it can be restored.</p>
+        <div class="tbl"><table>
+          <thead><tr>
+            <th style="width:36px"></th>
+            <th>Title</th>
+            <th>Kind</th>
+            <th>Items</th>
+            <th>Status</th>
+            <th></th>
+          </tr></thead>
+          <tbody data-pl-rows><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
         </table></div>
       </section>
 

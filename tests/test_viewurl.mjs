@@ -60,6 +60,7 @@ const br = await chromium.launch();
 const errs = [];
 const REAL_FB = read("assets/js/paaipe-firebase.js");
 const REAL_LEARN = read("assets/js/paaipe-learnings-data.js");
+const REAL_PL = read("assets/js/paaipe-playlists-data.js");
 const memberFb = `
   export * from '/assets/js/paaipe-firebase-real.js';
   export function isConfigured(){ return true }
@@ -173,6 +174,12 @@ const learnStub = `
   ]; }
 `;
 
+const plStub = `
+  export * from '/assets/js/paaipe-playlists-data-real.js';
+  export async function listPublishedPlaylists(){ return [] }
+  export async function listPlaylists(){ return [] }
+`;
+
 async function openHub(hash = "") {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
@@ -185,6 +192,10 @@ async function openHub(hash = "") {
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: learnStub }));
+  await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
+  await p.route("**/assets/js/paaipe-playlists-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: plStub }));
   await p.goto(`${BASE}/portal-sessions.html${hash}`, { waitUntil: "load" });
   await p.waitForSelector("html[data-sessions-ready]", { timeout: 9000 });
   return { p, ctx };

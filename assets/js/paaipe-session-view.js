@@ -27,7 +27,63 @@ import {
   youtubeEmbedSrc,
   LEARNING_SOURCE,
 } from "/assets/js/paaipe-learnings-data.js";
+import {
+  listPublishedPlaylists,
+  groupLearningsByPlaylist,
+  playlistForItem,
+} from "/assets/js/paaipe-playlists-data.js";
+import { currentAgent } from "/assets/js/paaipe-firebase.js";
 import { readHash, readView, patchHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
+
+/** Portal-only deep link. Pretty path, never a CDN or YouTube URL. */
+export function portalPlayPath(kind, id) {
+  const tab = kind === "micros" ? "micros" : "sessions";
+  const safe = String(id || "").trim();
+  if (!safe || /[^\w-]/.test(safe)) return "";
+  return `/portal-sessions#tab=${tab}&play=${safe}`;
+}
+
+export function portalPlayUrl(kind, id) {
+  const path = portalPlayPath(kind, id);
+  return path ? `${location.origin}${path}` : "";
+}
+
+function toastChrome(pop, msg) {
+  const el = pop?.querySelector("[data-ss-watch-toast]");
+  if (!el) return;
+  el.textContent = msg;
+  el.hidden = !msg;
+}
+
+async function copyPortalLink(url) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      return;
+    }
+  } catch { /* fall through */ }
+  const ta = document.createElement("textarea");
+  ta.value = url;
+  ta.setAttribute("readonly", "");
+  ta.style.cssText = "position:fixed;left:-9999px;top:0";
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand("copy");
+  ta.remove();
+}
+
+async function shareOrCopyLink(title, url, pop) {
+  if (typeof navigator.share === "function") {
+    try {
+      await navigator.share({ title: title || "PAAIPE Learnings", url });
+      return;
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+  }
+  await copyPortalLink(url);
+  toastChrome(pop, "Link copied");
+}
 
 const hide = el => { if (el) el.style.display = "none"; };
 const setText = (root, sel, text) =>
@@ -184,7 +240,10 @@ function mountUploadVideo(player, rec, { autoplay = false } = {}) {
   video.controls = true;
   video.playsInline = true;
   video.setAttribute("playsinline", "");
+  video.setAttribute("webkit-playsinline", "");
   video.setAttribute("controls", "");
+  video.setAttribute("controlslist", "nodownload");
+  video.controlsList = "nodownload";
   video.preload = "metadata";
   if (rec.posterUrl) video.poster = rec.posterUrl;
   video.title = rec.title || "Session recording";
@@ -289,21 +348,44 @@ function ensureWatchPopup() {
   pop.hidden = true;
   pop.innerHTML =
     `<div class="ss-watch-scrim" data-ss-watch-close></div>` +
-    `<div class="ss-watch-panel" data-ss-watch-panel data-aspect="16:9">` +
-      `<button type="button" class="ss-watch-close" data-ss-watch-close aria-label="Close">` +
-        `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>` +
-      `</button>` +
-      `<div class="ss-watch-stage is-embed" data-ss-popup-player></div>` +
+    `<div class="ss-watch-frame">` +
+      `<div class="ss-watch-chrome" data-ss-watch-chrome hidden>` +
+        `<div class="ss-watch-copy">` +
+          `<b data-ss-watch-title></b>` +
+          `<p data-ss-watch-desc hidden></p>` +
+        `</div>` +
+        `<div class="ss-watch-actions">` +
+          `<button type="button" class="btn btn-ghost btn-sm" data-ss-share>Share</button>` +
+          `<button type="button" class="btn btn-ghost btn-sm" data-ss-copy-link>Copy link</button>` +
+          `<span class="ss-watch-toast" data-ss-watch-toast hidden></span>` +
+        `</div>` +
+      `</div>` +
+      `<div class="ss-watch-panel" data-ss-watch-panel data-aspect="16:9">` +
+        `<button type="button" class="ss-watch-close" data-ss-watch-close aria-label="Close">` +
+          `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>` +
+        `</button>` +
+        `<div class="ss-watch-stage is-embed" data-ss-popup-player></div>` +
+      `</div>` +
     `</div>`;
   document.body.appendChild(pop);
   pop.addEventListener("contextmenu", e => {
-    if (e.target.closest("[data-ss-popup-player], [data-yt-shield], [data-yt-plate]")) {
+    if (e.target.closest("[data-yt-shield], [data-yt-plate]")) {
       e.preventDefault();
       e.stopPropagation();
     }
   });
   pop.addEventListener("click", e => {
-    if (e.target.closest("[data-ss-watch-close]")) closeWatchPopup();
+    if (e.target.closest("[data-ss-watch-close]")) return closeWatchPopup();
+    const share = e.target.closest("[data-ss-share]");
+    const copy = e.target.closest("[data-ss-copy-link]");
+    if (!share && !copy) return;
+    const url = portalPlayUrl(pop._playKind, pop._rowId);
+    if (!url) return;
+    e.preventDefault();
+    const title = pop.querySelector("[data-ss-watch-title]")?.textContent || "";
+    toastChrome(pop, "");
+    if (share) return shareOrCopyLink(title, url, pop);
+    return copyPortalLink(url).then(() => toastChrome(pop, "Link copied"));
   });
   document.addEventListener("keydown", e => {
     if (e.key !== "Escape" || pop.hidden) return;
@@ -313,18 +395,37 @@ function ensureWatchPopup() {
   return pop;
 }
 
-function openWatchPopup(row, { aspect = "16:9", opener = null, syncUrl = true } = {}) {
+function paintWatchChrome(pop, row, playlist) {
+  const chrome = pop.querySelector("[data-ss-watch-chrome]");
+  const titleEl = pop.querySelector("[data-ss-watch-title]");
+  const descEl = pop.querySelector("[data-ss-watch-desc]");
+  if (!chrome || !titleEl) return;
+  const title = String(row?.title || "").trim();
+  const desc = String(playlist?.description || row?.description || "").trim();
+  chrome.hidden = false;
+  titleEl.textContent = title;
+  if (descEl) {
+    descEl.textContent = desc;
+    descEl.hidden = !desc;
+  }
+  toastChrome(pop, "");
+}
+
+function openWatchPopup(row, { aspect = "16:9", opener = null, syncUrl = true, playlist = null, kind = null } = {}) {
   if (!isUploadPlayable(row) && !row?.youtubeId) return;
   const pop = ensureWatchPopup();
   const panel = pop.querySelector("[data-ss-watch-panel]");
   const stage = pop.querySelector("[data-ss-popup-player]");
-  panel.setAttribute("data-aspect", aspect === "9:16" ? "9:16" : "16:9");
+  const playKind = kind === "micros" || aspect === "9:16" ? "micros" : "sessions";
+  panel.setAttribute("data-aspect", playKind === "micros" ? "9:16" : "16:9");
   pop.setAttribute("aria-label", row.title || "Session recording");
   pop._opener = opener;
   pop._rowId = row.id;
+  pop._playKind = playKind;
   pop.hidden = false;
   pop.removeAttribute("aria-hidden");
   document.body.style.overflow = "hidden";
+  paintWatchChrome(pop, row, playlist);
   mountEmbed(stage, row, { autoplay: true });
   pop.querySelector(".ss-watch-close")?.focus();
   if (syncUrl && row.id && readHash().play !== row.id) {
@@ -371,7 +472,12 @@ function mountPlayStage(stage, row, { aspect = "16:9" } = {}) {
     play.addEventListener("click", e => {
       e.preventDefault();
       e.stopPropagation();
-      openWatchPopup(row, { aspect, opener: play });
+      openWatchPopup(row, {
+        aspect,
+        opener: play,
+        playlist: row._playlist || null,
+        kind: aspect === "9:16" ? "micros" : "sessions",
+      });
     });
     stage.appendChild(play);
     return;
@@ -523,7 +629,7 @@ function applyReelsChrome(root = document) {
       sessions: document.querySelector('[data-ss-hub-panel="sessions"]'),
       micros: document.querySelector('[data-ss-hub-panel="micros"]'),
     };
-    const HUB = { sessions: [], micros: [] };
+    const HUB = { sessions: [], micros: [], playlists: { sessions: [], micros: [] } };
     function hubTabFromLocation() {
       // Hash is the live contract (#tab=sessions|#tab=micros). ?tab= still
       // opens the same view so a half-written query link keeps working.
@@ -549,10 +655,15 @@ function applyReelsChrome(root = document) {
         closeWatchPopup({ silent: true });
       }
     }
-    function playFromLocation() {
+    async function playFromLocation() {
       const id = readHash().play;
       const tab = hubTabFromLocation();
       if (!id) {
+        closeWatchPopup({ silent: true });
+        return;
+      }
+      const me = await currentAgent().catch(() => null);
+      if (!me) {
         closeWatchPopup({ silent: true });
         return;
       }
@@ -562,11 +673,17 @@ function applyReelsChrome(root = document) {
       const pop = document.querySelector("[data-ss-watch-popup]");
       if (row && pop && !pop.hidden && pop._rowId === row.id) return;
       if (row) {
-        showHubTab(HUB.micros.some(r => r.id === id) && !HUB.sessions.some(r => r.id === id)
-          ? "micros" : tab);
+        const isMicro = HUB.micros.some(r => r.id === id);
+        showHubTab(isMicro && !HUB.sessions.some(r => r.id === id) ? "micros" : tab);
+        const playlist = playlistForItem(
+          HUB.playlists[isMicro ? "micros" : "sessions"],
+          row.id
+        );
         openWatchPopup(row, {
-          aspect: HUB.micros.some(r => r.id === id) ? "9:16" : "16:9",
+          aspect: isMicro ? "9:16" : "16:9",
           syncUrl: false,
+          playlist,
+          kind: isMicro ? "micros" : "sessions",
         });
       } else {
         closeWatchPopup({ silent: true });
@@ -602,12 +719,66 @@ function applyReelsChrome(root = document) {
       mountPlayStage(stage, row, { aspect });
     }
 
-    function renderSessions(rows) {
+    function playlistHead(playlist) {
+      const head = document.createElement("header");
+      head.className = "playlist-head";
+      head.setAttribute("data-playlist-id", playlist.id);
+      const h = document.createElement("h3");
+      h.textContent = playlist.title || "Playlist";
+      head.appendChild(h);
+      if (playlist.description) {
+        const p = document.createElement("p");
+        p.textContent = playlist.description;
+        head.appendChild(p);
+      }
+      return head;
+    }
+
+    function sessionCard(row, { inPlaylist = false, playlist = null } = {}) {
+      const el = document.createElement("article");
+      el.className = "live-session";
+      el.setAttribute("data-learn-id", row.id);
+      const withPl = { ...row, _playlist: playlist };
+      const stage = document.createElement("div");
+      stage.className = "stage";
+      mountYt(stage, withPl, "16:9");
+      const meta = document.createElement("div");
+      meta.innerHTML =
+        `<b>${esc(row.title || "Untitled")}</b>` +
+        (!inPlaylist && row.description
+          ? `<p class="desc">${esc(row.description)}</p>`
+          : "") +
+        `<div class="src"><span class="pill info">${
+          row.source === "upload" ? "Upload" : "YouTube"
+        }</span></div>`;
+      el.appendChild(stage);
+      el.appendChild(meta);
+      return el;
+    }
+
+    function microCard(row, playlist = null) {
+      const card = document.createElement("div");
+      card.className = "micro-card";
+      card.setAttribute("data-learn-id", row.id);
+      const withPl = { ...row, _playlist: playlist };
+      const stage = document.createElement("div");
+      stage.className = "stage";
+      mountYt(stage, withPl, "9:16");
+      const cap = document.createElement("div");
+      cap.className = "cap";
+      cap.textContent = row.title || "Micro";
+      card.appendChild(stage);
+      card.appendChild(cap);
+      return card;
+    }
+
+    function renderSessions(rows, playlists = []) {
       const host = document.querySelector("[data-ss-live-sessions]");
       const empty = document.querySelector("[data-ss-sessions-empty]");
       const loading = document.querySelector("[data-ss-sessions-loading]");
       if (loading) loading.remove();
       const count = document.querySelector("[data-ss-session-count]");
+      const { groups, ungrouped } = groupLearningsByPlaylist(rows, playlists);
       if (count) {
         count.textContent = rows.length === 1
           ? "1 published · 16:9"
@@ -621,74 +792,70 @@ function applyReelsChrome(root = document) {
       }
       if (empty) empty.hidden = true;
       host.innerHTML = "";
-      rows.forEach(row => {
-        const el = document.createElement("article");
-        el.className = "live-session";
-        el.setAttribute("data-learn-id", row.id);
-        const stage = document.createElement("div");
-        stage.className = "stage";
-        mountYt(stage, row, "16:9");
-        const meta = document.createElement("div");
-        meta.innerHTML =
-          `<b>${esc(row.title || "Untitled")}</b>` +
-          (row.description
-            ? `<p class="desc">${esc(row.description)}</p>`
-            : "") +
-          `<div class="src"><span class="pill info">${
-            row.source === "upload" ? "Upload" : "YouTube"
-          }</span></div>`;
-        // Deliberately no "Open on YouTube" link.
-        el.appendChild(stage);
-        el.appendChild(meta);
-        host.appendChild(el);
+      groups.forEach(({ playlist, items }) => {
+        const block = document.createElement("section");
+        block.className = "playlist-block";
+        block.setAttribute("data-playlist", playlist.id);
+        block.appendChild(playlistHead(playlist));
+        items.forEach(row => block.appendChild(sessionCard(row, { inPlaylist: true, playlist })));
+        host.appendChild(block);
       });
+      ungrouped.forEach(row => host.appendChild(sessionCard(row)));
     }
 
-    function renderMicros(rows) {
+    function renderMicros(rows, playlists = []) {
       const empty = document.querySelector("[data-ss-micro-empty]");
-      const grid = document.querySelector("[data-ss-live-micros]");
+      const host = document.querySelector("[data-ss-live-micros]");
       const count = document.querySelector("[data-ss-micro-count]");
+      const { groups, ungrouped } = groupLearningsByPlaylist(rows, playlists);
       if (count) {
         count.textContent = rows.length === 1
           ? "1 published · 9:16"
           : `${rows.length} published · 9:16`;
       }
-      if (!grid) return;
+      if (!host) return;
       if (!rows.length) {
         if (empty) empty.hidden = false;
-        grid.hidden = true;
-        grid.innerHTML = "";
+        host.hidden = true;
+        host.innerHTML = "";
         return;
       }
       if (empty) hide(empty);
-      grid.hidden = false;
-      grid.innerHTML = "";
-      rows.forEach(row => {
-        const card = document.createElement("div");
-        card.className = "micro-card";
-        card.setAttribute("data-learn-id", row.id);
-        const stage = document.createElement("div");
-        stage.className = "stage";
-        mountYt(stage, row, "9:16");
-        const cap = document.createElement("div");
-        cap.className = "cap";
-        cap.textContent = row.title || "Micro";
-        card.appendChild(stage);
-        card.appendChild(cap);
-        grid.appendChild(card);
+      host.hidden = false;
+      host.innerHTML = "";
+      groups.forEach(({ playlist, items }) => {
+        const block = document.createElement("section");
+        block.className = "playlist-block";
+        block.setAttribute("data-playlist", playlist.id);
+        block.appendChild(playlistHead(playlist));
+        const grid = document.createElement("div");
+        grid.className = "micro-grid";
+        items.forEach(row => grid.appendChild(microCard(row, playlist)));
+        block.appendChild(grid);
+        host.appendChild(block);
       });
+      if (ungrouped.length) {
+        const grid = document.createElement("div");
+        grid.className = "micro-grid";
+        ungrouped.forEach(row => grid.appendChild(microCard(row)));
+        host.appendChild(grid);
+      }
     }
 
     (async () => {
       try {
-        const [sessions, micros] = await Promise.all([
+        const [sessions, micros, sessionPlaylists, microPlaylists] = await Promise.all([
           listPublishedSessions(),
           listPublishedMicros(),
+          listPublishedPlaylists("sessions"),
+          listPublishedPlaylists("micros"),
         ]);
         HUB.sessions = sessions;
         HUB.micros = micros;
-        renderSessions(sessions);
-        renderMicros(micros);
+        HUB.playlists.sessions = sessionPlaylists;
+        HUB.playlists.micros = microPlaylists;
+        renderSessions(sessions, sessionPlaylists);
+        renderMicros(micros, microPlaylists);
         document.documentElement.setAttribute(
           "data-sessions-ready",
           `live:${sessions.length}:${micros.length}`

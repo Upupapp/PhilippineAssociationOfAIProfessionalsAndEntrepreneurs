@@ -146,6 +146,20 @@
   .ss-watch-close{position:absolute;top:-44px;right:0;width:36px;height:36px;border-radius:50%;border:0;background:#fff;color:var(--navy);display:grid;place-items:center;cursor:pointer;box-shadow:0 8px 20px rgba(3,13,40,.28)}
   .ss-watch-close svg{width:16px;height:16px}
   .ss-watch-close:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+  .playlist-block{margin:0 0 22px;padding:0 0 18px;border-bottom:1px solid var(--line)}
+  .playlist-block:last-child{margin-bottom:0;padding-bottom:0;border-bottom:0}
+  .playlist-head{margin-bottom:14px}
+  .playlist-head h3{font-size:18px;font-weight:700;color:var(--navy)}
+  .playlist-head p{margin-top:6px;color:var(--muted);font-size:14px;max-width:62ch}
+  .ss-watch-frame{position:relative;z-index:1;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+  .ss-watch-chrome{background:#fff;color:var(--navy);padding:12px 16px;border-radius:12px;max-width:min(1120px,calc(100vw - 40px));box-shadow:0 8px 24px rgba(3,27,82,.18);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+  .ss-watch-panel[data-aspect="9:16"] ~ .ss-watch-chrome,
+  .ss-watch-frame:has([data-aspect="9:16"]) .ss-watch-chrome{max-width:min(420px,calc(100vw - 48px))}
+  .ss-watch-copy{min-width:0}
+  .ss-watch-chrome b{display:block;font-size:15px;line-height:1.3}
+  .ss-watch-chrome p{margin:5px 0 0;font-size:13px;color:var(--muted);line-height:1.45}
+  .ss-watch-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;flex:none}
+  .ss-watch-toast{font-size:12.5px;font-weight:600;color:var(--green-ink)}
 </style>
 <link rel="stylesheet" href="assets/css/paaipe-motion.css"></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">
@@ -164,7 +178,7 @@
 
 <div data-ss-hub-panel="sessions" role="tabpanel" id="ss-panel-sessions" aria-labelledby="ss-tab-sessions">
 <section class="card" style="margin-bottom:16px">
-  <div class="hd"><h2>Sessions</h2><small data-ss-session-count>16:9 · published order</small></div>
+  <div class="hd"><h2>Sessions</h2><small data-ss-session-count>16:9 · Playlist order</small></div>
   <div data-ss-live-sessions>
     <p class="note" data-ss-sessions-loading>Loading published sessions…</p>
   </div>
@@ -179,13 +193,13 @@
 
 <div data-ss-hub-panel="micros" role="tabpanel" id="ss-panel-micros" aria-labelledby="ss-tab-micros" hidden>
 <section class="card" style="margin-bottom:16px">
-  <div class="hd"><h2>Micros</h2><small data-ss-micro-count>9:16 · published order</small></div>
+  <div class="hd"><h2>Micros</h2><small data-ss-micro-count>9:16 · Playlist order</small></div>
   <div data-ss-micro-empty class="empty-micro">
     <div class="ic"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M12 18h.01"/></svg></div>
     <b>No micros yet</b>
     Short vertical clips appear here when published in admin Learnings. No placeholder reels.
   </div>
-  <div class="micro-grid" data-ss-live-micros hidden></div>
+  <div data-ss-live-micros hidden></div>
 </section>
 </div>
 

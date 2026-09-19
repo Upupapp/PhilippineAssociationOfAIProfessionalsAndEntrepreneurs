@@ -20,7 +20,8 @@ await T("admin-learnings.html exists and wires the module", async () => {
   const h = read("admin-learnings.html");
   ok(h.includes('data-admin-learnings'), "body attr");
   ok(h.includes("paaipe-admin-learnings.js"), "script");
-  ok(h.includes('data-learn-tab="sessions"') && h.includes('data-learn-tab="micros"'), "tabs");
+  ok(h.includes('data-learn-tab="sessions"') && h.includes('data-learn-tab="micros"')
+    && h.includes('data-learn-tab="playlists"'), "tabs");
   ok(h.includes("aspect-cue"), "aspect cues");
 });
 
@@ -38,6 +39,7 @@ await T("firestore.rules cover both collections", async () => {
   const r = read("firestore.rules");
   ok(r.includes("match /paaipe_sessions/{id}"), "sessions");
   ok(r.includes("match /paaipe_micros/{id}"), "micros");
+  ok(r.includes("match /paaipe_playlists/{id}"), "playlists");
   ok(r.includes("isWellFormedLearning"), "validator");
   ok(/source in \['youtube','upload'\]/.test(r), "source enum");
 });
@@ -201,6 +203,13 @@ const learnStub = (sessions, micros) => `
   export async function listPublishedMicros(){ return ${JSON.stringify(micros)} }
 `;
 
+const REAL_PL = read("assets/js/paaipe-playlists-data.js");
+const plStub = `
+  export * from '/assets/js/paaipe-playlists-data-real.js';
+  export async function listPublishedPlaylists(){ return [] }
+  export async function listPlaylists(){ return [] }
+`;
+
 const br = await chromium.launch();
 const errs = [];
 
@@ -216,6 +225,10 @@ async function openHub({ sessions = SESSIONS, micros = [] } = {}) {
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: learnStub(sessions, micros) }));
+  await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
+  await p.route("**/assets/js/paaipe-playlists-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: plStub }));
   await p.goto(`${BASE}/portal-sessions.html`, { waitUntil: "load" });
   await p.waitForSelector("html[data-sessions-ready]", { timeout: 9000 });
   return { p, ctx };

@@ -497,6 +497,45 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // --- PAAIPE: Playlists (Clarence, locked) ---------------------
+    //
+    // Collection paaipe_playlists (auto-id), database paaipe. Do not invent
+    // names. kind is never mixed in v1. Linkage is ONLY itemIds here — do not
+    // add playlistId on Session/Micro docs. Portal members read
+    // status==published only. Archived is admin restore. Publish integrity
+    // (every itemIds entry exists and is published) is enforced in the client;
+    // rules cannot walk another collection's ids. Sessions/Micros publish and
+    // their own displayOrder reorder stay on their own collections.
+
+    function isWellFormedPlaylist(d) {
+      return d.keys().hasAll(['title','kind','itemIds','status','displayOrder','updatedAt'])
+          && d.keys().hasOnly(['title','description','kind','itemIds','status',
+                               'displayOrder','publishedAt','createdAt','updatedAt','updatedBy'])
+          && d.title is string && d.title.size() > 0 && d.title.size() <= 200
+          && d.kind in ['sessions', 'micros']
+          && d.status in ['draft', 'published', 'archived']
+          && d.itemIds is list && d.itemIds.size() <= 80
+          && d.displayOrder is number
+          && (!('description' in d.keys())
+              || d.description == null
+              || (d.description is string && d.description.size() <= 2000))
+          && (!('publishedAt' in d.keys())
+              || d.publishedAt == null
+              || d.publishedAt is timestamp)
+          && (!('updatedBy' in d.keys())
+              || d.updatedBy == null
+              || (d.updatedBy is string
+                  && d.updatedBy == request.auth.token.email));
+    }
+
+    match /paaipe_playlists/{id} {
+      allow read: if isAdmin()
+                  || (resource.data.status == 'published');
+      allow create: if isAdmin() && isWellFormedPlaylist(request.resource.data);
+      allow update: if isAdmin() && isWellFormedPlaylist(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
     match /paaipe_recordings/{eventId} {
       // Published recordings only, and only to signed-in members unless the
       // recording says otherwise. Absence means "not published", never "missing".

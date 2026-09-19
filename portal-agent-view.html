@@ -79,7 +79,8 @@
   .phead{display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center}
   .phead img.big{width:112px;height:112px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 4px #fff,0 0 0 7px var(--gold)}
   .phead h1{font-size:24px}.phead .role{color:var(--ink);font-size:15px;margin-top:4px}.phead .loc{color:var(--muted);font-size:13.5px;margin-top:2px;display:flex;gap:14px;flex-wrap:wrap}.phead .loc span{display:inline-flex;align-items:center;gap:6px}.phead .loc svg{width:14px;height:14px;stroke:var(--royal);fill:none;stroke-width:2}
-  .phead .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.phead .acts{display:flex;flex-direction:column;gap:8px;min-width:180px}
+  .phead .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.phead .acts{display:flex;flex-direction:column;gap:8px;min-width:180px;max-width:100%}
+  .phead .acts .pair{display:flex;gap:8px;min-width:0;max-width:100%}
   .tags{display:flex;gap:6px;flex-wrap:wrap}.tags span{font-size:12px;font-weight:600;color:var(--royal);background:var(--pale2);border-radius:7px;padding:4px 9px}
   .kv2{display:grid;grid-template-columns:150px 1fr;gap:10px 14px;font-size:14px}.kv2 dt{color:var(--muted);font-weight:600}.kv2 dd{margin:0}
   .stat3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.stat3 div{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:12px;text-align:center}.stat3 b{display:block;font-size:22px;color:var(--navy);line-height:1}.stat3 small{font-size:11.5px;color:var(--muted);letter-spacing:.04em}
@@ -87,7 +88,37 @@
   .rep{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px}.rep img{height:30px;width:auto}.rep b{display:block;font-size:14px;color:var(--navy)}.rep small{color:var(--muted);font-size:12.5px}
   .privacy{font-size:12.5px;color:var(--muted);display:flex;gap:8px;align-items:flex-start}.privacy svg{width:14px;height:14px;stroke:var(--royal);fill:none;stroke-width:2;flex:none;margin-top:3px}
   .sim{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.sim a{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}.sim img{width:44px;height:44px;border-radius:50%;object-fit:cover;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--gold)}.sim b{display:block;font-size:13.5px;color:var(--navy)}.sim small{color:var(--muted);font-size:12px}
-  @media (max-width:1100px){.phead{grid-template-columns:auto 1fr}.phead .acts{grid-column:1/-1;flex-direction:row}.sim{grid-template-columns:1fr}}
+  /* R-03: never force a nowrap CTA row. The old 1100 rule set
+     flex-direction:row without wrap → Connect + Request mentoring +
+     Save/Share intrinsic ~445px (+55 at 390, +125 at 320). Keep the
+     default column from 1100 down; 560 stretches primaries. */
+  @media (max-width:1100px){
+    .phead{grid-template-columns:auto 1fr;min-width:0}
+    .phead .acts{grid-column:1/-1;flex-direction:column;flex-wrap:wrap;align-items:stretch;min-width:0;max-width:100%;width:100%}
+    .phead .acts>.btn,.phead .acts .pair{max-width:100%}
+    .sim{grid-template-columns:1fr}
+  }
+
+  /* R-03 / R-04 subset: phone harden. Additive above 560 except the
+     1100 column (above) which is the overflow fix. */
+  @media (max-width:560px){
+    .hd{flex-wrap:wrap}
+    .tabs{flex-wrap:wrap}
+    .acts{justify-content:flex-start}
+    [class*="grid"]{grid-template-columns:1fr}
+    [class*="grid"]>*,.hd>*,.acts>*,.next>*{min-width:0}
+    .next{grid-template-columns:1fr;gap:12px}
+    .count{flex-wrap:wrap}
+    .card,.hd,.main,.acts,.phead{min-width:0}
+    .card{overflow-wrap:anywhere}
+    .phead{grid-template-columns:1fr;gap:16px}
+    .phead .acts{flex-direction:column;align-items:stretch;width:100%;max-width:100%;min-width:0}
+    .phead .acts>.btn{width:100%;max-width:100%;min-height:44px;box-sizing:border-box}
+    .phead .acts .pair{width:100%;max-width:100%}
+    .phead .acts .pair .btn{flex:1;min-width:0;min-height:44px}
+    .kv2{grid-template-columns:1fr;gap:4px 0}
+    .rep{flex-wrap:wrap}
+  }
 
   /* preview chrome — shown only when ?preview=1 / ?agent=self */
   .pv-bar{display:none;position:sticky;top:0;z-index:20;background:var(--navy,#031B52);color:#fff;
@@ -118,7 +149,7 @@
     <p class="role" data-av-role></p>
     <div class="loc"><span><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/></svg><span data-av-location></span></span><span><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>Member since 2026</span><span><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="10" r="2.5"/><path d="M3 20a6 6 0 0 1 12 0M14 20a4.5 4.5 0 0 1 8 0"/></svg>Open to mentoring</span></div>
     <div class="pills" data-av-section="tags"><div class="tags" data-av-tags><span>Training &amp; L&amp;D</span><span>Corporate learning</span><span>Digital products</span><span>Facilitation</span><span>Industry–government–education</span></div></div></div>
-  <div class="acts"><a class="btn btn-gold" href="#" data-agents-only data-av-self-hide>Connect</a><a class="btn btn-ghost" href="#" data-agents-only data-av-self-hide>Request mentoring</a><div style="display:flex;gap:8px" data-av-self-hide><a class="btn btn-ghost btn-sm" href="#" style="flex:1">Save</a><a class="btn btn-ghost btn-sm" href="#" style="flex:1">Share</a></div></div>
+  <div class="acts"><a class="btn btn-gold" href="#" data-agents-only data-av-self-hide>Connect</a><a class="btn btn-ghost" href="#" data-agents-only data-av-self-hide>Request mentoring</a><div class="pair" data-av-self-hide><a class="btn btn-ghost btn-sm" href="#">Save</a><a class="btn btn-ghost btn-sm" href="#">Share</a></div></div>
 </div>
 <div class="grid2">
   <div style="display:flex;flex-direction:column;gap:22px">

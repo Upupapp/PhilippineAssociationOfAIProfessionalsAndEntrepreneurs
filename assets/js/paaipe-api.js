@@ -70,14 +70,12 @@ export const PAAIPE_API_OVERRIDE_KEY = "PAAIPE_API_BASE";
 export const PAAIPE_API_QUERY_PARAM = "paaipe_api";
 
 export const EVENT_SETTINGS_FIELDS = [
-  "capacity",
   "registrationOpensAt",
   "registrationClosesAt",
   "whoCanRegister",
   "waitlistEnabled",
   "questionsEnabled",
   "status",
-  "hasZoom",
 ];
 
 export const EVENT_CONTENT_FIELDS = [
@@ -99,6 +97,7 @@ export const EVENT_CONTENT_FIELDS = [
   "bannerWideUrl",
   "bannerSourceUrl",
   "confirmationEmailText",
+  "capacity",
 ];
 
 const REG_STATUSES = new Set(["registered", "attended", "no_show", "cancelled"]);
@@ -246,14 +245,6 @@ export function adminMicroPath(id) {
 
 export function eventSettingsPayload(src = {}) {
   const out = {};
-  if ("capacity" in src) {
-    const n = src.capacity;
-    if (n === "" || n == null) out.capacity = null;
-    else {
-      const num = Number(n);
-      out.capacity = Number.isFinite(num) ? num : null;
-    }
-  }
   if ("registrationOpensAt" in src) out.registrationOpensAt = src.registrationOpensAt || null;
   if ("registrationClosesAt" in src) out.registrationClosesAt = src.registrationClosesAt || null;
   if ("whoCanRegister" in src) out.whoCanRegister = src.whoCanRegister;
@@ -262,7 +253,6 @@ export function eventSettingsPayload(src = {}) {
     out.questionsEnabled = Array.isArray(src.questionsEnabled) ? src.questionsEnabled : [];
   }
   if ("status" in src && src.status) out.status = src.status;
-  if ("hasZoom" in src) out.hasZoom = src.hasZoom === true;
   return out;
 }
 
@@ -278,6 +268,14 @@ export function eventContentPayload(src = {}) {
     "coverUrl", "bannerSquareUrl", "bannerWideUrl", "bannerSourceUrl",
     "confirmationEmailText",
   ]) copyIfPresent(out, src, key);
+  if ("capacity" in src) {
+    const n = src.capacity;
+    if (n === "" || n == null) out.capacity = null;
+    else {
+      const num = Number(n);
+      out.capacity = Number.isFinite(num) ? num : null;
+    }
+  }
   if ("whatToExpect" in src) {
     out.whatToExpect = Array.isArray(src.whatToExpect) ? src.whatToExpect : [];
   }

@@ -770,7 +770,6 @@ async function saveEvent(id) {
         await F.setDoc(F.doc(await db(), "paaipe_event_private", id),
           { zoomLink: zoom, updatedBy: ME }, { merge: true });
         applyLocalEvent(id, { hasZoom: true });
-        await patchAdminEvent(id, { hasZoom: true }, { token });
         await logActivity("event.zoom_link_set", "(the link itself is not logged)", id);
       } catch (zoomEx) {
         openEditor(id);

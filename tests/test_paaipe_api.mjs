@@ -173,18 +173,7 @@ await T("settings payload sends only Clarence's fields", () => {
   eq(body.registrationClosesAt, null, "blank close → null");
   eq(body.waitlistEnabled, true, "waitlist bool");
   ok(!("title" in body) && !("confirmationEmailText" in body), "no extra fields");
-
-  const withCap = api.eventSettingsPayload({
-    title: "must not go",
-    capacity: 500,
-    hasZoom: true,
-    status: "published",
-  });
-  eq(withCap.capacity, 500, "capacity number");
-  eq(withCap.hasZoom, true, "hasZoom bool");
-  ok(!("title" in withCap), "title still stays out of settings");
-  const blankCap = api.eventSettingsPayload({ capacity: "" });
-  eq(blankCap.capacity, null, "blank capacity → null");
+  ok(!("capacity" in body) && !("hasZoom" in body), "six-key settings only");
 });
 
 await T("content payload is the event record, not settings", () => {
@@ -219,8 +208,9 @@ await T("content payload is the event record, not settings", () => {
   eq(body.speakers[0].name, "Sven Bally", "speakers");
   eq(body.gallery[0].alt, "Room", "gallery");
   eq(body.confirmationEmailText, "You're registered.", "email wording");
-  ok(!("capacity" in body) && !("status" in body) && !("hasZoom" in body),
-     "settings fields stay out of content");
+  eq(body.capacity, 500, "capacity rides with Details content");
+  ok(!("status" in body) && !("hasZoom" in body),
+     "six-key settings stay out of content");
   ok(!("registrationOpensAt" in body) && !("whoCanRegister" in body),
      "registration settings stay out of content");
 
@@ -249,9 +239,9 @@ await T("PATCH event request: Bearer + JSON body to api.paaipe.org", async () =>
     waitlistEnabled: false,
     questionsEnabled: [],
     status: "published",
+    title: "must not go",
     capacity: 500,
     hasZoom: true,
-    title: "must not go",
   }, { token: "tok-admin", fetchImpl });
   eq(captured.url, "https://api.paaipe.org/v1/admin/events/2026-10-ai-exchange", "url");
   eq(captured.opts.method, "PATCH", "method");
@@ -260,9 +250,8 @@ await T("PATCH event request: Bearer + JSON body to api.paaipe.org", async () =>
   const body = JSON.parse(captured.opts.body);
   eq(body.whoCanRegister, "members_and_guests", "who");
   eq(body.status, "published", "status");
-  eq(body.capacity, 500, "capacity");
-  eq(body.hasZoom, true, "hasZoom");
-  ok(!("title" in body), "title not sent");
+  ok(!("title" in body) && !("capacity" in body) && !("hasZoom" in body),
+     "settings PATCH is the six keys only");
 });
 
 const LIVE_ADMIN_EVENT = {
@@ -341,7 +330,8 @@ await T("admin event list / create / content / duplicate; public list has no Bea
   eq(hits[2].opts.headers.Authorization, "Bearer tok-admin", "content Bearer");
   const contentBody = JSON.parse(hits[2].opts.body);
   eq(contentBody.title, "Renamed", "content title");
-  ok(!("capacity" in contentBody) && !("status" in contentBody), "content PATCH strips settings");
+  eq(contentBody.capacity, 999, "capacity on content");
+  ok(!("status" in contentBody), "content PATCH strips six-key settings");
 
   const copy = await api.postAdminEventDuplicate("2026-10-ai-exchange", {
     token: "tok-admin", fetchImpl,
@@ -566,8 +556,13 @@ await T("admin JS hard-cuts Settings + Registrations off Firestore", () => {
   const ev = read("assets/js/paaipe-admin-events.js");
   const regs = read("assets/js/paaipe-admin-registrations.js");
   const save = ev.slice(ev.indexOf("async function saveEvent"), ev.indexOf("async function setStatus"));
+  eq(JSON.stringify([...api.EVENT_SETTINGS_FIELDS].sort()),
+     JSON.stringify(["questionsEnabled","registrationClosesAt","registrationOpensAt","status","waitlistEnabled","whoCanRegister"]),
+     "settings stay the original six keys");
   ok(/patchAdminEvent/.test(save), "save PATCHes settings");
   ok(/patchAdminEventContent/.test(save), "save PATCHes content");
+  ok(!/patchAdminEvent\(id,\s*\{\s*hasZoom/.test(save),
+     "save must not invent a hasZoom settings PATCH");
   ok(/eventContentPayload/.test(save) && /eventSettingsPayload/.test(save),
      "save splits content vs settings");
   ok(!/COL\.events/.test(save) && !/withoutSettings/.test(save),

@@ -85,6 +85,36 @@
  *   GET  /v1/admin/contacts/{id}
  * Contacts are read-only. Do not invent contact writes.
  *
+ * Feedback (Slice 3 — portal Event Details). Admin PUT questions is admin-side
+ * and is not called from the portal.
+ *   GET  /v1/events/{eventId}/feedback/questions                 public
+ *   POST /v1/events/{eventId}/feedback/responses                 Bearer, create-once
+ *   GET  /v1/events/{eventId}/feedback/responses/{registrationId} Bearer
+ *   POST responses 403 when the BE says the window is closed / not open.
+ *
+ * Feedback window + Certificate (LIVE — certificates-20260919T051814Z):
+ *   GET  /v1/events/{eventId}/feedback/window                    public (200)
+ *        { opensAt, closesAt, state: locked|open|closed, timezone: Asia/Manila }
+ *   GET  /v1/me/events/{eventId}/certificate                     Bearer (401 without)
+ *        { state, registered, feedbackSubmitted, feedbackWindow, certificate? }
+ *        state: not_registered | awaiting_feedback_open | feedback_open
+ *               | issuing | issued | closed_no_cert
+ *        Always includes feedbackWindow { opensAt, closesAt, state } | null.
+ *        issued is terminal and carries certificate
+ *        { id, issuedAt, pdfUrl, pngUrl, emailedAt }.
+ *        issuing keeps Download disabled (rare; v1 usually sync → issued).
+ *        Leftover `ready` (not in the frozen enum) → issued when certificate
+ *        is present, else issuing.
+ *   POST /v1/me/events/{eventId}/certificate/email               Bearer (401 without)
+ *        200 { emailedAt } or a full certificate payload
+ *        404 none · 409 not issued yet
+ *        Inbox delivery is still not wired — do not treat 200 as mail in inbox
+ *        if the host later returns 501/502. Show the API result honestly.
+ *   GET  /v1/admin/events/{eventId}/certificates                 admin list
+ *        Path helper only. No admin certificates surface in this PR.
+ * Download uses certificate.pdfUrl / pngUrl on media.paaipe.org — no download API.
+ * Issue is server-side on feedback submit — FE does not POST issue.
+ *
  * Auth: Authorization: Bearer <Firebase ID token>
  * Admin allow-list is enforced on the BE (paul@moveup.app live) — 403 if missing.
  * Unauthenticated admin calls return 401 (Missing bearer token), not 404.
@@ -356,6 +386,216 @@ export function adminContactPath(id) {
   return `/v1/admin/contacts/${encodeURIComponent(id)}`;
 }
 
+export function eventFeedbackWindowPath(eventId) {
+  return `/v1/events/${encodeURIComponent(eventId)}/feedback/window`;
+}
+
+export function meEventCertificatePath(eventId) {
+  return `/v1/me/events/${encodeURIComponent(eventId)}/certificate`;
+}
+
+export function meEventCertificateEmailPath(eventId) {
+  return `/v1/me/events/${encodeURIComponent(eventId)}/certificate/email`;
+}
+
+/** Admin list. No portal/admin UI in this PR — path only. */
+export function adminEventCertificatesPath(eventId) {
+  return `/v1/admin/events/${encodeURIComponent(eventId)}/certificates`;
+}
+
+/** Draft OpenAPI routes are live only when the host answers 200 or 401. */
+export function isDraftRouteLive(status) {
+  return status === 200 || status === 401;
+}
+
+const WINDOW_STATES = new Set(["locked", "open", "closed"]);
+const CERT_API_STATES = new Set([
+  "not_registered", "awaiting_feedback_open", "feedback_open",
+  "issued", "issuing", "closed_no_cert",
+]);
+
+export function normalizeFeedbackWindow(data) {
+  if (!data || typeof data !== "object") return null;
+  const state = String(data.state || "").trim();
+  if (!WINDOW_STATES.has(state)) return null;
+  return {
+    state,
+    opensAt: data.opensAt || null,
+    closesAt: data.closesAt || null,
+    timezone: data.timezone || "Asia/Manila",
+  };
+}
+
+/**
+ * Frozen enum (no `ready`). issued is terminal and requires certificate
+ * { id, issuedAt, pdfUrl, pngUrl, emailedAt }. issuing keeps Download disabled
+ * even if a partial certificate object is present. A leftover `ready` maps to
+ * issued when that object is present, otherwise issuing.
+ */
+export function normalizeMeCertificate(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = data.certificate && typeof data.certificate === "object" && !Array.isArray(data.certificate)
+    ? data.certificate
+    : null;
+  let state = String(data.state || "").trim();
+  if (state === "ready" || !state) state = raw ? "issued" : "issuing";
+  if (state === "issued" && !raw) state = "issuing";
+  if (!CERT_API_STATES.has(state)) return null;
+  return {
+    state,
+    registered: data.registered === true,
+    feedbackSubmitted: data.feedbackSubmitted === true,
+    feedbackWindow: data.feedbackWindow && typeof data.feedbackWindow === "object"
+      ? normalizeFeedbackWindow(data.feedbackWindow)
+      : null,
+    certificate: raw ? {
+      id: String(raw.id || ""),
+      issuedAt: raw.issuedAt || null,
+      pdfUrl: raw.pdfUrl || "",
+      pngUrl: raw.pngUrl || "",
+      emailedAt: raw.emailedAt || null,
+    } : null,
+  };
+}
+
+/** Only https://media.paaipe.org/… — never a guessed download route. */
+export function mediaFileUrl(url) {
+  const s = String(url || "").trim();
+  if (!s) return "";
+  try {
+    const u = new URL(s);
+    if (u.protocol !== "https:") return "";
+    const host = u.hostname.replace(/^www\./, "");
+    if (host !== "media.paaipe.org") return "";
+    return s;
+  } catch { return ""; }
+}
+
+export function certificateDownloadUrl(cert) {
+  if (!cert) return "";
+  return mediaFileUrl(cert.pdfUrl) || mediaFileUrl(cert.pngUrl);
+}
+
+/**
+ * Probe a draft OpenAPI route. 200 and 401 mean the route is deployed.
+ * 404 is not-wired. Other statuses are not treated as a product state.
+ * Never invents a body.
+ */
+export async function probeDraftGet(path, {
+  token,
+  fetchImpl,
+  base = PAAIPE_API_BASE,
+  auth = "public",
+} = {}) {
+  const root = String(base || "").trim().replace(/\/+$/, "");
+  if (!root) {
+    throw Object.assign(
+      new Error("PAAIPE_API_BASE is not set. Nothing was requested."),
+      { code: "api/no-base" }
+    );
+  }
+  const fetchFn = fetchImpl || (typeof fetch === "function" ? fetch : null);
+  if (!fetchFn) {
+    throw Object.assign(
+      new Error("The API is unavailable in this browser. Nothing was requested."),
+      { code: "api/no-fetch" }
+    );
+  }
+  const isPublic = auth === "public";
+  if (!isPublic && !token) {
+    throw Object.assign(new Error("You need to be signed in."), { code: "not-signed-in" });
+  }
+  const url = `${root}${path.startsWith("/") ? path : `/${path}`}`;
+  const headers = {};
+  if (!isPublic) headers.Authorization = `Bearer ${token}`;
+  let res;
+  try {
+    res = await fetchFn(url, { method: "GET", headers });
+  } catch (e) {
+    throw Object.assign(
+      new Error(
+        `Could not reach the API at ${root}. If this browser is not on paaipe.org, CORS may still be blocking.`
+      ),
+      { code: "api/network", cause: e, url }
+    );
+  }
+  const live = isDraftRouteLive(res.status);
+  let data = null;
+  if (res.status === 200) {
+    let text = "";
+    try { text = await res.text(); } catch {
+      throw Object.assign(
+        new Error("The API returned a response that could not be read. Nothing was assumed."),
+        { code: "api/invalid-response", status: 200 }
+      );
+    }
+    if (text) {
+      try { data = JSON.parse(text); }
+      catch {
+        throw Object.assign(
+          new Error("The API returned a response that could not be read. Nothing was assumed."),
+          { code: "api/invalid-response", status: 200 }
+        );
+      }
+    }
+  }
+  return { live, status: res.status, data };
+}
+
+/** Public GET. live only on 200/401. 404 → live:false, no invented window. */
+export async function getEventFeedbackWindow(eventId, opts) {
+  const probe = await probeDraftGet(eventFeedbackWindowPath(eventId), {
+    ...opts,
+    auth: "public",
+    token: undefined,
+  });
+  return {
+    live: probe.live,
+    status: probe.status,
+    window: probe.status === 200 ? normalizeFeedbackWindow(probe.data) : null,
+  };
+}
+
+/** Bearer GET. live only on 200/401. 404 → live:false, no invented certificate. */
+export async function getMeEventCertificate(eventId, opts) {
+  const probe = await probeDraftGet(meEventCertificatePath(eventId), {
+    ...opts,
+    auth: "member",
+  });
+  return {
+    live: probe.live,
+    status: probe.status,
+    certificate: probe.status === 200 ? normalizeMeCertificate(probe.data) : null,
+  };
+}
+
+/**
+ * Bearer POST re-send. 200 returns { emailedAt } or a normalized certificate.
+ * Throws on 404 (none) / 409 (not issued) / other refusals. Nothing is assumed sent.
+ */
+export async function postMeEventCertificateEmail(eventId, opts = {}) {
+  const data = await paaipeApiRequest(meEventCertificateEmailPath(eventId), {
+    method: "POST",
+    ...opts,
+  });
+  if (data && typeof data === "object" && !Array.isArray(data)) {
+    const full = normalizeMeCertificate(data);
+    if (full) {
+      return {
+        emailedAt: full.certificate?.emailedAt || data.emailedAt || null,
+        certificate: full,
+      };
+    }
+    if (data.emailedAt) {
+      return { emailedAt: data.emailedAt, certificate: null };
+    }
+  }
+  throw Object.assign(
+    new Error("The API did not return an email confirmation. Nothing was assumed sent."),
+    { code: "api/invalid-response" }
+  );
+}
+
 export function eventSettingsPayload(src = {}) {
   const out = {};
   if ("registrationOpensAt" in src) out.registrationOpensAt = src.registrationOpensAt || null;
@@ -411,17 +651,27 @@ function statusError(status, bodyText, { method, path } = {}) {
   let detail;
   if (status === 401) detail = "Sign-in expired or missing.";
   else if (status === 403) {
-    detail = /\/admin\//.test(path || "")
+    detail = /\/feedback\/responses/.test(path || "")
+      ? "The feedback window is not open. The API did not accept this response."
+      : /\/admin\//.test(path || "")
       ? "You do not have permission. The admin allow-list is enforced on the API."
       : "You do not have permission.";
   } else if (status === 404) {
-    detail = /\/registrations/.test(path || "")
+    detail = /\/certificate\/email/.test(path || "")
+      ? "No certificate is available to email (404)."
+      : /\/registrations/.test(path || "")
       ? "The registrations API route was not found (404). It may not be deployed on this host yet."
       : "The API route was not found (404).";
   } else if (status === 409) {
-    detail = /feedback\/responses/.test(path || "")
+    detail = /\/certificate\/email/.test(path || "")
+      ? "This certificate is not issued yet. Nothing was emailed."
+      : /feedback\/responses/.test(path || "")
       ? "A response already exists for this registration."
       : "This record already exists.";
+  } else if (status === 501 || status === 502) {
+    detail = /\/certificate\/email/.test(path || "")
+      ? "Certificate email delivery is not wired yet. Nothing was sent."
+      : `The API is not ready (${status}).`;
   } else if (trimmed && trimmed.length < 280 && !/^[\s{[]/.test(trimmed)) {
     detail = trimmed.replace(/\.?$/, ".");
   } else {
@@ -431,7 +681,7 @@ function statusError(status, bodyText, { method, path } = {}) {
   err.code = status === 401 ? "api/unauthorized"
     : status === 403 ? "api/forbidden"
     : status === 404 ? "api/not-found"
-    : status === 409 ? "already-exists"
+    : status === 409 ? (/\/certificate\/email/.test(path || "") ? "api/conflict" : "already-exists")
     : "api/request-failed";
   err.status = status;
   return err;
@@ -860,6 +1110,51 @@ export async function getAdminRegistration(id, opts) {
     );
   }
   return row;
+}
+
+export function eventFeedbackResponsePayload(src = {}) {
+  const out = {};
+  if (src.registrationId) out.registrationId = String(src.registrationId);
+  if ("answers" in src) {
+    out.answers = src.answers && typeof src.answers === "object" && !Array.isArray(src.answers)
+      ? src.answers
+      : {};
+  }
+  return out;
+}
+
+/** Public GET. Throws on network / non-OK / unreadable JSON. */
+export async function listEventFeedbackQuestions(eventId, opts) {
+  const data = await paaipePublicGet(eventFeedbackQuestionsPath(eventId), opts);
+  return withIds(asList(data, "questions").map((row, i) => {
+    if (!row || typeof row !== "object") return null;
+    const questionKey = String(row.questionKey || row.key || "").trim();
+    const id = String(row.id || questionKey || "").trim();
+    if (!id && !questionKey) return null;
+    return {
+      ...row,
+      id: id || questionKey,
+      questionKey: questionKey || id,
+      order: Number.isFinite(Number(row.order)) ? Number(row.order) : i,
+    };
+  }).filter(Boolean));
+}
+
+/**
+ * Member GET. 404 means no response yet — that is a fact, not a failure.
+ * Other errors throw. Never invents a submitted row.
+ */
+export async function getEventFeedbackResponse(eventId, registrationId, opts) {
+  try {
+    const data = await paaipeApiRequest(eventFeedbackResponsePath(eventId, registrationId), opts);
+    if (!data) return null;
+    if (data.response && typeof data.response === "object") return data.response;
+    if (data.id || data.registrationId || data.answers) return data;
+    return asResource(data);
+  } catch (e) {
+    if (e?.status === 404 || e?.code === "api/not-found") return null;
+    throw e;
+  }
 }
 
 export async function patchAdminRegistration(id, status, opts) {

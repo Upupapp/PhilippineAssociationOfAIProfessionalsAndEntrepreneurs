@@ -17,7 +17,7 @@ const html=readFileSync(`${ROOT}/portal-events.html`,'utf8');
 const fileOf=href=>href.replace(/^\//,'').split(/[?#]/)[0];
 
 function actsOf(month){
-  const re=new RegExp(`<div class="row">[\\s\\S]*?<b>${month}</b>[\\s\\S]*?<div class="acts">([\\s\\S]*?)</div></div>`);
+  const re=new RegExp(`<div class="row"[^>]*>[\\s\\S]*?<b>${month}</b>[\\s\\S]*?<div class="acts">([\\s\\S]*?)</div></div>`);
   const m=html.match(re);
   if(!m) throw new Error(`no ${month} row`);
   return m[1];

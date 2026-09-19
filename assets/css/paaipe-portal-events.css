@@ -1,0 +1,59 @@
+/* Agent Portal Event Details — Overview / Feedback / Certificate.
+ * Matches Ericson samples: underline tabs, cream page, navy/gold pills. */
+.ed-back{display:inline-block;font-size:11.5px;font-weight:700;color:var(--royal);margin-bottom:2px}
+.ed-back::before{content:"– ";font-weight:500;color:var(--muted)}
+.ed{display:flex;flex-direction:column;gap:14px;min-width:0}
+.ed-tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);margin:0 -2px 2px}
+.ed-tab{appearance:none;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-1px;
+  padding:10px 14px;font:inherit;font-size:13.5px;font-weight:600;color:var(--muted);cursor:pointer}
+.ed-tab.on{color:var(--navy);border-color:var(--gold)}
+.ed-card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:22px 22px 20px;min-width:0}
+.ed-card-hd{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.ed-card-hd h2{font-size:18px}
+.ed-meta{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 14px}
+.ed-chip{display:inline-flex;align-items:center;border:1px solid var(--line);background:#fff;color:var(--navy);
+  border-radius:999px;padding:6px 12px;font-size:12.5px;font-weight:600}
+.ed-lede{color:var(--ink);font-size:14px;margin:0 0 14px;max-width:62ch}
+.ed-sub{color:var(--muted);font-size:13px;margin:0 0 14px;max-width:62ch}
+.ed-foot{color:var(--muted);font-size:12.5px;margin:16px 0 0}
+.ed-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.ed-note{margin:16px 0 0;padding:12px 14px;border-radius:12px;background:var(--pale);border:1px solid var(--line);
+  color:var(--navy);font-size:13px}
+.ed-note.ok{background:var(--green-bg);border-color:var(--green-line);color:var(--green-ink)}
+.ed-err{color:#A32D1C;font-size:13.5px;margin:10px 0 0}
+.ed-check{list-style:none;margin:0 0 16px;padding:0}
+.ed-check li{display:flex;gap:12px;align-items:flex-start;padding:12px 0;border-top:1px solid var(--line)}
+.ed-check li:first-child{border-top:0;padding-top:0}
+.ed-check i{width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;
+  flex:none;margin-top:1px}
+.ed-check i svg{width:12px;height:12px;stroke:var(--green-ink);fill:none;stroke-width:2.6}
+.ed-check li.done i{background:var(--green-bg);border-color:var(--green-line)}
+.ed-check b{display:block;color:var(--navy);font-size:14px}
+.ed-check small{display:block;color:var(--muted);font-size:12.5px;margin-top:2px}
+.ed-cert{margin:0 0 16px;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#fff}
+.ed-cert img{width:100%;height:auto;display:block}
+.ed-form{display:flex;flex-direction:column;gap:16px;margin-top:8px}
+.ed-q b{display:block;color:var(--navy);font-size:14.5px;margin-bottom:8px}
+.ed-q .opt{font-weight:500;color:var(--muted);font-size:12.5px}
+.ed-scale,.ed-yn{display:flex;flex-wrap:wrap;gap:8px}
+.ed-scale button,.ed-yn button{min-width:44px;height:44px;border-radius:12px;border:1.5px solid var(--line);
+  background:#fff;color:var(--navy);font:inherit;font-weight:700;cursor:pointer}
+.ed-yn button{padding:0 18px;width:auto}
+.ed-scale button[aria-pressed="true"],.ed-yn button[aria-pressed="true"]{
+  background:var(--navy);border-color:var(--navy);color:#fff}
+.ed-q textarea{width:100%;padding:10px 12px;border-radius:12px;border:1.5px solid var(--line);font:inherit;resize:vertical}
+.row[data-event-open],.row:has([data-event-open]) .datebox{cursor:pointer}
+a[data-event-open]{color:var(--navy)}
+a[data-event-open]:hover{color:var(--royal)}
+[data-event-details]{min-width:0}
+@media (max-width:860px){
+  .ed-card{padding:16px}
+  .ed-tabs{overflow-x:auto}
+}
+@media (max-width:560px){
+  .main,.content,[data-event-details],[data-events-home]{overflow-x:hidden}
+  .ed-card-hd,.ed-acts,.ed-meta,.ed-tabs{min-width:0}
+  .ed-acts .btn,[data-event-details] .ed-acts .pcta{white-space:normal;text-align:center}
+  .ed-tab{padding:10px 10px;font-size:13px}
+  .ed-check b{overflow-wrap:anywhere}
+}

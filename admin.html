@@ -86,14 +86,15 @@
 
 <!-- THE CONSOLE -->
 <div class="ashell" data-console hidden>
-  <aside class="aside">
+  <aside class="aside" id="admin-aside">
     <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
     <ul class="amenu" data-admin-nav></ul>
   </aside>
 
   <div class="amain">
-    <header class="top">
-      <b style="color:var(--navy);font-size:17px">Dashboard</b>
+    <header class="top" data-admin-top>
+      <button type="button" class="aburger" data-admin-burger aria-label="Menu" aria-expanded="false" aria-controls="admin-aside"><span></span></button>
+      <div class="ttl"><h1>Dashboard</h1></div>
       <div class="who">Signed in as <b data-admin-email>…</b>
         <a href="#" data-admin-signout>Sign out</a></div>
     </header>

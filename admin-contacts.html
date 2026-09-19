@@ -1,13 +1,15 @@
 <!doctype html><html lang="en" data-page="admin-contacts"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Contacts — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-contacts>
 <div class="ashell">
 
-  <aside class="aside">
+  <aside class="aside" id="admin-aside">
     <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
     <ul class="amenu" data-admin-nav></ul>
   </aside>
 
   <div class="amain">
-    <header class="top" data-admin-top></header>
+    <header class="top" data-admin-top>
+      <button type="button" class="aburger" data-admin-burger aria-label="Menu" aria-expanded="false" aria-controls="admin-aside"><span></span></button>
+    </header>
 
     <div class="wrap">
       <nav class="crumbs" data-crumbs></nav>
@@ -16,7 +18,7 @@
       <section class="card">
         <div class="inbox-bar">
           <div class="filters">
-            <input type="search" data-f-q placeholder="Search name, email, company" aria-label="Search contacts">
+            <input type="search" data-f-q placeholder="Search name or email" aria-label="Search contacts">
           </div>
           <div class="tally-line">
             <div class="chips" data-chips></div>

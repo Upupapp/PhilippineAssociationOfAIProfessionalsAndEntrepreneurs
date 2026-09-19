@@ -1,0 +1,37 @@
+/* Partner profile pages — shared phone overflow (R-20).
+ *
+ * Inline `.pinfo{min-width:280px}` plus `.profile` / `.wrap` 28px gutters
+ * is 336px at a 320 viewport (+16 page overflow). One sheet for
+ * partner-servana|gethired|mvj|dpdigital so the four copies stay in sync.
+ * Dots may still paint past the edge; parents already overflow:hidden.
+ */
+
+@media (max-width: 400px) {
+  .wrap {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+  .profile {
+    padding-left: 16px;
+    padding-right: 16px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .pinfo {
+    min-width: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+  .plate {
+    width: 120px;
+    height: 120px;
+  }
+}
+
+/* Belt-and-suspenders: keep decorative dots inside the clipped band. */
+.cta-band .dots,
+.hero .dots {
+  max-width: min(100%, 420px);
+  right: 0;
+  left: auto;
+}

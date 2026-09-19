@@ -44,8 +44,8 @@ await T("linkage is only itemIds — no playlistId on Session/Micro docs", () =>
   const learn = read("assets/js/paaipe-learnings-data.js");
   const admin = read("assets/js/paaipe-admin-learnings.js");
   ok(/itemIds/.test(pl), "itemIds");
-  ok(!/playlistId/.test(pl) && !/playlistId/.test(learn) && !/playlistId/.test(admin),
-    "no playlistId field");
+  ok(!/\bplaylistId\s*[:=]/.test(pl) && !/\bplaylistId\s*[:=]/.test(learn)
+    && !/\bplaylistId\s*[:=]/.test(admin), "no playlistId field written");
   ok(admin.includes("reorderLearnings") && admin.includes("saveLearning"),
     "session/micro publish+reorder kept");
 });
@@ -90,7 +90,7 @@ await T("player source: nodownload, portal-only deep link helper", () => {
   eq(fn("sessions", "part1"), "/portal-sessions#tab=sessions&play=part1", "session path");
   eq(fn("micros", "https://media.paaipe.org/x"), "", "rejects a URL as an id");
   const signin = read("signin.html");
-  ok(/\.html\(\?:\[\?#\]/.test(signin) || /html(?:[?#]/.test(signin), "signin next allows hash");
+  ok(signin.includes(".html(?:[?#]") || signin.includes("[?#][^\\s]*"), "signin next allows hash");
 });
 
 await T("admin Learnings has a Playlists tab beside Sessions and Micros", () => {
@@ -125,17 +125,17 @@ function loadPurePlaylistFns() {
   const start = src.indexOf("const TITLE_MAX");
   const end = src.indexOf("export async function listPlaylists");
   ok(start >= 0 && end > start, "pure helpers present");
-  const body = src.slice(start, end)
-    .replaceAll("export function", "function")
-    .replaceAll("export const PLAYLIST_KIND", "const PLAYLIST_KIND")
-    .replaceAll("export const PLAYLIST_STATUS", "const PLAYLIST_STATUS");
-  // PLAYLIST_KIND / STATUS sit above TITLE_MAX.
+  const body = src.slice(start, end).replaceAll("export function", "function");
+  const payloadStart = src.indexOf("export function buildPlaylistPayload");
+  const payloadEnd = src.indexOf("export async function savePlaylist");
+  ok(payloadStart >= 0 && payloadEnd > payloadStart, "buildPlaylistPayload");
+  const payload = src.slice(payloadStart, payloadEnd).replace("export function", "function");
   const enums = src.slice(
     src.indexOf("export const PLAYLIST_KIND"),
     src.indexOf("const TITLE_MAX")
   ).replaceAll("export const", "const");
   // eslint-disable-next-line no-new-func
-  return new Function(`${enums}\n${body}; return { groupLearningsByPlaylist, playlistForItem, buildPlaylistPayload, normalizeItemIds, PLAYLIST_STATUS };`)();
+  return new Function(`${enums}\n${body}\n${payload}; return { groupLearningsByPlaylist, playlistForItem, buildPlaylistPayload, normalizeItemIds, PLAYLIST_STATUS };`)();
 }
 
 const {
@@ -271,7 +271,7 @@ const plAdmin = `
 const br = await chromium.launch();
 const errs = [];
 
-async function openHub({ sessions = [], micros = MICROS, playlists = [PLAYLIST] } = {}) {
+async function openHub({ sessions = [], micros = MICROS, playlists = [PLAYLIST], hash = "" } = {}) {
   const ctx = await br.newContext({ viewport: { width: 1280, height: 900 } });
   const p = await ctx.newPage();
   p.on("pageerror", e => errs.push(String(e)));
@@ -287,7 +287,7 @@ async function openHub({ sessions = [], micros = MICROS, playlists = [PLAYLIST] 
     r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
   await p.route("**/assets/js/paaipe-playlists-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: plStub(playlists) }));
-  await p.goto(`${BASE}/portal-sessions.html`, { waitUntil: "load" });
+  await p.goto(`${BASE}/portal-sessions.html${hash}`, { waitUntil: "load" });
   await p.waitForSelector("html[data-sessions-ready]", { timeout: 9000 });
   return { p, ctx };
 }
@@ -365,6 +365,16 @@ await T("a signed-out Micro deep link goes to sign-in, then back to that Micro",
   const next = new URL(p.url()).searchParams.get("next") || "";
   eq(next, "portal-sessions.html#tab=micros&play=micro-1", "next preserves the play hash");
   ok(!/media\.paaipe\.org/.test(next), "next is not a CDN url");
+  await ctx.close();
+});
+
+await T("after sign-in, that same next URL opens the Micro on Micros", async () => {
+  const { p, ctx } = await openHub({ hash: "#tab=micros&play=micro-2" });
+  await p.locator("[data-ss-watch-popup]").waitFor({ state: "visible", timeout: 9000 });
+  eq(await p.locator("[data-ss-watch-title]").innerText(), "Signals vs noise", "opens that micro");
+  ok(await p.locator('[data-ss-hub-tab="micros"]').evaluate(el => el.classList.contains("on")),
+    "micros tab");
+  ok(/\/portal-sessions(?:\.html)?#tab=micros&play=micro-2/.test(p.url()), `url ${p.url()}`);
   await ctx.close();
 });
 

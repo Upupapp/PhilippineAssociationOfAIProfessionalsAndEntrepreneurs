@@ -1,7 +1,8 @@
-/* PAAIPE admin — Learnings (Sessions + Micros).
+/* PAAIPE admin — Learnings (Sessions + Micros + Playlists).
  *
- * Top-nav CONTENT · Learnings. Not event Media banners. Two tabs with aspect
- * cues: Sessions = 16:9 landscape, Micros = 9:16 vertical.
+ * Top-nav CONTENT · Learnings. Not event Media banners. Sessions = 16:9,
+ * Micros = 9:16. Playlists group published items of one kind (Clarence lock:
+ * paaipe_playlists). Sessions/Micros publish and reorder are unchanged.
  *
  * YouTube-first. File upload POSTs to media.paaipe.org (kind=session|micro)
  * and stores the returned path as storagePath. Poster is kind=poster.
@@ -22,6 +23,15 @@ import {
 } from "/assets/js/paaipe-learnings-data.js";
 import { postMediaUpload, MEDIA_KIND } from "/assets/js/paaipe-media.js";
 import { readHash, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
+import {
+  PLAYLIST_KIND,
+  PLAYLIST_STATUS,
+  listPlaylists,
+  savePlaylist,
+  setPlaylistStatus,
+  reorderPlaylists,
+  normalizeItemIds,
+} from "/assets/js/paaipe-playlists-data.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -29,9 +39,10 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 let ME = "";
-let KIND = "sessions"; // sessions | micros
-const STORE = { sessions: [], micros: [] };
+let KIND = "sessions"; // sessions | micros | playlists
+const STORE = { sessions: [], micros: [], playlists: [] };
 let EDIT_ID = null; // null = closed; "" = new; id = edit
+let PL_ITEMS = []; // ordered item ids while the Playlist editor is open
 
 function flash(msg, good = false) {
   const el = $("[data-flash]");
@@ -64,7 +75,7 @@ function syncLearnUrl({ push = true } = {}) {
 }
 
 function showTab(name, { focus = false, push = true } = {}) {
-  KIND = name === "micros" ? "micros" : "sessions";
+  KIND = name === "micros" ? "micros" : name === "playlists" ? "playlists" : "sessions";
   $$("[data-learn-tab]").forEach(t => {
     const on = t.getAttribute("data-learn-tab") === KIND;
     t.setAttribute("aria-selected", on ? "true" : "false");
@@ -75,7 +86,8 @@ function showTab(name, { focus = false, push = true } = {}) {
     p.hidden = p.getAttribute("data-learn-panel") !== KIND;
   });
   closeEditor({ silent: true });
-  renderList(KIND);
+  if (KIND === "playlists") renderPlaylists();
+  else renderList(KIND);
   syncLearnUrl({ push });
 }
 
@@ -143,6 +155,10 @@ function renderList(kind) {
 async function reload(kind = null) {
   const kinds = kind ? [kind] : ["sessions", "micros"];
   for (const k of kinds) {
+    if (k === "playlists") {
+      await reloadPlaylists();
+      continue;
+    }
     STORE[k] = await listLearnings(k, { asAdmin: true });
     renderList(k);
   }
@@ -152,13 +168,331 @@ async function reload(kind = null) {
   if (cm) cm.textContent = String(STORE.micros.length);
 }
 
+function playlistStatusPill(status) {
+  if (status === PLAYLIST_STATUS.PUBLISHED) return `<span class="pill ok">Published</span>`;
+  if (status === PLAYLIST_STATUS.ARCHIVED) return `<span class="pill info">Archived</span>`;
+  return `<span class="pill warn">Draft</span>`;
+}
+
+function renderPlaylists() {
+  const body = $("[data-pl-rows]");
+  if (!body) return;
+  const rows = STORE.playlists || [];
+  const countEl = $("[data-count-playlists]");
+  if (countEl) countEl.textContent = String(rows.length);
+  if (!rows.length) {
+    body.innerHTML = `<tr><td colspan="6" class="empty">No Playlists yet.
+      Add one to group published Sessions or Micros for the portal.</td></tr>`;
+    return;
+  }
+  body.innerHTML = rows.map((r, i) => `
+    <tr data-pl-id="${esc(r.id)}" draggable="true" class="learn-row">
+      <td class="drag" title="Drag to rearrange" aria-label="Drag to rearrange">
+        <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+        <span class="ord">${i + 1}</span>
+      </td>
+      <td>
+        <b>${esc(r.title || "—")}</b>
+        ${r.description ? `<small>${esc(String(r.description).slice(0, 120))}</small>` : ""}
+      </td>
+      <td>${r.kind === PLAYLIST_KIND.MICROS ? "Micros" : "Sessions"}</td>
+      <td>${normalizeItemIds(r.itemIds).length}</td>
+      <td>${playlistStatusPill(r.status)}</td>
+      <td class="act">
+        <button type="button" class="btn btn-ghost btn-sm" data-pl-edit>Edit</button>
+        ${r.status === PLAYLIST_STATUS.ARCHIVED
+          ? `<button type="button" class="btn btn-ghost btn-sm" data-pl-restore>Restore</button>`
+          : `<button type="button" class="btn btn-ghost btn-sm" data-pl-archive>Archive</button>`}
+      </td>
+    </tr>`).join("");
+}
+
+async function reloadPlaylists() {
+  STORE.playlists = await listPlaylists({ asAdmin: true });
+  renderPlaylists();
+}
+
 /* --------------------------------------------------------------- editor */
 
 function closeEditor({ silent = false } = {}) {
   EDIT_ID = null;
+  PL_ITEMS = [];
   const d = $("[data-editor]");
   if (d) { d.hidden = true; d.innerHTML = ""; }
   if (!silent) syncLearnUrl({ push: true });
+}
+
+function publishedItemsOf(kind) {
+  return (STORE[kind] || []).filter(r => r.published);
+}
+
+function renderPlaylistItemRows(kind) {
+  const host = $("[data-pl-item-list]");
+  if (!host) return;
+  const items = PL_ITEMS
+    .map(id => (STORE[kind] || []).find(r => r.id === id))
+    .filter(Boolean);
+  if (!items.length) {
+    host.innerHTML = `<p class="note">No items yet. Add published ${kind === "micros" ? "Micros" : "Sessions"} below. A Playlist cannot be published until every id exists and is published.</p>`;
+    return;
+  }
+  host.innerHTML = items.map((r, i) => `
+    <li data-pl-item="${esc(r.id)}" draggable="true" class="pl-item">
+      <span class="drag-handle" aria-hidden="true">⋮⋮</span>
+      <span class="ord">${i + 1}</span>
+      <b>${esc(r.title || r.id)}</b>
+      ${r.published ? "" : `<span class="pill warn">Not published</span>`}
+      <button type="button" class="btn btn-ghost btn-sm" data-pl-item-rm="${esc(r.id)}">Remove</button>
+    </li>`).join("");
+}
+
+function fillPlaylistAddSelect(kind) {
+  const sel = $("[data-pl-add-select]");
+  if (!sel) return;
+  const taken = new Set(PL_ITEMS);
+  const opts = publishedItemsOf(kind).filter(r => !taken.has(r.id));
+  sel.innerHTML = opts.length
+    ? `<option value="">Add a published ${kind === "micros" ? "Micro" : "Session"}…</option>` +
+      opts.map(r => `<option value="${esc(r.id)}">${esc(r.title || r.id)}</option>`).join("")
+    : `<option value="">No published ${kind === "micros" ? "Micros" : "Sessions"} left to add</option>`;
+  sel.disabled = !opts.length;
+}
+
+function setPlaylistKind(kind) {
+  const d = $("[data-editor]");
+  if (!d) return;
+  const next = kind === PLAYLIST_KIND.MICROS ? PLAYLIST_KIND.MICROS : PLAYLIST_KIND.SESSIONS;
+  $("[data-f-pl-kind]", d).value = next;
+  $$("[data-pl-kind]", d).forEach(c => {
+    c.classList.toggle("on", c.getAttribute("data-pl-kind") === next);
+  });
+  renderPlaylistItemRows(next);
+  fillPlaylistAddSelect(next);
+  wirePlaylistItemDrag($("[data-pl-item-list]"));
+}
+
+function openPlaylistEditor(id, { push = true } = {}) {
+  KIND = "playlists";
+  showTab("playlists", { push: false });
+  EDIT_ID = id == null ? "" : id;
+  const existing = id ? (STORE.playlists || []).find(r => r.id === id) : null;
+  const isNew = !existing;
+  const d = $("[data-editor]");
+  if (!d) return;
+  const kind = existing?.kind === PLAYLIST_KIND.MICROS ? PLAYLIST_KIND.MICROS : PLAYLIST_KIND.SESSIONS;
+  const status = existing?.status === PLAYLIST_STATUS.PUBLISHED
+    ? PLAYLIST_STATUS.PUBLISHED
+    : existing?.status === PLAYLIST_STATUS.ARCHIVED
+      ? PLAYLIST_STATUS.ARCHIVED
+      : PLAYLIST_STATUS.DRAFT;
+  PL_ITEMS = normalizeItemIds(existing?.itemIds);
+
+  d.innerHTML = `
+    <div class="dhead">
+      <div>
+        <b>${isNew ? "Add Playlist" : "Edit Playlist"}</b>
+        <small>kind is a field, not part of the title · portal shows published only</small>
+      </div>
+      <button type="button" class="btn btn-ghost btn-sm" data-close>Close</button>
+    </div>
+
+    <div class="f"><label for="pl-title">Title <span class="sub">required</span></label>
+      <input id="pl-title" data-f-pl-title maxlength="200" value="${esc(existing?.title || "")}" required></div>
+    <div class="f"><label for="pl-desc">Description <span class="sub">optional · 2000</span></label>
+      <textarea id="pl-desc" data-f-pl-desc maxlength="2000" rows="3">${esc(existing?.description || "")}</textarea></div>
+
+    <h3 class="ehead">Kind</h3>
+    <div class="chips" role="group" aria-label="Playlist kind">
+      <button type="button" class="chip${kind === PLAYLIST_KIND.SESSIONS ? " on" : ""}"
+        data-pl-kind="${PLAYLIST_KIND.SESSIONS}">Sessions</button>
+      <button type="button" class="chip${kind === PLAYLIST_KIND.MICROS ? " on" : ""}"
+        data-pl-kind="${PLAYLIST_KIND.MICROS}">Micros</button>
+    </div>
+    <input type="hidden" data-f-pl-kind value="${esc(kind)}">
+    <p class="note">Never mixed in v1. Changing kind clears the item list.</p>
+
+    <h3 class="ehead">Items <span class="sub">published ${kind === "micros" ? "Micros" : "Sessions"} in order</span></h3>
+    <ol class="pl-items" data-pl-item-list></ol>
+    <div class="f pl-add">
+      <label for="pl-add">Add published item</label>
+      <select id="pl-add" data-pl-add-select></select>
+    </div>
+
+    <h3 class="ehead">Status</h3>
+    <div class="chips" role="radiogroup" aria-label="Playlist status">
+      <button type="button" class="chip${status === PLAYLIST_STATUS.DRAFT ? " on" : ""}"
+        data-pl-status="${PLAYLIST_STATUS.DRAFT}">Draft</button>
+      <button type="button" class="chip${status === PLAYLIST_STATUS.PUBLISHED ? " on" : ""}"
+        data-pl-status="${PLAYLIST_STATUS.PUBLISHED}">Published</button>
+      <button type="button" class="chip${status === PLAYLIST_STATUS.ARCHIVED ? " on" : ""}"
+        data-pl-status="${PLAYLIST_STATUS.ARCHIVED}">Archived</button>
+    </div>
+    <input type="hidden" data-f-pl-status value="${esc(status)}">
+    <p class="note">Published Playlists appear on portal Learnings. Archived stays here for restore.</p>
+
+    <div class="dacts">
+      <button type="button" class="btn btn-gold btn-sm" data-pl-save>Save</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-close>Cancel</button>
+    </div>`;
+  d.hidden = false;
+  d.dataset.kind = "playlists";
+  d.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  setPlaylistKind(kind);
+  $("[data-f-pl-title]", d)?.focus();
+  syncLearnUrl({ push });
+}
+
+async function savePlaylistFromEditor() {
+  const d = $("[data-editor]");
+  if (!d || EDIT_ID === null || d.dataset.kind !== "playlists") return;
+  const input = {
+    title: $("[data-f-pl-title]", d)?.value,
+    description: $("[data-f-pl-desc]", d)?.value,
+    kind: $("[data-f-pl-kind]", d)?.value,
+    status: $("[data-f-pl-status]", d)?.value,
+    itemIds: PL_ITEMS.slice(),
+    displayOrder: (() => {
+      if (EDIT_ID) {
+        const ex = STORE.playlists.find(r => r.id === EDIT_ID);
+        return ex?.displayOrder ?? (STORE.playlists.length + 1);
+      }
+      return STORE.playlists.length + 1;
+    })(),
+  };
+  const btns = $$("button", d);
+  btns.forEach(b => b.disabled = true);
+  try {
+    await savePlaylist(EDIT_ID || null, input, { actor: ME });
+    await logLearningActivity(
+      EDIT_ID ? "playlist.update" : "playlist.create",
+      `${input.kind}: ${input.title}`,
+      { actor: ME, kind: "playlists" }
+    );
+    await reloadPlaylists();
+    flash(`Playlist saved${input.status === PLAYLIST_STATUS.PUBLISHED ? " and published to the portal" : input.status === PLAYLIST_STATUS.ARCHIVED ? " as archived" : " as draft"}.`, true);
+    closeEditor();
+  } catch (ex) {
+    btns.forEach(b => b.disabled = false);
+    flash(ex?.code === "permission-denied"
+      ? "The rules refused that change. Your account may no longer be an administrator."
+      : (ex?.message || String(ex)));
+  }
+}
+
+async function archiveOrRestorePlaylist(id, nextStatus) {
+  const row = (STORE.playlists || []).find(r => r.id === id);
+  const title = row?.title || id;
+  try {
+    await setPlaylistStatus(id, nextStatus, { actor: ME });
+    await logLearningActivity(
+      nextStatus === PLAYLIST_STATUS.ARCHIVED ? "playlist.archive" : "playlist.restore",
+      title,
+      { actor: ME, kind: "playlists" }
+    );
+    if (EDIT_ID === id) closeEditor();
+    await reloadPlaylists();
+    flash(nextStatus === PLAYLIST_STATUS.ARCHIVED
+      ? `Archived “${title}”. Restore any time from this tab.`
+      : `Restored “${title}” as a draft.`, true);
+  } catch (ex) {
+    flash(ex?.code === "permission-denied"
+      ? "The rules refused that change."
+      : (ex?.message || String(ex)));
+  }
+}
+
+let plDragId = null;
+
+function wirePlaylistDrag(body) {
+  if (!body || body.dataset.plDragWired) return;
+  body.dataset.plDragWired = "1";
+  body.addEventListener("dragstart", e => {
+    const tr = e.target.closest("tr[data-pl-id]");
+    if (!tr || e.target.closest("button,a,input")) {
+      e.preventDefault();
+      return;
+    }
+    plDragId = tr.getAttribute("data-pl-id");
+    tr.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", plDragId);
+  });
+  body.addEventListener("dragend", e => {
+    e.target.closest("tr")?.classList.remove("dragging");
+    $$("tr.drag-over", body).forEach(r => r.classList.remove("drag-over"));
+    plDragId = null;
+  });
+  body.addEventListener("dragover", e => {
+    const tr = e.target.closest("tr[data-pl-id]");
+    if (!tr || !plDragId) return;
+    e.preventDefault();
+    $$("tr.drag-over", body).forEach(r => r.classList.remove("drag-over"));
+    if (tr.getAttribute("data-pl-id") !== plDragId) tr.classList.add("drag-over");
+  });
+  body.addEventListener("drop", async e => {
+    const tr = e.target.closest("tr[data-pl-id]");
+    if (!tr || !plDragId) return;
+    e.preventDefault();
+    const ids = STORE.playlists.map(r => r.id);
+    const from = ids.indexOf(plDragId);
+    const to = ids.indexOf(tr.getAttribute("data-pl-id"));
+    if (from < 0 || to < 0 || from === to) return;
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    STORE.playlists = ids.map((id, i) => {
+      const row = STORE.playlists.find(r => r.id === id);
+      return { ...row, displayOrder: i + 1 };
+    });
+    renderPlaylists();
+    try {
+      await reorderPlaylists(ids, { actor: ME });
+      flash("Playlist order updated — portal Learnings will follow this sequence.", true);
+    } catch (ex) {
+      flash(ex?.code === "permission-denied"
+        ? "The rules refused the reorder."
+        : `Could not save order: ${ex?.message || ex}`);
+      await reloadPlaylists();
+    }
+  });
+}
+
+function wirePlaylistItemDrag(list) {
+  if (!list || list.dataset.plItemDragWired) return;
+  list.dataset.plItemDragWired = "1";
+  let itemDrag = null;
+  list.addEventListener("dragstart", e => {
+    const li = e.target.closest("[data-pl-item]");
+    if (!li || e.target.closest("button")) {
+      e.preventDefault();
+      return;
+    }
+    itemDrag = li.getAttribute("data-pl-item");
+    li.classList.add("dragging");
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", itemDrag);
+  });
+  list.addEventListener("dragend", e => {
+    e.target.closest("[data-pl-item]")?.classList.remove("dragging");
+    $$(".drag-over", list).forEach(r => r.classList.remove("drag-over"));
+    itemDrag = null;
+  });
+  list.addEventListener("dragover", e => {
+    const li = e.target.closest("[data-pl-item]");
+    if (!li || !itemDrag) return;
+    e.preventDefault();
+    $$(".drag-over", list).forEach(r => r.classList.remove("drag-over"));
+    if (li.getAttribute("data-pl-item") !== itemDrag) li.classList.add("drag-over");
+  });
+  list.addEventListener("drop", e => {
+    const li = e.target.closest("[data-pl-item]");
+    if (!li || !itemDrag) return;
+    e.preventDefault();
+    const from = PL_ITEMS.indexOf(itemDrag);
+    const to = PL_ITEMS.indexOf(li.getAttribute("data-pl-item"));
+    if (from < 0 || to < 0 || from === to) return;
+    PL_ITEMS.splice(to, 0, PL_ITEMS.splice(from, 1)[0]);
+    const kind = $("[data-f-pl-kind]")?.value || PLAYLIST_KIND.SESSIONS;
+    renderPlaylistItemRows(kind);
+  });
 }
 
 function openEditor(kind, id, { push = true } = {}) {
@@ -476,6 +810,8 @@ function wireDrag(body) {
       const b = $(`[data-rows="${k}"]`);
       if (b) b.innerHTML = `<tr><td colspan="5" class="empty">Could not be loaded. This is not "none".</td></tr>`;
     });
+    const pb = $("[data-pl-rows]");
+    if (pb) pb.innerHTML = `<tr><td colspan="6" class="empty">Could not be loaded. This is not "none".</td></tr>`;
     document.documentElement.setAttribute("data-admin-learnings", "offline");
     return;
   }
@@ -484,7 +820,7 @@ function wireDrag(body) {
   ME = me.email;
   renderAdminTop({
     title: "Learnings",
-    subtitle: "Sessions (16:9) and Micros (9:16) for the member portal",
+    subtitle: "Sessions, Micros, and Playlists for the member portal",
     email: me.email,
   });
   renderCrumbs([["Dashboard", "admin.html"], "Learnings"]);
@@ -502,12 +838,24 @@ function wireDrag(body) {
     document.documentElement.setAttribute("data-admin-learnings", "error");
     return;
   }
+  try {
+    await reloadPlaylists();
+  } catch (ex) {
+    const pb = $("[data-pl-rows]");
+    if (pb) pb.innerHTML = `<tr><td colspan="6" class="empty">Playlists could not be loaded. Sessions and Micros are unaffected.</td></tr>`;
+    flash(`Could not load Playlists: ${ex?.message || ex}`);
+  }
 
   $$("[data-rows]").forEach(wireDrag);
+  wirePlaylistDrag($("[data-pl-rows]"));
 
   document.addEventListener("click", e => {
     const add = e.target.closest("[data-add]");
-    if (add) return openEditor(add.getAttribute("data-add"), null);
+    if (add) {
+      const kind = add.getAttribute("data-add");
+      if (kind === "playlists") return openPlaylistEditor(null);
+      return openEditor(kind, null);
+    }
 
     if (e.target.closest("[data-close]")) return closeEditor();
 
@@ -530,6 +878,55 @@ function wireDrag(body) {
 
     if (e.target.closest("[data-save]")) return saveFromEditor();
 
+    if (e.target.closest("[data-pl-save]")) return savePlaylistFromEditor();
+
+    const plEdit = e.target.closest("[data-pl-edit]");
+    if (plEdit) {
+      const tr = plEdit.closest("tr[data-pl-id]");
+      return openPlaylistEditor(tr?.getAttribute("data-pl-id"));
+    }
+    const plArchive = e.target.closest("[data-pl-archive]");
+    if (plArchive) {
+      const tr = plArchive.closest("tr[data-pl-id]");
+      return archiveOrRestorePlaylist(tr?.getAttribute("data-pl-id"), PLAYLIST_STATUS.ARCHIVED);
+    }
+    const plRestore = e.target.closest("[data-pl-restore]");
+    if (plRestore) {
+      const tr = plRestore.closest("tr[data-pl-id]");
+      return archiveOrRestorePlaylist(tr?.getAttribute("data-pl-id"), PLAYLIST_STATUS.DRAFT);
+    }
+    const plKind = e.target.closest("[data-pl-kind]");
+    if (plKind) {
+      const next = plKind.getAttribute("data-pl-kind");
+      const current = $("[data-f-pl-kind]")?.value;
+      if (next !== current && PL_ITEMS.length) {
+        if (!confirm("Change kind? The item list will be cleared — Sessions and Micros are never mixed."))
+          return;
+        PL_ITEMS = [];
+      }
+      return setPlaylistKind(next);
+    }
+    const plStatus = e.target.closest("[data-pl-status]");
+    if (plStatus) {
+      const d = $("[data-editor]");
+      const status = plStatus.getAttribute("data-pl-status");
+      if (!d) return;
+      $("[data-f-pl-status]", d).value = status;
+      $$("[data-pl-status]", d).forEach(c => {
+        c.classList.toggle("on", c.getAttribute("data-pl-status") === status);
+      });
+      return;
+    }
+    const plRm = e.target.closest("[data-pl-item-rm]");
+    if (plRm) {
+      const id = plRm.getAttribute("data-pl-item-rm");
+      PL_ITEMS = PL_ITEMS.filter(x => x !== id);
+      const kind = $("[data-f-pl-kind]")?.value || PLAYLIST_KIND.SESSIONS;
+      renderPlaylistItemRows(kind);
+      fillPlaylistAddSelect(kind);
+      return;
+    }
+
     const srcBtn = e.target.closest("[data-source]");
     if (srcBtn) {
       const src = srcBtn.getAttribute("data-source");
@@ -545,11 +942,30 @@ function wireDrag(body) {
   document.addEventListener("input", e => {
     if (e.target.matches("[data-f-youtube], [data-f-file]")) paintPreview();
   });
+  document.addEventListener("change", e => {
+    if (!e.target.matches("[data-pl-add-select]")) return;
+    const id = e.target.value;
+    if (!id || PL_ITEMS.includes(id)) return;
+    PL_ITEMS.push(id);
+    const kind = $("[data-f-pl-kind]")?.value || PLAYLIST_KIND.SESSIONS;
+    renderPlaylistItemRows(kind);
+    fillPlaylistAddSelect(kind);
+    const list = $("[data-pl-item-list]");
+    wirePlaylistItemDrag(list);
+  });
 
   showTab("sessions", { push: false });
   function applyLearnFromLocation() {
     const v = readHash();
-    const tab = v.tab === "micros" ? "micros" : "sessions";
+    const tab = v.tab === "micros" ? "micros"
+      : v.tab === "playlists" ? "playlists"
+      : "sessions";
+    if (tab === "playlists") {
+      if (v.new === "1") { openPlaylistEditor(null, { push: false }); return; }
+      if (v.id) { openPlaylistEditor(v.id, { push: false }); return; }
+      showTab("playlists", { push: false });
+      return;
+    }
     if (v.new === "1") { openEditor(tab, null, { push: false }); return; }
     if (v.id) { openEditor(tab, v.id, { push: false }); return; }
     showTab(tab, { push: false });

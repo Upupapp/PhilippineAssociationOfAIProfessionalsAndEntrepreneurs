@@ -555,6 +555,13 @@ body[data-admin-learnings] .learn-aspect-preview .ph{
   padding:16px;text-align:center}
 body[data-admin-learnings] .detail .grow{margin-left:auto}
 body[data-admin-learnings] .btn.danger{color:var(--err-ink);border-color:#F0C8C0}
+body[data-admin-learnings] .pl-items{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:6px}
+body[data-admin-learnings] .pl-item{display:grid;grid-template-columns:18px 22px 1fr auto;gap:10px;align-items:center;
+  padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:#fff;cursor:grab}
+body[data-admin-learnings] .pl-item.dragging{opacity:.45}
+body[data-admin-learnings] .pl-item.drag-over{border-top:2px solid var(--gold)}
+body[data-admin-learnings] .pl-item b{color:var(--navy);font-size:14px}
+body[data-admin-learnings] .pl-add{max-width:420px}
 
 
 /* Motion recipes: assets/css/paaipe-motion.css (imported at top). */

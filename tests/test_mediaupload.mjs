@@ -172,6 +172,7 @@ await T("firestore.rules: photoUrl on self-update; learnings storagePath left al
 
 const REAL_FB = read("assets/js/paaipe-firebase.js");
 const REAL_LEARN = read("assets/js/paaipe-learnings-data.js");
+const REAL_PL = read("assets/js/paaipe-playlists-data.js");
 const REAL_DATA = read("assets/js/paaipe-events-data.js");
 
 const fbAdmin = `
@@ -196,6 +197,14 @@ const learnAdmin = `
   export async function deleteLearning(){}
   export async function reorderLearnings(){}
   export async function logLearningActivity(){}
+`;
+
+const plAdmin = `
+  export * from '/assets/js/paaipe-playlists-data-real.js';
+  export async function listPlaylists(){ return [] }
+  export async function savePlaylist(){ return 'pl' }
+  export async function setPlaylistStatus(){}
+  export async function reorderPlaylists(){}
 `;
 
 const dataAdmin = `
@@ -248,6 +257,10 @@ await T("YouTube save still works with no media POST", async () => {
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: learnAdmin }));
+  await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
+  await p.route("**/assets/js/paaipe-playlists-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: plAdmin }));
   await p.goto(`${BASE}/admin-learnings.html`, { waitUntil: "load" });
   await p.waitForSelector("html[data-admin-learnings]", { timeout: 9000 });
   await p.locator('[data-add="sessions"]').click();
@@ -277,6 +290,10 @@ await T("Learnings upload POSTs kind=session with id; failed POST writes no path
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: learnAdmin }));
+  await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
+  await p.route("**/assets/js/paaipe-playlists-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: plAdmin }));
   await p.goto(`${BASE}/admin-learnings.html`, { waitUntil: "load" });
   await p.waitForSelector("html[data-admin-learnings]", { timeout: 9000 });
   await p.locator('[data-add="sessions"]').click();
@@ -322,6 +339,10 @@ await T("Learnings upload 201 stores returned path, not an invented url", async 
     r.fulfill({ contentType: "text/javascript", body: REAL_LEARN }));
   await p.route("**/assets/js/paaipe-learnings-data.js", r =>
     r.fulfill({ contentType: "text/javascript", body: learnAdmin }));
+  await p.route("**/assets/js/paaipe-playlists-data-real.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: REAL_PL }));
+  await p.route("**/assets/js/paaipe-playlists-data.js", r =>
+    r.fulfill({ contentType: "text/javascript", body: plAdmin }));
   await p.goto(`${BASE}/admin-learnings.html`, { waitUntil: "load" });
   await p.waitForSelector("html[data-admin-learnings]", { timeout: 9000 });
   await p.locator('[data-add="sessions"]').click();

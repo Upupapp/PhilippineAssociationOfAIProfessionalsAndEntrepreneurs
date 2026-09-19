@@ -16,6 +16,22 @@ import { currentAgent, signOutNow, isConfigured, setDirectoryVisible,
          membershipStatus, resendVerification, markConfirmationSeen,
          GATE_GUESTS } from "/assets/js/paaipe-firebase.js";
 import { initProfilePhoto } from "/assets/js/paaipe-profile-photo.js";
+import { samePage } from "/assets/js/paaipe-samepage.js";
+
+/** Sign-in bounce that can return to a Learnings play deep link.
+ *  next= stays a same-site page.html (optional #tab=&play=). Micro copy-link
+ *  URLs are not anonymous — signed-out visitors sign in first. */
+function signInHref() {
+  const page = samePage(location.pathname, "portal.html");
+  const hash = String(location.hash || "");
+  const play = /(?:^|[?#&])play=([\w-]+)/.exec(hash);
+  const tab = /(?:^|[?#&])tab=(sessions|micros)/.exec(hash);
+  if (page === "portal-sessions.html" && play) {
+    const kind = tab ? tab[1] : "sessions";
+    return `signin.html?next=${encodeURIComponent(`portal-sessions.html#tab=${kind}&play=${play[1]}`)}`;
+  }
+  return "signin.html";
+}
 
 /* Guest / pending-confirmation signifiers.
  * Only an admin-confirmed user is an Agent; sign-up makes a GUEST. While
@@ -73,7 +89,7 @@ const greet = () => {
   try { agent = await currentAgent(); } catch { return; }
 
   if (!agent) {                            // not signed in: this page is not for you
-    location.replace("signin.html");
+    location.replace(signInHref());
     return;
   }
 

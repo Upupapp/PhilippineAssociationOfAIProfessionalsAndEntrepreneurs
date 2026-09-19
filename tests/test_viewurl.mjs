@@ -48,6 +48,9 @@ await T("helper lives in the repo and existing Learnings links still name #tab="
   const portalEv = read("assets/js/paaipe-portal-events.js");
   ok(portalEv.includes("paaipe-view-url.js"), "portal Event Details uses the helper");
   ok(portalEv.includes('event: ev.id') || portalEv.includes("event:"), "writes #event=");
+  const certs = read("assets/js/paaipe-my-certificates.js");
+  ok(certs.includes("paaipe-view-url.js"), "My Certificates uses the helper");
+  ok(certs.includes("writeHash"), "writes search/sort/filter hash");
 });
 
 await T("watch and slides still use ?session= (not a new path)", () => {

@@ -1587,6 +1587,88 @@ await T("draft window + certificate: 200/401 live, 404 not-wired, media URLs onl
   eq(hits.find(h => h.url.endsWith("/certificate/email")).method, "POST", "email POST");
 });
 
+await T("GET /v1/me/certificates binds Clarence’s card fields only", async () => {
+  eq(api.meCertificatesPath(), "/v1/me/certificates", "bare path");
+  eq(
+    api.meCertificatesPath({ q: "signals", year: "2026", sort: "title_asc" }),
+    "/v1/me/certificates?q=signals&year=2026&sort=title_asc",
+    "q year sort"
+  );
+  eq(api.meCertificatesPath({ sort: "date_desc" }), "/v1/me/certificates", "default sort omitted");
+
+  const bound = api.bindMeCertificateList({
+    certificates: [
+      {
+        id: "c1",
+        eventId: "2026-09-ai-exchange",
+        eventTitle: "From Signals to Strategy",
+        eventDate: "2026-09-15",
+        year: 2026,
+        series: "AI Exchange",
+        pdfUrl: "https://media.paaipe.org/c1.pdf",
+        pngUrl: "https://media.paaipe.org/c1.png",
+        issuedAt: "2026-09-15",
+        emailedAt: null,
+        extraInvented: "nope",
+      },
+      {},
+      { series: "Only series" },
+    ],
+  });
+  eq(bound.length, 1, "empty / incomplete rows dropped");
+  eq(bound[0].eventTitle, "From Signals to Strategy", "eventTitle");
+  eq(bound[0].year, "2026", "year stringified");
+  eq(bound[0].series, "AI Exchange", "series");
+  eq(bound[0].eventId, "2026-09-ai-exchange", "eventId kept");
+  ok(!("extraInvented" in bound[0]), "unknown keys not copied");
+
+  const hits = [];
+  const fetchImpl = async (url, opts) => {
+    hits.push({ url, method: opts.method, headers: opts.headers || {} });
+    if (url.includes("/v1/me/certificates") && url.includes("gone")) {
+      return new Response("not found", { status: 404 });
+    }
+    if (url.includes("/v1/me/certificates") && url.includes("auth")) {
+      return new Response("missing bearer", { status: 401 });
+    }
+    if (url.includes("/v1/me/certificates")) {
+      return new Response(JSON.stringify({
+        certificates: [{
+          eventTitle: "Prompting That Ships",
+          eventDate: "2026-06-10",
+          year: 2026,
+          series: "AI Exchange",
+          pdfUrl: "https://media.paaipe.org/june.pdf",
+          pngUrl: "",
+          issuedAt: "2026-06-10",
+          emailedAt: null,
+        }],
+      }), { status: 200, headers: { "content-type": "application/json" } });
+    }
+    return new Response("missing", { status: 404 });
+  };
+
+  const live = await api.getMeCertificates({
+    q: "prompt", year: "2026", sort: "title_asc", token: "tok", fetchImpl,
+  });
+  eq(live.live, true, "200 live");
+  eq(live.items.length, 1, "one bound card");
+  eq(live.items[0].eventTitle, "Prompting That Ships", "title from contract");
+  eq(live.contract, "clarence-me-certificates", "contract id");
+  ok(hits[0].url.includes("q=prompt"), "sends q");
+  ok(hits[0].url.includes("year=2026"), "sends year");
+  ok(hits[0].url.includes("sort=title_asc"), "sends sort");
+  eq(hits[0].headers.Authorization, "Bearer tok", "Bearer");
+
+  const gone = await api.getMeCertificates({ q: "gone", token: "tok", fetchImpl });
+  eq(gone.live, false, "404 not live");
+  eq(gone.items.length, 0, "404 invents no rows");
+
+  const unauth = await api.getMeCertificates({ q: "auth", token: "tok", fetchImpl });
+  eq(unauth.live, true, "401 means deployed");
+  eq(unauth.items.length, 0, "401 has no list");
+});
+
 await br.close();
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

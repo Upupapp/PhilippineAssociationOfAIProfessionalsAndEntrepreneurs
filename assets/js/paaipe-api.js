@@ -112,6 +112,13 @@
  *        if the host later returns 501/502. Show the API result honestly.
  *   GET  /v1/admin/events/{eventId}/certificates                 admin list
  *        Path helper only. No admin certificates surface in this PR.
+ *   GET  /v1/me/certificates                                     Bearer (401 without)
+ *        Query: q, year, sort=date_desc|date_asc|title_asc|title_desc
+ *        Card: eventTitle, eventDate, year, series (nullable),
+ *              pdfUrl, pngUrl, issuedAt, emailedAt, id?, eventId?
+ *        Prod is 404 until Paul deploys — probe; 404 is honest empty, not a list.
+ *        200/401 → route deployed. bindMeCertificateList copies only those fields.
+ *        Local smoke: ?paaipe_api=http://127.0.0.1:8080 (same paths).
  * Download uses certificate.pdfUrl / pngUrl on media.paaipe.org — no download API.
  * Issue is server-side on feedback submit — FE does not POST issue.
  *
@@ -401,6 +408,79 @@ export function meEventCertificateEmailPath(eventId) {
 /** Admin list. No portal/admin UI in this PR — path only. */
 export function adminEventCertificatesPath(eventId) {
   return `/v1/admin/events/${encodeURIComponent(eventId)}/certificates`;
+}
+
+export const ME_CERTIFICATES_SORTS = ["date_desc", "date_asc", "title_asc", "title_desc"];
+const ME_CERT_SORT_SET = new Set(ME_CERTIFICATES_SORTS);
+
+/** Member list. Query keys are Clarence’s only: q, year, sort. */
+export function meCertificatesPath({ q, year, sort } = {}) {
+  const params = new URLSearchParams();
+  const query = String(q || "").trim();
+  if (query) params.set("q", query);
+  const y = String(year || "").trim();
+  if (y && y !== "all") params.set("year", y);
+  const s = String(sort || "").trim();
+  if (s && ME_CERT_SORT_SET.has(s) && s !== "date_desc") params.set("sort", s);
+  const qs = params.toString();
+  return qs ? `/v1/me/certificates?${qs}` : "/v1/me/certificates";
+}
+
+/**
+ * One list card. Copies only Clarence’s fields. Does not invent a row
+ * from an empty object, and does not invent pdf/png/eventId.
+ */
+export function bindMeCertificateCard(row) {
+  if (!row || typeof row !== "object" || Array.isArray(row)) return null;
+  const eventTitle = String(row.eventTitle || "").trim();
+  const id = row.id == null || row.id === "" ? "" : String(row.id);
+  const eventId = row.eventId == null || row.eventId === "" ? "" : String(row.eventId);
+  const pdfUrl = String(row.pdfUrl || "").trim();
+  const pngUrl = String(row.pngUrl || "").trim();
+  const eventDate = row.eventDate == null || row.eventDate === "" ? null : row.eventDate;
+  const issuedAt = row.issuedAt == null || row.issuedAt === "" ? null : row.issuedAt;
+  const emailedAt = row.emailedAt == null || row.emailedAt === "" ? null : row.emailedAt;
+  const year = row.year == null || row.year === "" ? "" : String(row.year);
+  const series = row.series == null || String(row.series).trim() === ""
+    ? null
+    : String(row.series).trim();
+  if (!eventTitle && !id && !eventDate && !issuedAt && !pdfUrl && !pngUrl) return null;
+  return {
+    id,
+    eventId,
+    eventTitle,
+    eventDate,
+    year,
+    series,
+    pdfUrl,
+    pngUrl,
+    issuedAt,
+    emailedAt,
+  };
+}
+
+/** { certificates: [...] } or a bare array. Extra keys are ignored. */
+export function bindMeCertificateList(data) {
+  const rows = asList(data, "certificates");
+  return rows.map(bindMeCertificateCard).filter(Boolean);
+}
+
+/**
+ * Bearer GET. live only on 200/401. 404 → live:false, items:[].
+ * Never invents rows when the route is missing.
+ */
+export async function getMeCertificates({ q, year, sort, ...opts } = {}) {
+  const probe = await probeDraftGet(meCertificatesPath({ q, year, sort }), {
+    ...opts,
+    auth: "member",
+  });
+  return {
+    live: probe.live,
+    status: probe.status,
+    data: probe.status === 200 ? probe.data : null,
+    items: probe.status === 200 ? bindMeCertificateList(probe.data) : [],
+    contract: "clarence-me-certificates",
+  };
 }
 
 /** Draft OpenAPI routes are live only when the host answers 200 or 401. */
@@ -778,6 +858,7 @@ function asList(data, namedKey) {
   if (Array.isArray(data?.applications)) return data.applications;
   if (Array.isArray(data?.partnerApplications)) return data.partnerApplications;
   if (Array.isArray(data?.contacts)) return data.contacts;
+  if (Array.isArray(data?.certificates)) return data.certificates;
   if (Array.isArray(data?.data)) return data.data;
   return [];
 }

@@ -1,11 +1,14 @@
 /* PAAIPE — Agent Portal Event Details (Overview / Feedback / Certificate).
  *
- * URL scheme (documented in the PR):
+ * URL scheme (locked, URL-sweep — keep the hash, do not add portal-event.html):
  *   portal-events.html#event=<id>
  *   portal-events.html#event=<id>&tab=feedback
  *   portal-events.html#event=<id>&tab=certificate
  * Overview omits tab= so the canonical address is #event=<id>.
  * Back and refresh restore the same event. Past list deep-links here.
+ * Register from this view uses register-….html?from=portal&event=<id> so
+ * “Back to the event” returns here (see paaipe-register-from-portal.js).
+ * Overview ports public event fields (about, expect, program, share, calendar).
  *
  * Feedback talks to Clarence's live Slice 3 routes in paaipe-api.js.
  * Window + certificate GET/email are LIVE (certificates-20260919T051814Z).
@@ -19,8 +22,10 @@
  *
  * Partner apply reuses mountPartnerCta / data-partner-cta. No second flow.
  */
-import { eventStartAt, eventTimeRange, getEvent, myApplications, acceptsPartners }
-  from "/assets/js/paaipe-events-data.js";
+import {
+  eventStartAt, eventTimeRange, eventDateLong, getEvent, myApplications,
+  acceptsPartners, listEventSponsors, groupSponsors,
+} from "/assets/js/paaipe-events-data.js";
 import { currentAgent, idTokenForRequest } from "/assets/js/paaipe-firebase.js";
 import { registrationReceiptFor, Q_TYPE, Q_TYPE_LABEL } from "/assets/js/paaipe-feedback.js";
 import {
@@ -35,6 +40,7 @@ import {
 } from "/assets/js/paaipe-api.js";
 import { mountPartnerCta } from "/assets/js/paaipe-partner.js";
 import { readView, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
+import { portalEventDetailHref } from "/assets/js/paaipe-portal-event-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -64,7 +70,20 @@ const ICO = {
   award: '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="m8.5 13.5-1.5 7 5-2.5 5 2.5-1.5-7"/></svg>',
 };
 
-/** Catalog matches the static Events list. Live getEvent() overlays it. */
+const TBA_EXPECT = [
+  "A featured talk from a practitioner or partner",
+  "Open Q&A with the PAAIPE community",
+  "Updates on programs, benefits and partners",
+];
+const TBA_PROGRAM = [
+  { time: "8:00 PM", item: "Welcome and opening remarks" },
+  { time: "8:10 PM", item: "Featured session — topic and speaker to be announced" },
+  { time: "8:55 PM", item: "Open Q&A with members" },
+  { time: "9:20 PM", item: "Community updates and closing" },
+];
+
+/** Catalog matches the static Events list + public event page fields.
+ *  Live getEvent() overlays it; empty live fields do not wipe catalog copy. */
 export const PORTAL_EVENT_CATALOG = [
   {
     id: "2026-10-ai-exchange",
@@ -74,6 +93,11 @@ export const PORTAL_EVENT_CATALOG = [
     endTime: "21:30",
     topic: "Topic to be announced",
     venue: "Online via Zoom",
+    description: "The October edition of the monthly PAAIPE AI Exchange. The featured topic and speaker will be announced here and to registered members by email.",
+    whatToExpect: TBA_EXPECT,
+    program: TBA_PROGRAM,
+    bannerSquareUrl: "assets/img/ai-exchange-2026-10-banner-square.png",
+    bannerWideUrl: "assets/img/ai-exchange-2026-10-banner-wide.png",
     ics: "assets/2026-10-ai-exchange.ics",
     registerHref: "register-2026-10-ai-exchange.html",
     listedRegistered: true,
@@ -88,6 +112,9 @@ export const PORTAL_EVENT_CATALOG = [
     endTime: "21:30",
     topic: "Topic to be announced",
     venue: "Online via Zoom",
+    description: "The November edition of the monthly PAAIPE AI Exchange. Topic and speaker to be announced.",
+    whatToExpect: TBA_EXPECT,
+    program: TBA_PROGRAM,
     ics: "assets/2026-11-ai-exchange.ics",
     registerHref: "register-2026-11-ai-exchange.html",
     listedRegistered: false,
@@ -101,6 +128,18 @@ export const PORTAL_EVENT_CATALOG = [
     endTime: "21:30",
     topic: "Topic to be announced",
     venue: "Online via Zoom",
+    description: "The December edition of the monthly PAAIPE AI Exchange — the last session of 2026. Topic and speaker to be announced.",
+    whatToExpect: [
+      "A featured talk from a practitioner or partner",
+      "Open Q&A with the PAAIPE community",
+      "A look back at 2026 and what is next",
+    ],
+    program: [
+      { time: "8:00 PM", item: "Welcome and opening remarks" },
+      { time: "8:10 PM", item: "Featured session — topic and speaker to be announced" },
+      { time: "8:55 PM", item: "Open Q&A with members" },
+      { time: "9:20 PM", item: "Year-end community updates and closing" },
+    ],
     ics: "assets/2026-12-ai-exchange.ics",
     registerHref: "register-2026-12-ai-exchange.html",
     listedRegistered: false,
@@ -114,8 +153,22 @@ export const PORTAL_EVENT_CATALOG = [
     endTime: "21:30",
     topic: "From Signals to Strategy: Using AI to Turn Data into Real Insight",
     venue: "Online via Zoom",
+    description: "Marketing strategist Sven Bally — former Global Media Lead for Cathay Pacific at Publicis Groupe Hong Kong and founder of Neap & Spring — on how teams turn raw data signals into decisions that create real commercial impact.",
+    whatToExpect: [
+      "How to separate signal from noise in marketing and business data",
+      "Where AI genuinely helps analysis — and where human judgment stays essential",
+      "Turning insight into strategy that moves commercial results",
+    ],
+    program: [
+      { time: "8:00 PM", item: "Opening remarks — Paul Espinas, Founder & CEO, UpUp Technologies" },
+      { time: "8:10 PM", item: "Host welcome — MJ Soriano" },
+      { time: "8:15 PM", item: "From Signals to Strategy: Using AI to Turn Data into Real Insight — Sven Bally" },
+      { time: "8:55 PM", item: "Open Q&A" },
+      { time: "9:20 PM", item: "Closing remarks — Dennis Paguio" },
+    ],
     speaker: "Sven Bally",
     host: "MJ Soriano",
+    ics: "assets/2026-09-ai-exchange.ics",
     listedRegistered: true,
     listedAttended: true,
     when: "past",
@@ -130,12 +183,8 @@ export function catalogEvent(id) {
 }
 
 export function portalEventHref(id, tab) {
-  const eid = String(id || "").trim();
-  if (!eid) return "portal-events.html";
-  if (tab && tab !== "overview" && PORTAL_EVENT_TABS.includes(tab)) {
-    return `portal-events.html#event=${encodeURIComponent(eid)}&tab=${encodeURIComponent(tab)}`;
-  }
-  return `portal-events.html#event=${encodeURIComponent(eid)}`;
+  const safe = tab && tab !== "overview" && PORTAL_EVENT_TABS.includes(tab) ? tab : "";
+  return portalEventDetailHref(id, safe);
 }
 
 /** Pass through POST `certificate` only when it is a real object. Never invent. */
@@ -193,6 +242,105 @@ export function openFeedbackThanks(eventId, certificate) {
   if (typeof thanksDlg.showModal === "function") thanksDlg.showModal();
   $("[data-ed-thanks-cert]", thanksDlg)?.focus();
   return thanksDlg;
+}
+
+/** Register form URL that can send the Agent back to Event Details.
+ *  ?from=portal is the hint the form trusts; ?event= names the #event= hash.
+ *  Same helper as register-from-portal — keep the query contract identical. */
+export function registerFromPortalHref(href, eventId) {
+  const path = String(href || "").trim();
+  if (!path) return "";
+  const id = String(eventId || "").trim();
+  try {
+    const u = new URL(path, "https://paaipe.org/");
+    u.searchParams.set("from", "portal");
+    if (id) u.searchParams.set("event", id);
+    return `${u.pathname.replace(/^\//, "")}${u.search}`;
+  } catch {
+    const q = id ? `from=portal&event=${encodeURIComponent(id)}` : "from=portal";
+    return path.includes("?") ? `${path}&${q}` : `${path}?${q}`;
+  }
+}
+
+function nonemptyField(v) {
+  if (v == null) return false;
+  if (typeof v === "string") return v.trim() !== "";
+  if (Array.isArray(v)) return v.length > 0;
+  return true;
+}
+
+/** Instant the session ends (date + endTime in PHT). Null when missing. */
+export function eventEndAt(ev) {
+  const date = String(ev?.date || "").trim();
+  const time = String(ev?.endTime || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+  if (!/^\d{1,2}:\d{2}/.test(time)) return null;
+  const clock = time.length >= 5 ? time.slice(0, 5) : time;
+  const d = new Date(`${date}T${clock}:00+08:00`);
+  return isNaN(d) ? null : d;
+}
+
+export function isEventLive(ev, now = portalNow()) {
+  if (ev?.when === "past" || ev?.listedAttended || ev?.status === "held"
+      || ev?.status === "cancelled") return false;
+  const start = eventStartAt(ev);
+  if (!start) return false;
+  const end = eventEndAt(ev) || new Date(start.getTime() + 90 * 60 * 1000);
+  const t = now.getTime();
+  return t >= start.getTime() && t < end.getTime();
+}
+
+/** upcoming | registered | live | past — drives the header action table. */
+export function detailPhase(ev, { registered } = {}, now = portalNow()) {
+  if (ev?.when === "past" || ev?.listedAttended || ev?.status === "held") return "past";
+  if (isEventLive(ev, now)) return "live";
+  if (registered) return "registered";
+  return "upcoming";
+}
+
+export function joinCopyFor(ev) {
+  if (ev?.joinCopy) return ev.joinCopy;
+  if (!ev?.date) return "Join link by email";
+  const d = new Date(`${ev.date}T12:00:00+08:00`);
+  if (isNaN(d)) return "Join link by email";
+  const label = phtParts(d, { month: "short", day: "numeric" });
+  return `Join link on ${label}`;
+}
+
+/** Google Calendar template — same dates/details as the public event aside. */
+export function googleCalendarHref(ev) {
+  const start = eventStartAt(ev);
+  const end = eventEndAt(ev);
+  if (!start || !end) return "";
+  const compact = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+  const title = `PAAIPE ${ev.title || "AI Exchange"}`;
+  const topic = ev.topic || "Topic to be announced";
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: title,
+    details: `${topic} — Online. Join link is sent to registered participants by email.`,
+    location: "Online",
+    ctz: "Asia/Manila",
+  });
+  // Public event pages keep a literal slash in dates=; encode the rest.
+  return `https://calendar.google.com/calendar/render?${params}&dates=${compact(start)}/${compact(end)}`;
+}
+
+/** Square / wide banner downloads only when a URL is on the record. */
+export function shareAssets(ev) {
+  const square = String(ev?.bannerSquareUrl || "").trim();
+  const wide = String(ev?.bannerWideUrl || "").trim();
+  return { square, wide, any: Boolean(square || wide) };
+}
+
+export function expectList(ev) {
+  return Array.isArray(ev?.whatToExpect) ? ev.whatToExpect.filter(s => String(s || "").trim()) : [];
+}
+
+export function programRows(ev) {
+  return Array.isArray(ev?.program)
+    ? ev.program.filter(r => r && (r.time || r.item))
+    : [];
 }
 
 /** Test hook: ?paaipe_now=ISO or window.PAAIPE_NOW. Production uses the clock. */
@@ -341,10 +489,17 @@ export function formatSubmittedAt(row) {
   return phtParts(d, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) + " PHT";
 }
 
-export function headerStatus(ev, { registered } = {}) {
+export function headerStatus(ev, { registered } = {}, now = portalNow()) {
   if (ev?.when === "past" || ev?.listedAttended || ev?.status === "held") return "Past";
+  if (isEventLive(ev, now)) return "Live";
   if (registered) return "Registered";
   return "Upcoming";
+}
+
+function takeField(catalog, live, key) {
+  if (nonemptyField(live?.[key])) return live[key];
+  if (nonemptyField(catalog?.[key])) return catalog[key];
+  return live?.[key] ?? catalog?.[key];
 }
 
 function mergeEvent(catalog, live) {
@@ -352,18 +507,14 @@ function mergeEvent(catalog, live) {
   const ev = { ...(catalog || {}), ...(live || {}) };
   if (catalog?.id) ev.id = catalog.id;
   if (live?.id && !catalog) ev.id = live.id;
-  if (catalog?.title && !live?.title) ev.title = catalog.title;
   if (catalog?.listedRegistered != null) ev.listedRegistered = catalog.listedRegistered;
   if (catalog?.listedAttended != null) ev.listedAttended = catalog.listedAttended;
   if (catalog?.when) ev.when = catalog.when;
-  if (catalog?.ics) ev.ics = catalog.ics;
-  if (catalog?.registerHref) ev.registerHref = catalog.registerHref;
-  if (catalog?.joinCopy) ev.joinCopy = catalog.joinCopy;
-  if (catalog?.watchHref) ev.watchHref = catalog.watchHref;
-  if (catalog?.slidesHref) ev.slidesHref = catalog.slidesHref;
-  if (catalog?.topic && !live?.topic) ev.topic = catalog.topic;
-  if (catalog?.speaker && !live?.speaker) ev.speaker = catalog.speaker;
-  if (catalog?.host && !live?.host) ev.host = catalog.host;
+  for (const key of [
+    "title", "topic", "description", "whatToExpect", "program", "speakers",
+    "ics", "registerHref", "joinCopy", "watchHref", "slidesHref",
+    "bannerSquareUrl", "bannerWideUrl", "speaker", "host", "venue",
+  ]) ev[key] = takeField(catalog, live, key);
   return ev;
 }
 
@@ -413,39 +564,159 @@ function headerPills(ev) {
   return chips.join("");
 }
 
-function statusPill(ev, registered) {
-  if (ev.listedAttended || ev.when === "past") {
+function statusPill(ev, registered, now = portalNow()) {
+  const status = headerStatus(ev, { registered }, now);
+  if (status === "Past") {
     return pill("ok", ICO.check, ev.listedAttended ? "Attended" : "Past");
   }
-  if (registered) return pill("ok", ICO.check, "Registered");
+  if (status === "Live") return pill("gold", ICO.play, "Live");
+  if (status === "Registered") return pill("ok", ICO.check, "Registered");
   return pill("info", ICO.clock, "Upcoming");
 }
 
-function overviewHtml(ev, registered) {
-  const topic = ev.topic || ev.subtitle || "Topic to be announced.";
-  const who = [ev.speaker && `${ev.speaker}`, ev.host && `Host: ${ev.host}`].filter(Boolean).join(" · ");
-  const join = ev.joinCopy
-    ? `<span class="btn btn-ghost btn-sm" aria-disabled="true">${esc(ev.joinCopy)}</span>`
-    : "";
-  const cal = ev.ics
+function partnerMount(ev) {
+  return `<span data-partner-cta data-event-id="${esc(ev.id)}" data-partner-source="portal_events"
+    data-event-title="${esc(ev.title || "")}"></span>`;
+}
+
+function joinControl(ev, { live } = {}) {
+  if (live) {
+    const href = String(ev.joinUrl || ev.joinHref || "").trim();
+    if (href) {
+      return `<a class="btn btn-gold btn-sm" href="${esc(href)}" target="_blank" rel="noopener">Join</a>`;
+    }
+    return `<span class="btn btn-gold btn-sm" aria-disabled="true" title="Join link is sent by email">Join</span>`;
+  }
+  return `<span class="btn btn-ghost btn-sm" aria-disabled="true">${esc(joinCopyFor(ev))}</span>`;
+}
+
+function calendarGhost(ev) {
+  return ev.ics
     ? `<a class="btn btn-ghost btn-sm" href="${esc(ev.ics)}" download>Add to calendar</a>`
     : "";
-  const reg = !registered && ev.registerHref
-    ? `<a class="btn btn-gold btn-sm" href="${esc(ev.registerHref)}">Register</a>`
+}
+
+/** Header actions by state — Register gold / Registered / Join / calendar / partner. */
+export function headerActionsHtml(ev, { registered } = {}, now = portalNow()) {
+  const phase = detailPhase(ev, { registered }, now);
+  const bits = [];
+  const regHref = ev.registerHref ? registerFromPortalHref(ev.registerHref, ev.id) : "";
+  if (phase === "upcoming" && regHref) {
+    bits.push(`<a class="btn btn-gold btn-sm" href="${esc(regHref)}">Register</a>`);
+  }
+  if (phase === "registered") {
+    bits.push(pill("ok", ICO.check, "Registered"));
+    bits.push(joinControl(ev, { live: false }));
+  }
+  if (phase === "live") bits.push(joinControl(ev, { live: true }));
+  if (phase !== "past") bits.push(calendarGhost(ev));
+  bits.push(partnerMount(ev));
+  return bits.filter(Boolean).join("");
+}
+
+function chevron() {
+  return `<svg class="ed-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`;
+}
+
+/** Sections start expanded (Paul). Header click collapses. */
+function collapseSection(id, title, body, extra = "") {
+  return `<section class="ed-sec" data-ed-sec="${esc(id)}" data-ed-open="1">
+    <button type="button" class="ed-sec-hd" data-ed-toggle aria-expanded="true">
+      <h3>${esc(title)}</h3>
+      <span class="ed-sec-aside">${extra}${chevron()}</span>
+    </button>
+    <div class="ed-sec-body">${body}</div>
+  </section>`;
+}
+
+function aboutBody(ev) {
+  const topic = ev.topic || ev.subtitle || "Topic to be announced";
+  const about = ev.description || "";
+  const who = [ev.speaker && ev.speaker, ev.host && `Host: ${ev.host}`].filter(Boolean).join(" · ");
+  const bullets = expectList(ev);
+  const list = bullets.length
+    ? `<ul class="ed-expect">${bullets.map(s => `<li>${esc(s)}</li>`).join("")}</ul>`
     : "";
+  return `<p class="ed-lede">${esc(about || topic)}</p>
+    ${who ? `<p class="ed-sub">${esc(who)}</p>` : ""}
+    ${list}`;
+}
+
+function scheduleBody(ev) {
+  const day = eventDateLong(ev);
+  const time = eventTimeRange(ev);
+  const compact = [day, time ? `${time} PHT` : "", "Online"].filter(Boolean).join(" · ");
+  const rows = programRows(ev);
+  const agenda = rows.length
+    ? `<ul class="ed-agenda">${rows.map(r =>
+      `<li>${r.time ? `<b>${esc(r.time)}</b>` : ""}<span>${esc(r.item || "")}</span></li>`).join("")}</ul>`
+    : "";
+  return `<p class="ed-lede">${esc(compact)}</p>${agenda}`;
+}
+
+function partnersBody(ev, sponsors = []) {
+  const g = groupSponsors(sponsors || []);
+  if (g.any) {
+    const logos = [...g.presenting, ...g.supporting, ...g.community].map(r => {
+      const o = r.organization || {};
+      const mark = o.logoUrl
+        ? `<img src="${esc(o.logoUrl)}" alt="${esc(o.name || "Partner")}" loading="lazy">`
+        : `<span>${esc(o.name || "Partner")}</span>`;
+      return o.website
+        ? `<a class="ed-logo" href="${esc(o.website)}" target="_blank" rel="noopener">${mark}</a>`
+        : `<span class="ed-logo">${mark}</span>`;
+    }).join("");
+    return `<div class="ed-logos">${logos}</div>`;
+  }
+  return `<p class="ed-sub">Does your company want to support this Exchange?</p>
+    <div class="ed-acts">${partnerMount(ev)}</div>
+    <p class="ed-foot">Guests and Agents can apply as Partner for this event from here.</p>`;
+}
+
+function shareBody(ev) {
+  const { square, wide } = shareAssets(ev);
+  const links = [];
+  if (square) links.push(`<a class="btn btn-ghost btn-sm" href="${esc(square)}" download>Square banner</a>`);
+  if (wide) links.push(`<a class="btn btn-ghost btn-sm" href="${esc(wide)}" download>Wide banner</a>`);
+  return `<p class="ed-sub">Download a banner to share this Exchange.</p>
+    <div class="ed-acts">${links.join("")}</div>`;
+}
+
+function calendarBody(ev) {
+  const gcal = googleCalendarHref(ev);
+  const bits = [];
+  if (gcal) bits.push(`<a class="btn btn-ghost btn-sm" href="${esc(gcal)}" target="_blank" rel="noopener">Google</a>`);
+  if (ev.ics) bits.push(`<a class="btn btn-ghost btn-sm" href="${esc(ev.ics)}" download>Apple / Outlook (.ics)</a>`);
+  return `<p class="ed-sub">Add this session to your calendar.</p>
+    <div class="ed-acts">${bits.join("")}</div>`;
+}
+
+function detailHeader(ev, { registered } = {}, now = portalNow()) {
+  const topic = ev.topic || ev.subtitle || "Topic to be announced";
+  return `<header class="ed-head" data-ed-head>
+    <div class="ed-head-copy">
+      ${statusPill(ev, registered, now)}
+      <div class="ed-meta">${headerPills(ev)}</div>
+      <p class="ed-topic">${esc(topic)}</p>
+    </div>
+    <div class="ed-head-acts ed-acts">${headerActionsHtml(ev, { registered }, now)}</div>
+  </header>`;
+}
+
+function overviewHtml(ev, registered, sponsors = []) {
+  const share = shareAssets(ev);
+  const blocks = [
+    collapseSection("about", "About / What to expect", aboutBody(ev)),
+    collapseSection("schedule", "Schedule", scheduleBody(ev)),
+    collapseSection("partners", "Partners", partnersBody(ev, sponsors)),
+  ];
+  if (share.any) blocks.push(collapseSection("share", "Share", shareBody(ev)));
+  blocks.push(collapseSection("calendar", "Calendar", calendarBody(ev)));
   return `<section class="ed-card" data-ed-panel="overview">
     <div class="ed-card-hd">
       <h2>Overview</h2>
-      ${statusPill(ev, registered)}
     </div>
-    <div class="ed-meta">${headerPills(ev)}</div>
-    <p class="ed-lede">${esc(topic)}${who ? ` · ${esc(who)}` : ""}</p>
-    <div class="ed-acts">
-      ${reg}${join}${cal}
-      <span data-partner-cta data-event-id="${esc(ev.id)}" data-partner-source="portal_events"
-        data-event-title="${esc(ev.title || "")}"></span>
-    </div>
-    <p class="ed-foot">Guests and Agents can apply as Partner for this event from here.</p>
+    ${blocks.join("")}
   </section>`;
 }
 
@@ -487,14 +758,17 @@ function feedbackIntroCopy(ev, win) {
 
 function feedbackShell(ev, win, body) {
   const copy = feedbackIntroCopy(ev, win);
-  return `<section class="ed-card" data-ed-panel="feedback" data-feedback-window="${esc(win.state)}" data-feedback-window-source="${esc(win.source || "client")}">
-    <div class="ed-card-hd">
+  return `<section class="ed-card" data-ed-panel="feedback" data-ed-sec="feedback" data-ed-open="1"
+    data-feedback-window="${esc(win.state)}" data-feedback-window-source="${esc(win.source || "client")}">
+    <button type="button" class="ed-card-hd ed-sec-hd" data-ed-toggle aria-expanded="true">
       <h2>Feedback</h2>
-      ${pill(copy.pill, ICO.clock, copy.pillLabel)}
+      <span class="ed-sec-aside">${pill(copy.pill, ICO.clock, copy.pillLabel)}${chevron()}</span>
+    </button>
+    <div class="ed-sec-body">
+      <p class="ed-lede">${esc(copy.lede)}</p>
+      ${copy.extra ? `<p class="ed-sub">${esc(copy.extra)}</p>` : ""}
+      ${body}
     </div>
-    <p class="ed-lede">${esc(copy.lede)}</p>
-    ${copy.extra ? `<p class="ed-sub">${esc(copy.extra)}</p>` : ""}
-    ${body}
   </section>`;
 }
 
@@ -566,7 +840,8 @@ function certificateHtml(ev, state, {
   const openFb = (registered && !submitted && win.state !== "closed" && !issued && !issuing)
     ? portalEventHref(ev.id, "feedback")
     : "";
-  const registerHref = (!registered && ev.registerHref) ? ev.registerHref : "";
+  const registerHref = (!registered && ev.registerHref)
+    ? registerFromPortalHref(ev.registerHref, ev.id) : "";
   let statusLabel = "Not ready yet";
   let statusKind = "info";
   let note = live
@@ -606,30 +881,36 @@ function certificateHtml(ev, state, {
   const closeLine = win.closes
     ? `Feedback open until ${formatCloseCopy(win.closes)}.`
     : "Feedback opens one hour after the session and closes at noon PHT the next day.";
-  return `<section class="ed-card" data-ed-panel="certificate" data-cert-state="${esc(state)}" data-cert-live="${live ? "1" : "0"}">
-    <div class="ed-card-hd">
+  return `<section class="ed-card" data-ed-panel="certificate" data-ed-sec="certificate" data-ed-open="1"
+    data-cert-state="${esc(state)}" data-cert-live="${live ? "1" : "0"}">
+    <button type="button" class="ed-card-hd ed-sec-hd" data-ed-toggle aria-expanded="true">
       <h2>Certificate</h2>
-      ${pill(statusKind, issued ? ICO.check : ICO.clock, statusLabel)}
+      <span class="ed-sec-aside">${pill(statusKind, issued ? ICO.check : ICO.clock, statusLabel)}${chevron()}</span>
+    </button>
+    <div class="ed-sec-body">
+      <p class="ed-sub">${esc(closeLine)}</p>
+      ${certificateChecklist({ registered, submitted, submittedLabel, ev, win })}
+      ${preview}
+      ${certActions({
+        issued,
+        downloadUrl,
+        emailLive,
+        openFeedbackHref: openFb,
+        registerHref,
+        notWired: !live,
+      })}
+      <p class="ed-note${issued ? " ok" : ""}" data-cert-msg>${esc(note)}</p>
     </div>
-    <p class="ed-sub">${esc(closeLine)}</p>
-    ${certificateChecklist({ registered, submitted, submittedLabel, ev, win })}
-    ${preview}
-    ${certActions({
-      issued,
-      downloadUrl,
-      emailLive,
-      openFeedbackHref: openFb,
-      registerHref,
-      notWired: !live,
-    })}
-    <p class="ed-note${issued ? " ok" : ""}" data-cert-msg>${esc(note)}</p>
   </section>`;
 }
 
 function detailsChrome(ev, tab, registered, panel, { windowSource = "client", certLive = false } = {}) {
-  const status = headerStatus(ev, { registered, listedAttended: ev.listedAttended });
+  const status = headerStatus(ev, { registered });
+  const phase = detailPhase(ev, { registered });
   return `<div class="ed" data-ed-root data-event-id="${esc(ev.id)}" data-ed-tab="${esc(tab)}"
+    data-ed-status="${esc(status)}" data-ed-phase="${esc(phase)}"
     data-feedback-window-source="${esc(windowSource)}" data-cert-live="${certLive ? "1" : "0"}">
+    ${detailHeader(ev, { registered })}
     <div class="ed-tabs" role="tablist">
       ${PORTAL_EVENT_TABS.map(t => tabBtn(ev.id, t, tab)).join("")}
     </div>
@@ -641,7 +922,7 @@ function applyHeader(ev, registered) {
   const h = $(".top .ttl h1");
   const s = $(".top .ttl small");
   if (h) h.textContent = ev.title || "Event";
-  if (s) s.textContent = `${metaLine(ev)}${registered || ev.when === "past" ? "" : ""}`;
+  if (s) s.textContent = metaLine(ev);
   const crumb = $(".top .ttl");
   if (crumb && !crumb.querySelector("[data-event-back]")) {
     const a = document.createElement("a");
@@ -651,6 +932,14 @@ function applyHeader(ev, registered) {
     a.textContent = "Events";
     crumb.insertBefore(a, crumb.firstChild);
   }
+  if (crumb && !crumb.querySelector("[data-ed-top-status]")) {
+    const wrap = document.createElement("span");
+    wrap.dataset.edTopStatus = "1";
+    wrap.className = "ed-top-status";
+    crumb.insertBefore(wrap, crumb.querySelector("h1") || null);
+  }
+  const topStatus = $("[data-ed-top-status]");
+  if (topStatus) topStatus.innerHTML = statusPill(ev, registered);
 }
 
 function restoreHeader() {
@@ -665,6 +954,7 @@ function restoreHeader() {
       : s.textContent;
   }
   $("[data-event-back]")?.remove();
+  $("[data-ed-top-status]")?.remove();
 }
 
 async function resolveLive(id) {
@@ -825,7 +1115,7 @@ async function feedbackBody(ev, win, { registered, receipt, row, error }) {
   }
   if (!registered) {
     const reg = ev.registerHref
-      ? `<a class="btn btn-gold btn-sm" href="${esc(ev.registerHref)}">Register</a>`
+      ? `<a class="btn btn-gold btn-sm" href="${esc(registerFromPortalHref(ev.registerHref, ev.id))}">Register</a>`
       : "";
     return `<p class="ed-sub">Register for this event to send feedback.</p><div class="ed-acts">${reg}</div>`;
   }
@@ -846,22 +1136,26 @@ async function feedbackBody(ev, win, { registered, receipt, row, error }) {
 }
 
 async function mountPartner(ev) {
-  const host = $("[data-event-details] [data-partner-cta]");
-  if (!host) return;
+  const hosts = $$("[data-event-details] [data-partner-cta]");
+  if (!hosts.length) return;
   if (!acceptsPartners(ev)) {
-    host.innerHTML = "";
-    host.setAttribute("data-partner-cta-state", `hidden:${ev.status || ev.when || "unknown"}`);
+    hosts.forEach(host => {
+      host.innerHTML = "";
+      host.setAttribute("data-partner-cta-state", `hidden:${ev.status || ev.when || "unknown"}`);
+    });
     return;
   }
   const me = await currentAgent().catch(() => null);
   const mine = await myApplications(me?.uid).catch(() => new Map());
-  if (mine.has(ev.id)) {
-    const app = mine.get(ev.id);
-    host.innerHTML = `<span class="pmine"><span class="pcta-dot"></span>Your partner application
-      <b>${esc(app.reference || "")}</b></span>`;
-    return;
+  for (const host of hosts) {
+    if (mine.has(ev.id)) {
+      const app = mine.get(ev.id);
+      host.innerHTML = `<span class="pmine"><span class="pcta-dot"></span>Your partner application
+        <b>${esc(app.reference || "")}</b></span>`;
+      continue;
+    }
+    mountPartnerCta(host, ev, host.dataset.partnerSource || "portal_events");
   }
-  mountPartnerCta(host, ev, host.dataset.partnerSource || "portal_events");
 }
 
 async function loadQuestionsInto(ev, receipt) {
@@ -905,12 +1199,13 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
   }
 
   const registeredLocal = isPortalRegistered(ev);
-  const [winResolved, meCert, fb] = await Promise.all([
+  const [winResolved, meCert, fb, sponsors] = await Promise.all([
     resolveFeedbackWindow(ev).catch(() => ({
       ...feedbackWindowState(ev), source: "client", live: false, timezone: "Asia/Manila",
     })),
     loadMeCertificate(ev.id),
     loadFeedbackRow(ev.id),
+    listEventSponsors(ev.id).catch(() => []),
   ]);
   if (!still()) return false;
   const api = meCert.certificate;
@@ -942,7 +1237,7 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
       cert: api?.certificate || null,
     });
   } else {
-    panel = overviewHtml(ev, registered);
+    panel = overviewHtml(ev, registered, sponsors);
   }
 
   if (home) home.hidden = true;
@@ -954,6 +1249,7 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
   applyHeader(ev, registered);
   document.documentElement.setAttribute("data-portal-event", ev.id);
   document.documentElement.setAttribute("data-portal-event-tab", safeTab);
+  document.documentElement.setAttribute("data-portal-event-phase", detailPhase(ev, { registered }));
   document.documentElement.setAttribute("data-portal-cert-state", certState);
   document.documentElement.setAttribute("data-portal-feedback-window", win.state);
   document.documentElement.setAttribute("data-portal-feedback-window-source", win.source || "client");
@@ -964,7 +1260,7 @@ export async function showDetails(eventId, tab, { push = true } = {}) {
   writeHash(params, { push });
 
   if (!still()) return false;
-  if (safeTab === "overview") await mountPartner(ev);
+  await mountPartner(ev);
   if (safeTab === "feedback" && win.state === "open" && registered && fb.receipt?.registrationId && !fb.row) {
     await loadQuestionsInto(ev, fb.receipt);
   }
@@ -980,6 +1276,7 @@ export function showList({ push = true } = {}) {
   restoreHeader();
   document.documentElement.removeAttribute("data-portal-event");
   document.documentElement.removeAttribute("data-portal-event-tab");
+  document.documentElement.removeAttribute("data-portal-event-phase");
   document.documentElement.removeAttribute("data-portal-cert-state");
   document.documentElement.removeAttribute("data-portal-feedback-window");
   document.documentElement.removeAttribute("data-portal-feedback-window-source");
@@ -999,6 +1296,7 @@ function applyFromLocation({ push = false } = {}) {
     restoreHeader();
     document.documentElement.removeAttribute("data-portal-event");
     document.documentElement.removeAttribute("data-portal-event-tab");
+    document.documentElement.removeAttribute("data-portal-event-phase");
     document.documentElement.removeAttribute("data-portal-cert-state");
     document.documentElement.removeAttribute("data-portal-feedback-window");
     document.documentElement.removeAttribute("data-portal-feedback-window-source");
@@ -1016,6 +1314,16 @@ function bind() {
     if (back) {
       e.preventDefault();
       showList({ push: true });
+      return;
+    }
+    const toggle = e.target.closest("[data-ed-toggle]");
+    if (toggle) {
+      const sec = toggle.closest("[data-ed-sec]");
+      if (!sec) return;
+      e.preventDefault();
+      const open = sec.getAttribute("data-ed-open") !== "0";
+      sec.setAttribute("data-ed-open", open ? "0" : "1");
+      toggle.setAttribute("aria-expanded", open ? "false" : "true");
       return;
     }
     const tab = e.target.closest("button.ed-tab[data-ed-tab]");

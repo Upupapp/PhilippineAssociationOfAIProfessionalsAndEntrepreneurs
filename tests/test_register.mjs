@@ -5,7 +5,7 @@
  * RESOLVED. Everything else here is downstream of that.
  */
 import { chromium } from 'playwright';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
 const PAGE='register-2026-10-ai-exchange.html';
 const REAL_FB=readFileSync(`${ROOT}/assets/js/paaipe-firebase.js`,'utf8');
@@ -17,9 +17,13 @@ const T=async(n,f)=>{try{await f();console.log(`  PASS  ${n}`);pass++}catch(e){c
 const ok=(c,m)=>{if(!c)throw new Error(m)};
 const eq=(a,b,m)=>{if(JSON.stringify(a)!==JSON.stringify(b))throw new Error(`${m}: got ${JSON.stringify(a)}, want ${JSON.stringify(b)}`)};
 
-const fbStub=({configured=true,failWith=null}={})=>`
+const fbStub=({configured=true,failWith=null,signedIn=false,
+  email='rosa@example.com',name='Rosa Villanueva'}={})=>`
   export * from '/assets/js/paaipe-firebase-real.js';
   export function isConfigured(){return ${configured}}
+  export async function currentAgent(){return ${signedIn}
+    ?{uid:'u1',email:'${email}',full_name:'${name}',displayName:'${name}',status:'agent'}
+    :null}
   const _seen=()=>{try{return JSON.parse(sessionStorage.getItem('__writes')||'[]')}catch{return[]}};
   window.__writes=_seen();
   export async function submitRegistration(f){
@@ -47,9 +51,12 @@ async function open(opts={}){
   await p.route('**/assets/js/paaipe-firebase.js',r=>r.fulfill({contentType:'text/javascript',body:fbStub(opts)}));
   await p.route('**/assets/js/paaipe-events-data-real.js',r=>r.fulfill({contentType:'text/javascript',body:REAL_DATA}));
   await p.route('**/assets/js/paaipe-events-data.js',r=>r.fulfill({contentType:'text/javascript',body:dataStub}));
-  await p.goto(`${BASE}/${PAGE}`,{waitUntil:'load'});
+  const page=opts.page||PAGE;
+  const q=opts.query||'';
+  await p.goto(`${BASE}/${page}${q}`,{waitUntil:'load'});
   await p.evaluate(()=>{try{sessionStorage.removeItem('__writes')}catch{}});
   await p.waitForSelector('#reg',{timeout:9000});
+  await p.waitForFunction(()=>document.documentElement.hasAttribute('data-register-prefill'),{timeout:9000});
   return p;
 }
 /* Fill every required answer and land on step 3. */
@@ -283,6 +290,8 @@ await T('November and December register pages clone October with only identity s
     ok(html.includes(date),`${file} date`);
     ok(/location\.href='register-success\.html'/.test(html),`${file} same success redirect`);
     ok(/fb\.submitRegistration/.test(html),`${file} same submit path`);
+    ok(html.includes('paaipe-register-from-portal.js'),`${file} shared portal prefill`);
+    ok(html.includes('data-register-back'),`${file} back hook`);
     ok(!/2026-10-ai-exchange/.test(html),`${file} must not keep October id`);
   }
 });
@@ -304,6 +313,124 @@ await T('the success page does not promise mail PAAIPE cannot send',()=>{
   const s=readFileSync(`${ROOT}/register-success.html`,'utf8');
   ok(/Check your email/i.test(s),'it does currently tell them to check their email');
   ok(/assets\/2026-10-ai-exchange\.ics/.test(s),'and offers the calendar file, which is real');
+});
+
+await T('October also loads the shared portal prefill module',()=>{
+  ok(HTML.includes('paaipe-register-from-portal.js'),'module on October');
+  ok(HTML.includes('data-register-back'),'back hook on October');
+});
+
+await T('a public visitor is left a blank, editable name and email',async()=>{
+  const p=await open();
+  eq(await p.locator('[name="full_name"]').inputValue(),'','name blank');
+  eq(await p.locator('[name="email"]').inputValue(),'','email blank');
+  eq(await p.locator('[name="full_name"]').evaluate(el=>el.readOnly),false,'name editable');
+  eq(await p.locator('[name="email"]').evaluate(el=>el.readOnly),false,'email editable');
+  eq(await p.locator('[data-register-back]').getAttribute('href'),
+     'event-2026-10-ai-exchange.html','public back');
+  eq(await p.locator('html').getAttribute('data-register-from'),'public','no portal hint');
+  await p.close();
+});
+
+await T('a signed-in Agent gets a locked account name and email, without ?from=portal',async()=>{
+  const p=await open({signedIn:true,email:'rosa@example.com',name:'Rosa Villanueva'});
+  eq(await p.locator('[name="full_name"]').inputValue(),'Rosa Villanueva','name');
+  eq(await p.locator('[name="email"]').inputValue(),'rosa@example.com','email');
+  eq(await p.locator('[name="full_name"]').evaluate(el=>el.readOnly),true,'name locked');
+  eq(await p.locator('[name="email"]').evaluate(el=>el.readOnly),true,'email locked');
+  eq(await p.locator('[data-register-back]').getAttribute('href'),
+     'event-2026-10-ai-exchange.html','signed-in from the public site still goes to the public event');
+  eq(await p.locator('html').getAttribute('data-register-prefill'),'signed-in','prefill mark');
+  await p.close();
+});
+
+await T('?from=portal sends Back to portal Event Details, even before auth',async()=>{
+  const p=await open({query:'?from=portal&event=2026-10-ai-exchange'});
+  eq(await p.locator('[data-register-back]').getAttribute('href'),
+     'portal-events.html#event=2026-10-ai-exchange','portal Event Details');
+  eq(await p.locator('html').getAttribute('data-register-from'),'portal','hint');
+  eq(await p.locator('[name="email"]').inputValue(),'','visitor still blank');
+  await p.close();
+});
+
+await T('a signed-in Agent arriving from the portal keeps the locked fields and portal back',async()=>{
+  const p=await open({
+    signedIn:true,email:'rosa@example.com',name:'Rosa Villanueva',
+    query:'?from=portal&event=2026-11-ai-exchange',
+    page:'register-2026-11-ai-exchange.html',
+  });
+  eq(await p.locator('[name="full_name"]').inputValue(),'Rosa Villanueva','name');
+  eq(await p.locator('[name="email"]').inputValue(),'rosa@example.com','email');
+  eq(await p.locator('[data-register-back]').getAttribute('href'),
+     'portal-events.html#event=2026-11-ai-exchange','November Event Details');
+  await p.close();
+});
+
+await T('the locked account fields are what the write stores',async()=>{
+  const p=await open({signedIn:true,email:'rosa@example.com',name:'Rosa Villanueva'});
+  await p.check('input[name="profile"][value="founder"]');
+  await p.locator('.step[data-step="1"] [data-next]').click();
+  await p.fill('[name="learn"]','How to start');
+  await p.locator('.step[data-step="2"] [data-next]').click();
+  await p.selectOption('[name="source"]','GetHired');
+  await p.check('[name="consent"]');
+  await p.locator('[type=submit]').click();
+  await p.waitForURL('**/register-success.html',{timeout:9000});
+  const w=(await writes(p))[0];
+  ok(w,'the write must have happened');
+  eq(w.full_name,'Rosa Villanueva','account name, not a typed one');
+  eq(w.email,'rosa@example.com','account email, not a typed one');
+  await p.close();
+});
+
+await T('portal Register CTAs pass from=portal and the event id',()=>{
+  const portal=readFileSync(`${ROOT}/portal-events.html`,'utf8');
+  ok(portal.includes('register-2026-11-ai-exchange.html?from=portal&amp;event=2026-11-ai-exchange')
+     || portal.includes('register-2026-11-ai-exchange.html?from=portal&event=2026-11-ai-exchange'),
+     'November list CTA');
+  ok(portal.includes('register-2026-12-ai-exchange.html?from=portal&amp;event=2026-12-ai-exchange')
+     || portal.includes('register-2026-12-ai-exchange.html?from=portal&event=2026-12-ai-exchange'),
+     'December list CTA');
+  const js=readFileSync(`${ROOT}/assets/js/paaipe-portal-events.js`,'utf8');
+  ok(js.includes('function registerFromPortalHref'),'shared CTA helper');
+  ok(js.includes('registerFromPortalHref(ev.registerHref, ev.id)'),'Event Details uses it');
+});
+
+await T('helpers map the portal hint onto Event Details and leave the public back alone',async()=>{
+  const p=await open();
+  const r=await p.evaluate(async()=>{
+    const m=await import('/assets/js/paaipe-register-from-portal.js');
+    return {
+      hint: m.isPortalRegisterContext('?from=portal&event=2026-12-ai-exchange'),
+      public: m.isPortalRegisterContext(''),
+      id: m.eventIdFromRegisterPage(document, '?from=portal&event=2026-12-ai-exchange'),
+      formId: m.eventIdFromRegisterPage(document, ''),
+      back: m.portalBackHref('2026-12-ai-exchange'),
+    };
+  });
+  eq(r.hint,true,'from=portal');
+  eq(r.public,false,'no hint');
+  eq(r.id,'2026-12-ai-exchange','query event');
+  eq(r.formId,'2026-10-ai-exchange','form fallback');
+  eq(r.back,'portal-events.html#event=2026-12-ai-exchange','#37 Event Details');
+  const url=await p.evaluate(async()=>{
+    const u=await import('/assets/js/paaipe-portal-event-url.js');
+    return {
+      page: u.PORTAL_EVENT_DETAIL.PAGE,
+      idKey: u.PORTAL_EVENT_DETAIL.ID_KEY,
+      form: u.PORTAL_EVENT_DETAIL.FORM,
+      href: u.portalEventDetailHref('2026-12-ai-exchange'),
+      hrefFb: u.portalEventDetailHref('2026-09-ai-exchange','feedback'),
+    };
+  });
+  eq(url.page,'portal-events.html','PAGE is the live list');
+  eq(url.idKey,'event','ID_KEY is #event=');
+  eq(url.form,'hash','FORM is hash until Ericson lands query');
+  eq(url.href,r.back,'Register Back and the URL helper are the same address');
+  eq(url.hrefFb,'portal-events.html#event=2026-09-ai-exchange&tab=feedback','tab stays on #37');
+  ok(!existsSync(`${ROOT}/portal-event.html`),
+     'do not invent the dedicated page on this PR');
+  await p.close();
 });
 
 await T('no console errors',()=>ok(errs.length===0,errs.join(' | ')));

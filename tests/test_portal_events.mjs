@@ -43,6 +43,9 @@ await T('November and December Register point at an existing event or register p
     ok(existsSync(`${ROOT}/${f}`),`${month} Register target missing: ${f}`);
     ok(/^(event|register)-2026-(11|12)-ai-exchange\.html$/.test(f),
       `${month} Register should be that event's page or form, got ${f}`);
+    ok(/from=portal/.test(hs[0]), `${month} Register must mark portal origin`);
+    ok(new RegExp(`event=2026-(11|12)-ai-exchange`).test(hs[0].replace(/&amp;/g, "&")),
+      `${month} Register must name the event for Back`);
   }
 });
 

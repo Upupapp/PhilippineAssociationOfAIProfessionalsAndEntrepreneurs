@@ -1,0 +1,139 @@
+/* PAAIPE Agent Portal shell — off-canvas nav ≤860 (R-01 / Epic A).
+ *
+ * Each portal page still owns its desktop chrome (sticky ~262px rail).
+ * This file only changes the ≤860 contract: take `.side` out of document
+ * flow so the title/content is the first screenful, and style the hamburger
+ * + backdrop that `paaipe-portal-shell.js` injects.
+ *
+ * Desktop ≥861 is intentionally untouched. Do not put rail/topbar rules
+ * outside the mobile query.
+ *
+ * Per-page `@media (max-width:860px){.side{position:relative;height:auto}}`
+ * is overridden here (higher specificity on `.shell > .side`).
+ */
+
+@media (max-width: 860px) {
+  .shell {
+    grid-template-columns: 1fr;
+    grid-template-areas: "main";
+  }
+  .shell > .main {
+    grid-area: main;
+    min-width: 0;
+  }
+
+  /* Off-canvas: fixed overlay, not an in-flow ~689px block. */
+  .shell > .side {
+    position: fixed;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 262px;
+    max-width: 86vw;
+    height: 100%;
+    height: 100dvh;
+    z-index: 40;
+    transform: translateX(-105%);
+    visibility: hidden;
+    pointer-events: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    transition:
+      transform var(--motion-smooth, 240ms) var(--motion-ease, cubic-bezier(0.4, 0, 0.2, 1)),
+      visibility var(--motion-smooth, 240ms) var(--motion-ease, cubic-bezier(0.4, 0, 0.2, 1));
+  }
+  html.portal-nav-open .shell > .side {
+    transform: translateX(0);
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .top {
+    z-index: 45;
+  }
+
+  .portal-nav-burger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    flex: none;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--line, #c9dcf3);
+    border-radius: 12px;
+    background: #fff;
+    cursor: pointer;
+    color: var(--navy, #002166);
+  }
+  .portal-nav-burger:focus-visible {
+    outline: 3px solid var(--cyan, #15BBEA);
+    outline-offset: 2px;
+  }
+  .portal-nav-burger span {
+    position: relative;
+    display: block;
+    width: 20px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--navy, #002166);
+    transition: transform var(--motion-snappy, 160ms), opacity var(--motion-snappy, 160ms);
+  }
+  .portal-nav-burger span::before,
+  .portal-nav-burger span::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    width: 20px;
+    height: 2px;
+    border-radius: 2px;
+    background: var(--navy, #002166);
+    transition: transform var(--motion-snappy, 160ms);
+  }
+  .portal-nav-burger span::before { top: -6px; }
+  .portal-nav-burger span::after { top: 6px; }
+  .portal-nav-burger[aria-expanded="true"] span { background: transparent; }
+  .portal-nav-burger[aria-expanded="true"] span::before {
+    transform: translateY(6px) rotate(45deg);
+  }
+  .portal-nav-burger[aria-expanded="true"] span::after {
+    transform: translateY(-6px) rotate(-45deg);
+  }
+
+  .portal-nav-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 35;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: rgba(3, 27, 82, 0.46);
+    cursor: pointer;
+  }
+  html.portal-nav-open .portal-nav-backdrop {
+    display: block;
+  }
+  html.portal-nav-open {
+    overflow: hidden;
+  }
+}
+
+@media (min-width: 861px) {
+  .portal-nav-burger,
+  .portal-nav-backdrop {
+    display: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell > .side,
+  .portal-nav-burger span,
+  .portal-nav-burger span::before,
+  .portal-nav-burger span::after {
+    transition: none;
+  }
+}

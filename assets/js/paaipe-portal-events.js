@@ -40,6 +40,7 @@ import {
 } from "/assets/js/paaipe-api.js";
 import { mountPartnerCta } from "/assets/js/paaipe-partner.js";
 import { readView, writeHash, onViewChange } from "/assets/js/paaipe-view-url.js";
+import { portalEventDetailHref } from "/assets/js/paaipe-portal-event-url.js";
 
 const $  = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => [...r.querySelectorAll(s)];
@@ -182,12 +183,8 @@ export function catalogEvent(id) {
 }
 
 export function portalEventHref(id, tab) {
-  const eid = String(id || "").trim();
-  if (!eid) return "portal-events.html";
-  if (tab && tab !== "overview" && PORTAL_EVENT_TABS.includes(tab)) {
-    return `portal-events.html#event=${encodeURIComponent(eid)}&tab=${encodeURIComponent(tab)}`;
-  }
-  return `portal-events.html#event=${encodeURIComponent(eid)}`;
+  const safe = tab && tab !== "overview" && PORTAL_EVENT_TABS.includes(tab) ? tab : "";
+  return portalEventDetailHref(id, safe);
 }
 
 /** Pass through POST `certificate` only when it is a real object. Never invent. */

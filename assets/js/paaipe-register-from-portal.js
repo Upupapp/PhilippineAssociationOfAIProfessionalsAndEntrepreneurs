@@ -6,15 +6,17 @@
  * a blank form. Nothing here forces a sign-in.
  *
  * PORTAL BACK IS DETERMINISTIC. Portal Register CTAs pass ?from=portal&event=
- * so "Back to the event" can land on portal-events.html#event=<id> (the Event
- * Details view already live from #37). Without that hint the public event
- * page stays the back target, including a signed-in Agent who arrived from
- * the public site.
+ * so "Back to the event" can land on portalEventDetailHref(id) — today the
+ * #37 Event Details view (portal-events.html#event=<id>). When Ericson lands
+ * a dedicated page, that helper is the one swap. Without the portal hint the
+ * public event page stays the back target, including a signed-in Agent who
+ * arrived from the public site.
  *
  * Readonly, never disabled: a disabled field is dropped from FormData, and
  * the write would then go out without the account email.
  */
 import { currentAgent } from "/assets/js/paaipe-firebase.js";
+import { portalEventDetailHref } from "/assets/js/paaipe-portal-event-url.js";
 
 function queryOf(search = location.search) {
   return new URLSearchParams(String(search || "").replace(/^\?/, ""));
@@ -42,11 +44,9 @@ export function eventIdFromRegisterPage(root = document, search = location.searc
   return slug.replace(/^event-/, "").trim();
 }
 
-/** Canonical portal Event Details address. Do not invent a second portal IA. */
+/** Register Back target. Delegates so a later dedicated page is one swap. */
 export function portalBackHref(eventId) {
-  const id = String(eventId || "").trim();
-  if (!id) return "portal-events.html";
-  return `portal-events.html#event=${encodeURIComponent(id)}`;
+  return portalEventDetailHref(eventId);
 }
 
 export function lockAccountField(input, value, title) {

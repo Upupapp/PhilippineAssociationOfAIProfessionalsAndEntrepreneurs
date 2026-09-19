@@ -41,6 +41,8 @@ await T("URL helper and recap markup order", () => {
   ok(js.includes("feedbackCertificateFromResponse"), "POST certificate pass-through");
   ok(js.includes("function registerFromPortalHref"), "portal register helper");
   ok(html.includes("from=portal"), "list Register marks portal origin");
+  ok(existsSync(`${ROOT}/assets/js/paaipe-portal-event-url.js`), "shared Event Details URL");
+  ok(!existsSync(`${ROOT}/portal-event.html`), "no invented dedicated page");
 });
 
 const fbStub = `export * from '/assets/js/paaipe-firebase-real.js';
@@ -109,6 +111,8 @@ await T("feedback window is +1h after start through noon PHT next day", async ()
       href: m.portalEventHref("2026-10-ai-exchange"),
       hrefFb: m.portalEventHref("2026-09-ai-exchange", "feedback"),
       hrefCert: m.portalEventHref("2026-10-ai-exchange", "certificate"),
+      sameAsUrl: (await import("/assets/js/paaipe-portal-event-url.js"))
+        .portalEventDetailHref("2026-10-ai-exchange"),
     };
   });
   eq(got.opens, "2026-09-15T13:00:00.000Z", "Sep 15 9:00 PM PHT");
@@ -121,6 +125,7 @@ await T("feedback window is +1h after start through noon PHT next day", async ()
   eq(got.href, "portal-events.html#event=2026-10-ai-exchange", "canonical");
   eq(got.hrefFb, "portal-events.html#event=2026-09-ai-exchange&tab=feedback", "feedback tab");
   eq(got.hrefCert, "portal-events.html#event=2026-10-ai-exchange&tab=certificate", "certificate tab");
+  eq(got.sameAsUrl, got.href, "portalEventHref delegates to portalEventDetailHref");
   const extras = await p.evaluate(async () => {
     const m = await import("/assets/js/paaipe-portal-events.js");
     const oct = m.catalogEvent("2026-10-ai-exchange");

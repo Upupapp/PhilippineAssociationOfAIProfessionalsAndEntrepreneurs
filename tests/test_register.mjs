@@ -5,7 +5,7 @@
  * RESOLVED. Everything else here is downstream of that.
  */
 import { chromium } from 'playwright';
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 const BASE=process.env.PAAIPE_BASE||'http://127.0.0.1:8899', ROOT=process.env.PAAIPE_ROOT||'/Users/user/Philippine-Association-of-AI';
 const PAGE='register-2026-10-ai-exchange.html';
 const REAL_FB=readFileSync(`${ROOT}/assets/js/paaipe-firebase.js`,'utf8');
@@ -413,6 +413,23 @@ await T('helpers map the portal hint onto Event Details and leave the public bac
   eq(r.id,'2026-12-ai-exchange','query event');
   eq(r.formId,'2026-10-ai-exchange','form fallback');
   eq(r.back,'portal-events.html#event=2026-12-ai-exchange','#37 Event Details');
+  const url=await p.evaluate(async()=>{
+    const u=await import('/assets/js/paaipe-portal-event-url.js');
+    return {
+      page: u.PORTAL_EVENT_DETAIL.PAGE,
+      idKey: u.PORTAL_EVENT_DETAIL.ID_KEY,
+      form: u.PORTAL_EVENT_DETAIL.FORM,
+      href: u.portalEventDetailHref('2026-12-ai-exchange'),
+      hrefFb: u.portalEventDetailHref('2026-09-ai-exchange','feedback'),
+    };
+  });
+  eq(url.page,'portal-events.html','PAGE is the live list');
+  eq(url.idKey,'event','ID_KEY is #event=');
+  eq(url.form,'hash','FORM is hash until Ericson lands query');
+  eq(url.href,r.back,'Register Back and the URL helper are the same address');
+  eq(url.hrefFb,'portal-events.html#event=2026-09-ai-exchange&tab=feedback','tab stays on #37');
+  ok(!existsSync(`${ROOT}/portal-event.html`),
+     'do not invent the dedicated page on this PR');
   await p.close();
 });
 

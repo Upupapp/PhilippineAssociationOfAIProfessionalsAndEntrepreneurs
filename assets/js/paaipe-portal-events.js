@@ -12,6 +12,10 @@
  * Probe still treats only 200/401 as deployed. Inbox delivery is not wired —
  * send failures stay honest. No POST issue, no invented download API.
  * Downloads use certificate.pdfUrl/pngUrl on media.paaipe.org when issued.
+ * Feedback 201 opens a thank-you dialog whose primary CTA writes
+ * #event=<id>&tab=certificate. A secondary file link appears only when that
+ * POST body already has certificate.pdfUrl/pngUrl on media.paaipe.org.
+ * certificate:null still gets the thank-you + Certificate tab CTA.
  *
  * Partner apply reuses mountPartnerCta / data-partner-cta. No second flow.
  */
@@ -132,6 +136,58 @@ export function portalEventHref(id, tab) {
     return `portal-events.html#event=${encodeURIComponent(eid)}&tab=${encodeURIComponent(tab)}`;
   }
   return `portal-events.html#event=${encodeURIComponent(eid)}`;
+}
+
+/** Pass through POST `certificate` only when it is a real object. Never invent. */
+export function feedbackCertificateFromResponse(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const raw = data.certificate;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  return raw;
+}
+
+const THANKS_COPY = "Thank you — you can now check your event certificate here.";
+
+let thanksDlg = null;
+
+/** Thank-you after feedback 201. Primary → Certificate tab. File CTA only if BE sent URLs. */
+export function openFeedbackThanks(eventId, certificate) {
+  const eid = String(eventId || "").trim();
+  if (!eid || typeof document === "undefined") return null;
+  const fileUrl = certificateDownloadUrl(certificate);
+  const href = portalEventHref(eid, "certificate");
+  if (!thanksDlg) {
+    thanksDlg = document.createElement("dialog");
+    thanksDlg.className = "ed-thanks";
+    thanksDlg.setAttribute("data-ed-thanks", "");
+    thanksDlg.setAttribute("aria-labelledby", "ed-thanks-title");
+    thanksDlg.setAttribute("aria-describedby", "ed-thanks-copy");
+    document.body.appendChild(thanksDlg);
+    thanksDlg.addEventListener("click", e => {
+      if (e.target === thanksDlg) thanksDlg.close();
+      const go = e.target.closest("[data-ed-thanks-cert]");
+      if (!go) return;
+      e.preventDefault();
+      const id = thanksDlg.dataset.eventId;
+      thanksDlg.close();
+      if (id) showDetails(id, "certificate", { push: true });
+    });
+  }
+  thanksDlg.dataset.eventId = eid;
+  const file = fileUrl
+    ? `<a class="btn btn-ghost" data-ed-thanks-file href="${esc(fileUrl)}" target="_blank" rel="noopener">Open certificate</a>`
+    : "";
+  thanksDlg.innerHTML = `<div class="ed-thanks-body">
+    <h2 id="ed-thanks-title">Thank you</h2>
+    <p id="ed-thanks-copy">${esc(THANKS_COPY)}</p>
+    <div class="ed-acts">
+      <a class="btn btn-gold" data-ed-thanks-cert href="${esc(href)}">View certificate</a>
+      ${file}
+    </div>
+  </div>`;
+  if (typeof thanksDlg.showModal === "function") thanksDlg.showModal();
+  $("[data-ed-thanks-cert]", thanksDlg)?.focus();
+  return thanksDlg;
 }
 
 /** Test hook: ?paaipe_now=ISO or window.PAAIPE_NOW. Production uses the clock. */
@@ -735,12 +791,13 @@ function paintFeedbackForm(host, ev, questions, receipt) {
     if (btn) btn.disabled = true;
     try {
       const token = await idTokenForRequest();
-      await postEventFeedbackResponse(ev.id, {
+      const result = await postEventFeedbackResponse(ev.id, {
         registrationId: receipt.registrationId,
         answers,
       }, { token });
       show("");
       await showDetails(ev.id, "feedback", { push: false });
+      openFeedbackThanks(ev.id, feedbackCertificateFromResponse(result));
     } catch (ex) {
       if (btn) btn.disabled = false;
       if (ex?.status === 403) {

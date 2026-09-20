@@ -144,6 +144,27 @@
     .pgrid{grid-template-columns:1fr}
     .journey{justify-content:flex-start}
   }
+  /* R-07: 7×108px flex track (~812px) hid steps 4–7 on phones. Stack. */
+  @media (max-width:560px){
+    .journey{
+      display:grid;
+      grid-template-columns:1fr;
+      gap:14px;
+      overflow-x:visible;
+      padding:4px 0 8px;
+      justify-content:initial;
+    }
+    .journey::before{display:none}
+    .journey li{
+      flex:none;
+      width:auto;
+      flex-direction:row;
+      align-items:center;
+      text-align:left;
+      gap:12px;
+    }
+    .journey small{white-space:normal}
+  }
 </style>
 <link rel="stylesheet" href="assets/css/paaipe-motion.css"><link rel="stylesheet" href="assets/css/paaipe-portal-shell.css"></head><body><div class="shell">
 <aside class="side"><img class="dots" src="assets/img/world-dots.png" alt="" aria-hidden="true">

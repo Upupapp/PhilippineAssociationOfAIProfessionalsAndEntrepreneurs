@@ -169,6 +169,16 @@
     .cta-visual{display:none}
     footer .top{grid-template-columns:1fr 1fr;row-gap:32px}
   }
+  /* R-20: 5-col facewall min-content (~328px) overflowed 320 by +8. */
+  @media (max-width:400px){
+    .facewall{
+      grid-template-columns:repeat(5,minmax(0,1fr));
+      gap:8px;
+    }
+    .facewall .face,
+    .facewall > *{min-width:0;overflow:hidden}
+    .people .text{min-width:0;max-width:100%}
+  }
 </style>
 </head>
 <body>

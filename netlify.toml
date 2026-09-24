@@ -82,6 +82,33 @@
   status = 301
   force = true
 
+# Stable public URLs for App Store and Play (M-08). The drafted pages stay
+# at /terms-of-use and /privacy-notice; these short names 301 onto them.
+# Specific rules sit above the *.html splat so they are never swallowed.
+[[redirects]]
+  from = "/terms"
+  to = "/terms-of-use"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/terms-of-service"
+  to = "/terms-of-use"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/privacy"
+  to = "/privacy-notice"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "/privacy-policy"
+  to = "/privacy-notice"
+  status = 301
+  force = true
+
 [[redirects]]
   from = "/*.html"
   to = "/:splat"

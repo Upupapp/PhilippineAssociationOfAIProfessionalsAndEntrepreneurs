@@ -124,6 +124,11 @@
   footer{background:var(--navy);color:#bfe3fa;padding:36px 0;font-size:14px}
   footer .wrap{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
   footer img{height:44px;background:#fff;padding:6px 10px;border-radius:10px}
+  footer .end{display:flex;align-items:center;gap:8px 18px;flex-wrap:wrap;justify-content:flex-end}
+  footer .legal{display:flex;gap:14px;flex-wrap:wrap}
+  footer .legal a{color:#fff;font-weight:600;text-decoration:underline;text-underline-offset:3px}
+  footer .legal a:hover{color:var(--lgold)}
+  footer .legal a:focus-visible{outline:3px solid var(--cyan);outline-offset:3px}
 
   /* one orchestrated entrance */
   .reveal{opacity:0;transform:translateY(16px);animation:in .7s cubic-bezier(.2,.7,.2,1) forwards}
@@ -315,7 +320,10 @@
 <footer>
   <div class="wrap">
     <img src="assets/img/paaipe-logo.png" alt="PAAIPE">
-    <span>© 2026 Philippine Association of AI Professionals and Entrepreneurs · paaipe.org</span>
+    <div class="end">
+      <span>© 2026 Philippine Association of AI Professionals and Entrepreneurs · paaipe.org</span>
+      <nav class="legal" aria-label="Legal"><a href="/terms-of-use">Terms of Use</a><a href="/privacy-notice">Privacy Notice</a></nav>
+    </div>
   </div>
 </footer>
 

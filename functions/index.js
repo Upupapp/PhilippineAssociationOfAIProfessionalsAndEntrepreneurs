@@ -57,7 +57,7 @@ const MAIL_QUEUE = "paaipe_mail_queue";
 const TELEMETRY_DAILY = "paaipe_telemetry_daily";
 
 const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
-const MAIL_SENDER_EMAIL = defineString("MAIL_SENDER_EMAIL", { default: "noreply@paaipe.org" });
+const MAIL_SENDER_EMAIL = defineString("MAIL_SENDER_EMAIL", { default: "agent@paaipe.org" });
 const MAIL_SENDER_NAME = defineString("MAIL_SENDER_NAME", { default: "PAAIPE" });
 
 initializeApp();

@@ -44,7 +44,7 @@ firebase functions:config:set   # not needed; sender uses params with defaults
 firebase deploy --only functions --project postflowit-autos
 ```
 
-`MAIL_SENDER_EMAIL` (default `noreply@paaipe.org`) and `MAIL_SENDER_NAME`
+`MAIL_SENDER_EMAIL` (default `agent@paaipe.org`) and `MAIL_SENDER_NAME`
 (default `PAAIPE`) are `defineString` params; the sender must be a verified
 SendGrid sender (Single Sender or authenticated domain).
 

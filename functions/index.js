@@ -36,7 +36,7 @@
  * Secret:  firebase functions:secrets:set SENDGRID_API_KEY --project postflowit-autos
  */
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, FieldValue } from "firebase-admin/firestore";
+import { getFirestore, FieldValue, FieldPath } from "firebase-admin/firestore";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret, defineString } from "firebase-functions/params";
@@ -213,7 +213,7 @@ export const telemetryReport = onRequest({ region: REGION, cors: true }, async (
     const limit = Math.min(Math.max(Number(req.query.days) || 30, 1), 180);
     const snap = await db()
       .collection(TELEMETRY_DAILY)
-      .orderBy("__name__", "desc")
+      .orderBy(FieldPath.documentId(), "desc")
       .limit(limit)
       .get();
     const report = buildTelemetryReport(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));

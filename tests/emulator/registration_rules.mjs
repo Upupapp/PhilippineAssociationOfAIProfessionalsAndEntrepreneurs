@@ -198,6 +198,35 @@ await T(
   assertFails(deleteDoc(doc(alice, COL, "r-alice"))),
 );
 
+// --- mail queue is server-only (Admin SDK); counts come from a function ----
+// The confirmation-email queue and the raw registrations are never client-
+// readable, so a client can neither send mail itself nor total registrations —
+// aggregate counts must come from the eventRegistrationCounts function.
+const MAIL = "paaipe_mail_queue";
+await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  await setDoc(doc(ctx.firestore(), MAIL, "m1"), {
+    to: "alice@example.com",
+    template: "event-registered",
+    sent: false,
+  });
+});
+await T(
+  "admin cannot read the mail queue from a client",
+  assertFails(getDoc(doc(admin, MAIL, "m1"))),
+);
+await T(
+  "member cannot read the mail queue",
+  assertFails(getDoc(doc(alice, MAIL, "m1"))),
+);
+await T(
+  "member cannot write to the mail queue",
+  assertFails(setDoc(doc(alice, MAIL, "m2"), { to: "x@y.co", template: "event-registered" })),
+);
+await T(
+  "anonymous visitor cannot read the mail queue",
+  assertFails(getDoc(doc(anon, MAIL, "m1"))),
+);
+
 await testEnv.cleanup();
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail === 0 ? 0 : 1);

@@ -355,7 +355,7 @@ td.act{text-align:right;white-space:nowrap}
 
 /* ====================================================== repeater rows === */
 .rep{display:flex;flex-direction:column;gap:10px}
-.rep .row2{display:grid;grid-template-columns:auto 1fr 1fr 190px auto;gap:10px;align-items:center}
+.rep .row2{display:grid;grid-template-columns:auto 1fr 1fr 150px minmax(160px,1fr) auto;gap:10px;align-items:center}
 .rep .rowp{display:grid;grid-template-columns:130px 1fr auto;gap:10px;align-items:center}
 .rep input,.rep select{margin:0}
 .avatar{width:46px;height:46px;border-radius:50%;object-fit:cover;flex:none;

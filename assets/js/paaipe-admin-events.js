@@ -268,6 +268,7 @@ function speakerRow(s = {}) {
     <input data-sp-title value="${esc(s.title || "")}" placeholder="Title, organization" maxlength="160">
     <select data-sp-role>${ROLES.map(r =>
       `<option${(s.role || "Speaker") === r ? " selected" : ""}>${r}</option>`).join("")}</select>
+    <input data-sp-photo class="sp-photo" value="${esc(s.photoUrl || "")}" placeholder="Photo URL (assets/img/… or https://…)" maxlength="300">
     <button type="button" class="xbtn" data-rm-sp title="Remove">×</button>
   </div>`;
 }
@@ -367,8 +368,9 @@ function openEditor(id, { push = true, tab } = {}) {
       <h3 class="ehead">Speakers and program team</h3>
       <div class="rep" data-speakers>${speakers.map(speakerRow).join("")}</div>
       <button type="button" class="btn btn-ghost btn-sm addrow" data-add-sp>+ Add person</button>
-      <p class="note"><b>Type a name, or paste an Agent's photo path.</b> The design offers an Agent
-        picker that fills the photo and title in; that is not wired, so this takes the values directly
+      <p class="note"><b>Type a name and paste the speaker's photo URL.</b> The photo box accepts a
+        site path (<code>assets/img/…</code>) or a full <code>https://…</code> URL and previews it live.
+        The design's Agent picker that would fill these in is not wired, so this takes the values directly
         rather than pretending to look anybody up.</p>
 
       <h3 class="ehead">Program</h3>
@@ -706,7 +708,7 @@ function readForm() {
     name:  $("[data-sp-name]",  r).value.trim(),
     title: $("[data-sp-title]", r).value.trim(),
     role:  $("[data-sp-role]",  r).value,
-    photoUrl: r.querySelector("img.avatar")?.getAttribute("src") || "",
+    photoUrl: $("[data-sp-photo]", r)?.value.trim() || "",
   })).filter(s => s.name);
   patch.program = $$("[data-pr]", d).map(r => ({
     time: $("[data-pr-time]", r).value.trim(),
@@ -956,6 +958,27 @@ function applyFromLocation() {
 
   applyFromLocation();
   onViewChange(applyFromLocation);
+
+  document.addEventListener("input", e => {
+    const photo = e.target.closest("[data-sp-photo]");
+    if (!photo) return;
+    const row = photo.closest("[data-sp]");
+    const current = row?.querySelector(".avatar");
+    if (!current) return;
+    const url = photo.value.trim();
+    if (url) {
+      const img = document.createElement("img");
+      img.className = "avatar";
+      img.alt = "";
+      img.src = url;
+      current.replaceWith(img);
+    } else if (current.tagName === "IMG") {
+      const ph = document.createElement("span");
+      ph.className = "avatar ph";
+      ph.textContent = "photo";
+      current.replaceWith(ph);
+    }
+  });
 
   document.addEventListener("click", e => {
     const ed = e.target.closest("[data-edit-event]");

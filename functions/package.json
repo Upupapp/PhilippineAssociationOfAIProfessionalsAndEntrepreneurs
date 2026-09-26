@@ -8,7 +8,8 @@
   "main": "index.js",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
-    "deploy": "firebase deploy --only functions --project postflowit-autos"
+    "deploy": "firebase deploy --only functions --project postflowit-autos",
+    "test": "node --test"
   },
   "dependencies": {
     "firebase-admin": "^12.7.0",

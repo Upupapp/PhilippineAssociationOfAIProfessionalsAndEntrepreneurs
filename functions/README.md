@@ -12,6 +12,25 @@ mobile app.
 | `onRegistrationCreated` | Firestore create on `paaipe_event_registrations/{id}` | Enqueues a `event-registered` confirmation email into `paaipe_mail_queue`. Wires up the mail the rules note as "not wired yet". |
 | `onMailQueued` | Firestore create on `paaipe_mail_queue/{id}` | Sends the row via Brevo's transactional API and stamps it `sent`. With no `BREVO_API_KEY` set, the row is left pending (and logged) rather than dropped. Idempotent: never sends a row twice. |
 | `eventRegistrationCounts` | HTTPS (CORS) | Returns per-event **counts only** (`{ counts: { [eventId]: n }, total }`), reading just `eventId` + `status` with the Admin SDK. A member can't read others' registrations, so this is the only leak-free way to show real "N registered" numbers. Cancelled rows are excluded. |
+| `telemetryIngest` | HTTPS (CORS, POST) | Folds anonymous offline-write counters posted by the app into a per-day rollup in `paaipe_telemetry_daily/{YYYY-MM-DD}` (`FieldValue.increment`), so the fleet-wide offline rate is visible server-side. No personal data is stored — only counts and a device tally. The collection is server-only (denied to clients by the rules catch-all). |
+
+## Testing
+
+Pure decision logic (skip rules, mail idempotency, rendering/escaping, count
+tally) lives in `lib/logic.js` and is unit-tested — the trigger handlers bind to
+the named `paaipe` database, which the local emulator can't serve, so a
+dependency-free logic module is the testable seam:
+
+```bash
+cd functions && npm test        # node --test, no emulator needed
+```
+
+The Firestore rules (own-row read/cancel, server-only mail queue) are covered by
+`tests/emulator/registration_rules.mjs` against the emulator:
+
+```bash
+sh tests/emulator/run.sh
+```
 
 ## Deploy
 
@@ -33,7 +52,9 @@ Brevo sender.
 The mobile app can call `eventRegistrationCounts` to show real registered
 counts. Its URL is only known after deploy, so the app reads it from
 `VITE_PAAIPE_COUNTS_URL` and simply shows nothing when that is unset — it never
-fabricates a number.
+fabricates a number. Likewise the app posts anonymous telemetry to
+`telemetryIngest` when `VITE_PAAIPE_TELEMETRY_URL` is set, and keeps telemetry
+on-device only when it is not.
 
 ## Note on running here
 

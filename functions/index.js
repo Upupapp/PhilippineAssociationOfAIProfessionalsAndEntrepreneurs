@@ -32,11 +32,19 @@ import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { logger } from "firebase-functions";
+import {
+  shouldQueueRegistrationEmail,
+  buildRegistrationMail,
+  shouldSendMailRow,
+  renderMail,
+  tallyRegistrationCounts,
+} from "./lib/logic.js";
 
 const DATABASE = "paaipe";
 const REGION = "asia-southeast1";
 const REGISTRATIONS = "paaipe_event_registrations";
 const MAIL_QUEUE = "paaipe_mail_queue";
+const TELEMETRY_DAILY = "paaipe_telemetry_daily";
 
 const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
 const MAIL_SENDER_EMAIL = defineString("MAIL_SENDER_EMAIL", { default: "noreply@paaipe.org" });
@@ -52,26 +60,16 @@ export const onRegistrationCreated = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
     const reg = snap.data() || {};
-    // A cancelled row should never trigger a "you're registered" mail. New
-    // registrations have no status yet (or status:'registered').
-    if (reg.status && reg.status !== "registered") return;
-    if (!reg.email) {
+    if (!shouldQueueRegistrationEmail(reg)) {
+      if (reg.status && reg.status !== "registered") return;
       logger.warn("registration without email; no confirmation queued", { id: event.params.id });
       return;
     }
     await db()
       .collection(MAIL_QUEUE)
       .add({
-        to: reg.email,
-        template: "event-registered",
-        data: {
-          name: reg.full_name || "there",
-          event: reg.event || "the event",
-          eventId: reg.eventId || "",
-          registrationId: event.params.id,
-        },
+        ...buildRegistrationMail(reg, event.params.id),
         createdAt: FieldValue.serverTimestamp(),
-        sent: false,
       });
     logger.info("queued event-registered email", { id: event.params.id });
   },
@@ -84,7 +82,7 @@ export const onMailQueued = onDocumentCreated(
     const snap = event.data;
     if (!snap) return;
     const row = snap.data() || {};
-    if (row.sent === true) return; // idempotent: never send twice
+    if (!shouldSendMailRow(row)) return; // idempotent: never send twice
 
     const apiKey = BREVO_API_KEY.value();
     if (!apiKey) {
@@ -136,44 +134,6 @@ export const onMailQueued = onDocumentCreated(
   },
 );
 
-function escapeHtml(value) {
-  return String(value).replace(
-    /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
-  );
-}
-
-/** Render a queued row into { subject, html }, or null if unknown template. */
-function renderMail(row) {
-  const data = row.data || {};
-  if (row.template === "event-registered") {
-    const name = escapeHtml(data.name || "there");
-    const eventName = escapeHtml(data.event || "the event");
-    return {
-      subject: `You're registered for ${data.event || "a PAAIPE event"}`,
-      html: `<p>Hi ${name},</p>
-<p>You're registered for <strong>${eventName}</strong>. Your ticket and QR code are in the PAAIPE app under Events.</p>
-<p>We'll email you again with joining details closer to the date.</p>
-<p>— PAAIPE</p>`,
-    };
-  }
-  if (row.template === "agent-confirmed") {
-    const name = escapeHtml(data.name || "there");
-    const agentNumber = escapeHtml(data.agentNumber || "");
-    return {
-      subject: "Welcome — you're a confirmed PAAIPE Agent",
-      html: `<p>Hi ${name},</p>
-<p>Your PAAIPE membership is confirmed. Your Agent number is <strong>${agentNumber}</strong>.</p>
-<p>— PAAIPE</p>`,
-    };
-  }
-  // A row that carries its own subject/html can still be sent generically.
-  if (typeof row.subject === "string" && typeof row.html === "string") {
-    return { subject: row.subject, html: row.html };
-  }
-  return null;
-}
-
 // --- 3. Per-event registered counts (aggregate only, never a row) -----------
 export const eventRegistrationCounts = onRequest(
   { region: REGION, cors: true },
@@ -181,16 +141,7 @@ export const eventRegistrationCounts = onRequest(
     try {
       // Read only what we need to tally; never return a registrant's details.
       const snap = await db().collection(REGISTRATIONS).select("eventId", "status").get();
-      const counts = {};
-      let total = 0;
-      snap.forEach((doc) => {
-        const d = doc.data();
-        if (d.status === "cancelled") return; // cancelled rows don't count
-        const eventId = typeof d.eventId === "string" ? d.eventId : "";
-        if (!eventId) return;
-        counts[eventId] = (counts[eventId] || 0) + 1;
-        total += 1;
-      });
+      const { counts, total } = tallyRegistrationCounts(snap.docs.map((doc) => doc.data()));
       res.set("Cache-Control", "public, max-age=60");
       res.json({ counts, total, generatedAt: Date.now() });
     } catch (err) {
@@ -199,3 +150,39 @@ export const eventRegistrationCounts = onRequest(
     }
   },
 );
+
+// --- 4. Ingest anonymous offline-write telemetry (aggregate only) -----------
+// The mobile app posts privacy-safe counters (no personal data, only an
+// anonymous install id and offline-write counts). We fold each post into a
+// per-day rollup so the fleet-wide offline rate is visible server-side without
+// storing anything that identifies a member. Writes go through the Admin SDK;
+// the collection is server-only (denied to all clients by the rules catch-all).
+export const telemetryIngest = onRequest({ region: REGION, cors: true }, async (req, res) => {
+  if (req.method !== "POST") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+  try {
+    const body = req.body || {};
+    const counts = body.counts && typeof body.counts === "object" ? body.counts : {};
+    const day = new Date().toISOString().slice(0, 10); // YYYY-MM-DD (UTC)
+    const ref = db().collection(TELEMETRY_DAILY).doc(day);
+    const increments = { devices: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() };
+    for (const key of [
+      "write_success",
+      "write_failure",
+      "write_queued",
+      "queue_flush_settled",
+      "cancel_success",
+      "cancel_failure",
+    ]) {
+      const value = Number(counts[key]);
+      if (Number.isFinite(value) && value >= 0) increments[key] = FieldValue.increment(value);
+    }
+    await ref.set(increments, { merge: true });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error("telemetryIngest failed", { error: String(err) });
+    res.status(500).json({ error: "ingest_failed" });
+  }
+});

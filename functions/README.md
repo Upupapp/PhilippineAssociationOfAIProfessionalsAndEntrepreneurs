@@ -10,7 +10,7 @@ mobile app.
 | Function | Trigger | What it does |
 | --- | --- | --- |
 | `onRegistrationCreated` | Firestore create on `paaipe_event_registrations/{id}` | Enqueues a `event-registered` confirmation email into `paaipe_mail_queue`. Wires up the mail the rules note as "not wired yet". |
-| `onMailQueued` | Firestore create on `paaipe_mail_queue/{id}` | Sends the row via Brevo's transactional API and stamps it `sent`. With no `BREVO_API_KEY` set, the row is left pending (and logged) rather than dropped. Idempotent: never sends a row twice. |
+| `onMailQueued` | Firestore create on `paaipe_mail_queue/{id}` | Sends the row via SendGrid's mail-send API and stamps it `sent`. With no `SENDGRID_API_KEY` set, the row is left pending (and logged) rather than dropped. Idempotent: never sends a row twice. |
 | `eventRegistrationCounts` | HTTPS (CORS) | Returns per-event **counts only** (`{ counts: { [eventId]: n }, total }`), reading just `eventId` + `status` with the Admin SDK. A member can't read others' registrations, so this is the only leak-free way to show real "N registered" numbers. Cancelled rows are excluded. |
 | `telemetryIngest` | HTTPS (CORS, POST) | Folds anonymous offline-write counters posted by the app into a per-day rollup in `paaipe_telemetry_daily/{YYYY-MM-DD}` (`FieldValue.increment`), so the fleet-wide offline rate is visible server-side. No personal data is stored — only counts and a device tally. The collection is server-only (denied to clients by the rules catch-all). |
 | `telemetryReport` | HTTPS (CORS, GET) | Reads that rollup back with the Admin SDK and returns **aggregate only** (`{ days: [...], totals, offlineRate }`) — summed counters plus the derived offline rate per day and overall, never a device id. `?days=N` bounds the window (default 30, max 180). The admin **Telemetry** page charts it. |
@@ -37,7 +37,7 @@ sh tests/emulator/run.sh
 
 ```bash
 # one-time: set the mail secret (and optionally the sender identity)
-firebase functions:secrets:set BREVO_API_KEY --project postflowit-autos
+firebase functions:secrets:set SENDGRID_API_KEY --project postflowit-autos
 firebase functions:config:set   # not needed; sender uses params with defaults
 
 # deploy just these functions
@@ -46,7 +46,7 @@ firebase deploy --only functions --project postflowit-autos
 
 `MAIL_SENDER_EMAIL` (default `noreply@paaipe.org`) and `MAIL_SENDER_NAME`
 (default `PAAIPE`) are `defineString` params; the sender must be a verified
-Brevo sender.
+SendGrid sender (Single Sender or authenticated domain).
 
 ## Mobile consumption
 

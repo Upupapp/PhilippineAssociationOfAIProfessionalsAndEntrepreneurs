@@ -11,10 +11,10 @@
  *      already uses for the agent-confirmed email) rather than sending inline, so
  *      an unsent email is a visible pending row, and (2) does the actual sending.
  *
- *   2. onMailQueued — send any paaipe_mail_queue row via Brevo's transactional
+ *   2. onMailQueued — send any paaipe_mail_queue row via SendGrid's mail-send
  *      API and stamp it sent, so mail leaves the server exactly once. The
- *      Brevo key is a secret (BREVO_API_KEY); with no key set, the row is left
- *      pending and logged rather than dropped.
+ *      SendGrid key is a secret (SENDGRID_API_KEY); with no key set, the row is
+ *      left pending and logged rather than dropped.
  *
  *   3. eventRegistrationCounts — return per-event registered COUNTS only. The
  *      rules (correctly) forbid a member from reading other people's
@@ -33,7 +33,7 @@
  *      and derived rates per day and overall — never a device id.
  *
  * Deploy:  firebase deploy --only functions --project postflowit-autos
- * Secret:  firebase functions:secrets:set BREVO_API_KEY --project postflowit-autos
+ * Secret:  firebase functions:secrets:set SENDGRID_API_KEY --project postflowit-autos
  */
 import { initializeApp } from "firebase-admin/app";
 import { getFirestore, FieldValue } from "firebase-admin/firestore";
@@ -56,7 +56,7 @@ const REGISTRATIONS = "paaipe_event_registrations";
 const MAIL_QUEUE = "paaipe_mail_queue";
 const TELEMETRY_DAILY = "paaipe_telemetry_daily";
 
-const BREVO_API_KEY = defineSecret("BREVO_API_KEY");
+const SENDGRID_API_KEY = defineSecret("SENDGRID_API_KEY");
 const MAIL_SENDER_EMAIL = defineString("MAIL_SENDER_EMAIL", { default: "noreply@paaipe.org" });
 const MAIL_SENDER_NAME = defineString("MAIL_SENDER_NAME", { default: "PAAIPE" });
 
@@ -85,18 +85,18 @@ export const onRegistrationCreated = onDocumentCreated(
   },
 );
 
-// --- 2. Send a queued mail row via Brevo and mark it sent -------------------
+// --- 2. Send a queued mail row via SendGrid and mark it sent ----------------
 export const onMailQueued = onDocumentCreated(
-  { document: `${MAIL_QUEUE}/{id}`, database: DATABASE, region: REGION, secrets: [BREVO_API_KEY] },
+  { document: `${MAIL_QUEUE}/{id}`, database: DATABASE, region: REGION, secrets: [SENDGRID_API_KEY] },
   async (event) => {
     const snap = event.data;
     if (!snap) return;
     const row = snap.data() || {};
     if (!shouldSendMailRow(row)) return; // idempotent: never send twice
 
-    const apiKey = BREVO_API_KEY.value();
+    const apiKey = SENDGRID_API_KEY.value();
     if (!apiKey) {
-      logger.warn("BREVO_API_KEY not set; leaving mail row pending", { id: event.params.id });
+      logger.warn("SENDGRID_API_KEY not set; leaving mail row pending", { id: event.params.id });
       return; // stays visible as an unsent row rather than being dropped
     }
 
@@ -110,25 +110,27 @@ export const onMailQueued = onDocumentCreated(
     }
 
     try {
-      const res = await fetch("https://api.brevo.com/v3/smtp/email", {
+      const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
         method: "POST",
-        headers: { "api-key": apiKey, "content-type": "application/json", accept: "application/json" },
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+          "content-type": "application/json",
+        },
         body: JSON.stringify({
-          sender: { email: MAIL_SENDER_EMAIL.value(), name: MAIL_SENDER_NAME.value() },
-          to: [{ email: row.to }],
+          personalizations: [{ to: [{ email: row.to }] }],
+          from: { email: MAIL_SENDER_EMAIL.value(), name: MAIL_SENDER_NAME.value() },
           subject: message.subject,
-          htmlContent: message.html,
+          content: [{ type: "text/html", value: message.html }],
         }),
       });
       if (!res.ok) {
         const body = await res.text();
-        throw new Error(`Brevo ${res.status}: ${body.slice(0, 300)}`);
+        throw new Error(`SendGrid ${res.status}: ${body.slice(0, 300)}`);
       }
-      const json = await res.json().catch(() => ({}));
       await snap.ref.update({
         sent: true,
         sentAt: FieldValue.serverTimestamp(),
-        providerMessageId: json.messageId || null,
+        providerMessageId: res.headers.get("x-message-id") || null,
       });
       logger.info("sent queued mail", { id: event.params.id, template: row.template });
     } catch (err) {

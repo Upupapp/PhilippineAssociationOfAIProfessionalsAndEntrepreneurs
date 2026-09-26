@@ -22,3 +22,9 @@ paaipe-admin*/
 # because of exactly that.
 tests/node_modules
 tests/package*.json
+
+# Firestore rules emulator suite: deps and emulator artifacts are per-machine.
+tests/emulator/node_modules
+tests/emulator/package*.json
+tests/emulator/*-debug.log
+tests/emulator/firebase-export-*

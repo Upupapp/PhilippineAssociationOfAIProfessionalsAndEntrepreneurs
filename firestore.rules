@@ -61,10 +61,14 @@ service cloud.firestore {
     // data (RA 10173).
     match /paaipe_event_registrations/{id} {
       allow create: if isWellFormedRegistration(request.resource.data);
-      // An administrator may read them - this is what /admin is for. Everyone
-      // else, including the person who submitted one, is refused: these are
-      // other people's personal data (RA 10173).
-      allow read: if isAdmin();
+      // An administrator may read every registration - this is what /admin is
+      // for. A signed-in member with a VERIFIED email may read their OWN, keyed
+      // on the email the registration carries: their personal data is theirs to
+      // see, and only theirs. Everyone else is refused (RA 10173). A conditional
+      // read cannot filter a list, so the member MUST query where email == their
+      // own verified address (see fetchMyRegistrations in the mobile app);
+      // any broader query is refused rather than silently narrowed.
+      allow read: if isAdmin() || ownsRegistration(resource.data);
       // An administrator may record what HAPPENED to a registration - attended,
       // cancelled, a note - and may not touch a single word the registrant
       // wrote. That distinction is the whole point: administrative facts are
@@ -86,6 +90,19 @@ service cloud.firestore {
                     && (request.resource.data.get('updated_by', null)
                           == resource.data.get('updated_by', null)
                         || request.resource.data.updated_by == request.auth.token.email);
+
+      // A member may CANCEL their own registration - a status a person is
+      // entitled to set on their own record - and may do NOTHING else. They may
+      // not edit a single word they submitted, mark themselves attended, or
+      // touch anyone else's row. hasOnly(['status','cancelled_at']), the fixed
+      // status == 'cancelled', and the ownsRegistration() email match are what
+      // enforce both halves. The record is never deleted, only cancelled.
+      allow update: if ownsRegistration(resource.data)
+                    && request.resource.data.diff(resource.data).affectedKeys()
+                         .hasOnly(['status','cancelled_at'])
+                    && request.resource.data.status == 'cancelled'
+                    && (!('cancelled_at' in request.resource.data.keys())
+                        || request.resource.data.cancelled_at == request.time);
 
       // Nobody DELETES a registration, admins included. A record of what
       // someone submitted is not something to make disappear; cancelling sets
@@ -119,6 +136,20 @@ service cloud.firestore {
           // which published Privacy Notice this person actually agreed to
           && (!('privacyVersion' in d.keys())   || (d.privacyVersion is string   && d.privacyVersion.size()   <= 20))
           && d.createdAt == request.time;   // server timestamp only; no backdating
+    }
+
+    // A signed-in member acting on THEIR OWN registration: a verified email that
+    // matches (case-insensitively) the address the registration carries. That is
+    // their own personal data under RA 10173 - readable and cancellable by them,
+    // and by no other member. Verification matters because the email is the only
+    // link between a person and the rows they submitted; an unverified address
+    // could be anyone's.
+    function ownsRegistration(data) {
+      return request.auth != null
+          && request.auth.token.get('email_verified', false) == true
+          && request.auth.token.email != null
+          && data.email is string
+          && data.email.lower() == request.auth.token.email.lower();
     }
 
     // --- PAAIPE: member profiles ----------------------------------

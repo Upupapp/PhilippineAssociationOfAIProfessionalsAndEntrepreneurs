@@ -299,6 +299,12 @@ export async function currentAgent() {
     // photoUrl on paaipe_agents only). Uploads go to media.paaipe.org.
     photoUrl: (typeof profile.photoUrl === "string" && profile.photoUrl.trim())
       ? profile.photoUrl.trim() : "",
+    // The member's own public profile fields. Absent on older profiles, so each
+    // defaults to "" and the UI hides empty sections rather than inventing copy.
+    organization: typeof profile.organization === "string" ? profile.organization : "",
+    headline: typeof profile.headline === "string" ? profile.headline : "",
+    about: typeof profile.about === "string" ? profile.about : "",
+    link: typeof profile.link === "string" ? profile.link : "",
   };
 }
 
@@ -322,6 +328,28 @@ export async function markConfirmationSeen() {
   const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
   if (!user) return;
   await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), { confirmation_seen: true });
+}
+
+/** Save the member's own editable profile fields on paaipe_agents. Only the
+ *  fields present in `patch` are written, each trimmed and length-clamped to the
+ *  same limits the Firestore rules enforce, so both the web portal and the
+ *  mobile app read and write the exact same record. Never writes status,
+ *  agentNumber or confirmation — those are administrative. */
+export async function updateAgentProfile(patch) {
+  const A = await import(`${SDK}/firebase-auth.js`);
+  const F = await import(`${SDK}/firebase-firestore.js`);
+  const a = await auth();
+  const user = await new Promise(res => { const un = A.onAuthStateChanged(a, u => { un(); res(u); }); });
+  if (!user) throw new Error("not-signed-in");
+  const limits = { full_name: 120, organization: 160, headline: 120, about: 2000, link: 300 };
+  const data = {};
+  for (const key of Object.keys(limits)) {
+    if (!patch || !(key in patch)) continue;
+    const value = typeof patch[key] === "string" ? patch[key].trim().slice(0, limits[key]) : "";
+    data[key] = value;
+  }
+  if (Object.keys(data).length === 0) return;
+  await F.updateDoc(F.doc(await db(), COLLECTIONS.agents, user.uid), data);
 }
 
 /** Set whether this member appears in the Agent Directory. The member controls

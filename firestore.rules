@@ -187,7 +187,25 @@ service cloud.firestore {
 
       allow update: if request.auth != null && request.auth.uid == uid
                     && request.resource.data.diff(resource.data)
-                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen','photoUrl'])
+                         .affectedKeys().hasOnly(['full_name','updates','directoryVisible','confirmation_seen','photoUrl','organization','headline','about','link'])
+                    // the member's own public profile fields, each optional and
+                    // length-bounded. "organization" is the member's company,
+                    // shown on the directory tile and their public card.
+                    && (!('full_name' in request.resource.data.keys())
+                        || (request.resource.data.full_name is string
+                            && request.resource.data.full_name.size() <= 120))
+                    && (!('organization' in request.resource.data.keys())
+                        || (request.resource.data.organization is string
+                            && request.resource.data.organization.size() <= 160))
+                    && (!('headline' in request.resource.data.keys())
+                        || (request.resource.data.headline is string
+                            && request.resource.data.headline.size() <= 120))
+                    && (!('about' in request.resource.data.keys())
+                        || (request.resource.data.about is string
+                            && request.resource.data.about.size() <= 2000))
+                    && (!('link' in request.resource.data.keys())
+                        || (request.resource.data.link is string
+                            && request.resource.data.link.size() <= 300))
                     && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['photoUrl'])
                         || request.resource.data.photoUrl == ''
                         || (request.resource.data.photoUrl is string

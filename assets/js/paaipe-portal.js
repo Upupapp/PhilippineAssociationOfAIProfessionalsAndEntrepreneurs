@@ -14,7 +14,7 @@
  */
 import { currentAgent, signOutNow, isConfigured, setDirectoryVisible,
          membershipStatus, resendVerification, markConfirmationSeen,
-         GATE_GUESTS } from "/assets/js/paaipe-firebase.js";
+         updateAgentProfile, GATE_GUESTS } from "/assets/js/paaipe-firebase.js";
 import { initProfilePhoto } from "/assets/js/paaipe-profile-photo.js";
 import { samePage } from "/assets/js/paaipe-samepage.js";
 
@@ -162,10 +162,45 @@ const greet = () => {
     });
   });
 
-  document.querySelectorAll("input[data-agent-field='full_name']")
-    .forEach(i => { i.value = agent.full_name || ""; });
-  document.querySelectorAll("input[data-agent-field='email']")
-    .forEach(i => { i.value = agent.email || ""; });
+  const fieldValue = {
+    full_name: agent.full_name || "",
+    email: agent.email || "",
+    organization: agent.organization || "",
+    headline: agent.headline || "",
+    about: agent.about || "",
+    link: agent.link || "",
+  };
+  document.querySelectorAll("[data-agent-field]").forEach(el => {
+    const key = el.getAttribute("data-agent-field");
+    if (key in fieldValue) el.value = fieldValue[key];
+  });
+
+  // "Save changes" persists the member-editable fields to paaipe_agents, the
+  // same record the mobile app reads and writes. Email is read-only and never
+  // sent. A failure keeps the form as typed and tells the member.
+  document.querySelectorAll("button.btn-gold").forEach(function (btn) {
+    if ((btn.textContent || "").trim() !== "Save changes") return;
+    btn.addEventListener("click", async function (e) {
+      e.preventDefault();
+      var patch = {};
+      document.querySelectorAll("[data-agent-field]").forEach(function (el) {
+        var key = el.getAttribute("data-agent-field");
+        if (key && key !== "email") patch[key] = el.value;
+      });
+      var original = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = "Saving…";
+      try {
+        await updateAgentProfile(patch);
+        btn.textContent = "Saved";
+        setTimeout(function () { btn.textContent = original; btn.disabled = false; }, 1500);
+      } catch (err) {
+        btn.textContent = original;
+        btn.disabled = false;
+        alert("Your changes could not be saved. Please try again.");
+      }
+    });
+  });
 
   // ---------- membership signifiers (guest / pending confirmation) ----------
   // QA ONLY: ?membership=guest_unverified|guest_pending|agent overrides the

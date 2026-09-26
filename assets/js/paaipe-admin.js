@@ -101,6 +101,7 @@ export const ADMIN_NAV = [
   { label: "Announcements",  icon: "mega",   waiting: "no announcement data exists" },
   { label: "Communications", icon: "mail",   waiting: "sending mail needs an SMTP provider" },
   { sec: "SYSTEM" },
+  { href: "admin-telemetry.html", label: "Telemetry",  icon: "chart",  built: true },
   { label: "Roles & Settings", icon: "cog",  waiting: "there is one administrator, named in firestore.rules" },
 ];
 

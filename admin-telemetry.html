@@ -1,0 +1,49 @@
+<!doctype html><html lang="en" data-page="admin-telemetry"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Telemetry — PAAIPE Admin</title><link rel="icon" href="favicon.ico" sizes="any"><link rel="icon" type="image/png" sizes="32x32" href="assets/img/favicon-32.png"><link rel="icon" type="image/png" sizes="16x16" href="assets/img/favicon-16.png"><link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png"><meta name="robots" content="noindex,nofollow"><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><link rel="stylesheet" href="assets/css/paaipe-admin.css"></head><body data-admin-telemetry>
+<div class="ashell">
+
+  <aside class="aside" id="admin-aside">
+    <a class="logo" href="admin.html"><img src="assets/img/paaipe-logo.png" alt="PAAIPE"><span>ADMIN</span></a>
+    <ul class="amenu" data-admin-nav></ul>
+  </aside>
+
+  <div class="amain">
+    <header class="top" data-admin-top>
+      <button type="button" class="aburger" data-admin-burger aria-label="Menu" aria-expanded="false" aria-controls="admin-aside"><span></span></button>
+    </header>
+
+    <div class="wrap">
+      <nav class="crumbs" data-crumbs></nav>
+      <div class="flash" data-flash hidden></div>
+
+      <section>
+        <div class="page-head">
+          <div>
+            <h1>Telemetry</h1>
+            <p class="sub">Fleet-wide offline rate for event registrations, from anonymous on-device
+              counters. No device id or member data is stored or shown — only daily totals.</p>
+          </div>
+        </div>
+
+        <section class="card" data-tel-config>
+          <div class="hd"><h2>Report endpoint</h2></div>
+          <div class="f"><label>telemetryReport function URL</label>
+            <input data-tel-url type="url" placeholder="https://telemetryreport-….a.run.app" maxlength="400"></div>
+          <div class="frow" style="margin-top:8px">
+            <button type="button" class="btn btn-gold" data-tel-load>Load report</button>
+            <button type="button" class="btn btn-ghost" data-tel-clear>Clear</button>
+          </div>
+          <p class="note">The daily rollup collection is server-only, so this reads it through the
+            deployed <code>telemetryReport</code> Cloud Function. Paste its URL once — it is remembered
+            in this browser. Until the function is deployed there is nothing to read; this page shows
+            that plainly rather than a fake chart.</p>
+        </section>
+
+        <div data-tel-body>
+          <div class="empty" data-tel-empty>Set the report endpoint above to load the fleet-wide offline rate.</div>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+<script type="module" src="assets/js/paaipe-admin-telemetry.js"></script>
+</body></html>

@@ -2,7 +2,7 @@
  * PAAIPE Cloud Functions — database `paaipe` (asia-southeast1), project
  * postflowit-autos.
  *
- * Three server-side pieces the static site and mobile app cannot do themselves,
+ * Server-side pieces the static site and mobile app cannot do themselves,
  * because each needs to bypass Firestore rules or hold a secret:
  *
  *   1. onRegistrationCreated — when a member registers for an event, enqueue a
@@ -23,6 +23,15 @@
  *      single registrant's row — so the app can show real "N registered" figures
  *      without leaking anyone's personal data (RA 10173).
  *
+ *   4. telemetryIngest — accept anonymous, aggregate offline-write counters from
+ *      the app and fold them into a per-day rollup (paaipe_telemetry_daily), so
+ *      the fleet-wide offline rate is visible without storing anything that
+ *      identifies a member.
+ *
+ *   5. telemetryReport — read that rollup back (Admin SDK, aggregate only) so a
+ *      dashboard can chart the fleet-wide offline rate. Returns summed counters
+ *      and derived rates per day and overall — never a device id.
+ *
  * Deploy:  firebase deploy --only functions --project postflowit-autos
  * Secret:  firebase functions:secrets:set BREVO_API_KEY --project postflowit-autos
  */
@@ -38,6 +47,7 @@ import {
   shouldSendMailRow,
   renderMail,
   tallyRegistrationCounts,
+  buildTelemetryReport,
 } from "./lib/logic.js";
 
 const DATABASE = "paaipe";
@@ -184,5 +194,31 @@ export const telemetryIngest = onRequest({ region: REGION, cors: true }, async (
   } catch (err) {
     logger.error("telemetryIngest failed", { error: String(err) });
     res.status(500).json({ error: "ingest_failed" });
+  }
+});
+
+// --- 5. Read back the fleet-wide telemetry rollup (aggregate only) ----------
+// A read companion to telemetryIngest: the daily rollup collection is server-
+// only, so this Admin-SDK endpoint is the one place a dashboard can total it.
+// It returns summed counters and the derived offline rate per day and overall —
+// never a device id or any per-member data (RA 10173). GET, cached briefly.
+export const telemetryReport = onRequest({ region: REGION, cors: true }, async (req, res) => {
+  if (req.method !== "GET") {
+    res.status(405).json({ error: "method_not_allowed" });
+    return;
+  }
+  try {
+    const limit = Math.min(Math.max(Number(req.query.days) || 30, 1), 180);
+    const snap = await db()
+      .collection(TELEMETRY_DAILY)
+      .orderBy("__name__", "desc")
+      .limit(limit)
+      .get();
+    const report = buildTelemetryReport(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    res.set("Cache-Control", "public, max-age=300");
+    res.json({ ...report, generatedAt: Date.now() });
+  } catch (err) {
+    logger.error("telemetryReport failed", { error: String(err) });
+    res.status(500).json({ error: "report_unavailable" });
   }
 });

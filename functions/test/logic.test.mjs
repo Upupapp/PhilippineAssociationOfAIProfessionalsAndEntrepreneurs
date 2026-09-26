@@ -18,6 +18,8 @@ import {
   shouldSendMailRow,
   renderMail,
   tallyRegistrationCounts,
+  offlineRate,
+  buildTelemetryReport,
 } from "../lib/logic.js";
 
 test("onRegistrationCreated skip logic", () => {
@@ -105,4 +107,45 @@ test("tallyRegistrationCounts aggregates and excludes cancelled", () => {
   assert.equal(total, 3);
   // Never returns a registrant row — only aggregate numbers.
   assert.equal(typeof counts.e1, "number");
+});
+
+test("offlineRate is the share of writes that did not land immediately", () => {
+  // 2 queued + 1 failed out of (2 + 1 + 7) = 10 attempts -> 0.3
+  assert.equal(
+    offlineRate({ write_queued: 2, write_failure: 1, write_success: 7 }),
+    0.3,
+  );
+  // All immediate successes -> 0.
+  assert.equal(offlineRate({ write_success: 5 }), 0);
+  // No attempts at all -> null (so callers show "no data", not a fake 0%).
+  assert.equal(offlineRate({}), null);
+  assert.equal(offlineRate(null), null);
+  // Junk values are ignored rather than throwing.
+  assert.equal(offlineRate({ write_queued: -3, write_success: "x", write_failure: 2 }), 1);
+});
+
+test("buildTelemetryReport sums days, sorts newest-first, and derives rates", () => {
+  const report = buildTelemetryReport([
+    { id: "2026-09-24", devices: 4, write_success: 10, write_queued: 0, write_failure: 0 },
+    { id: "2026-09-25", devices: 6, write_success: 6, write_queued: 3, write_failure: 1 },
+  ]);
+  // Newest day first.
+  assert.deepEqual(
+    report.days.map((d) => d.date),
+    ["2026-09-25", "2026-09-24"],
+  );
+  // Per-day derived rate.
+  assert.equal(report.days[0].offlineRate, 0.4); // (3+1)/(6+3+1)
+  assert.equal(report.days[1].offlineRate, 0); // all immediate
+  // Totals summed across days.
+  assert.equal(report.totals.devices, 10);
+  assert.equal(report.totals.write_success, 16);
+  assert.equal(report.totals.write_queued, 3);
+  assert.equal(report.totals.write_failure, 1);
+  // Overall offline rate from the summed totals: 4 / 20 = 0.2.
+  assert.equal(report.offlineRate, 0.2);
+  // Empty input is a well-formed empty report, not a crash.
+  const empty = buildTelemetryReport([]);
+  assert.deepEqual(empty.days, []);
+  assert.equal(empty.offlineRate, null);
 });

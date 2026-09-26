@@ -101,3 +101,58 @@ export function tallyRegistrationCounts(rows) {
   }
   return { counts, total };
 }
+
+const TELEMETRY_COUNTERS = [
+  "write_success",
+  "write_failure",
+  "write_queued",
+  "queue_flush_settled",
+  "cancel_success",
+  "cancel_failure",
+];
+
+function toCount(value) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * Share of registration write attempts that did not land immediately — i.e.
+ * were queued offline or failed — out of all attempts. Returns null when there
+ * were no attempts, so callers can show "no data" rather than a misleading 0%.
+ */
+export function offlineRate(counters) {
+  const c = counters || {};
+  const queued = toCount(c.write_queued);
+  const failed = toCount(c.write_failure);
+  const success = toCount(c.write_success);
+  const attempts = queued + failed + success;
+  if (attempts === 0) return null;
+  return (queued + failed) / attempts;
+}
+
+/**
+ * Build an aggregate, privacy-safe telemetry report from the daily rollup docs
+ * (each shaped { id: 'YYYY-MM-DD', devices, write_success, ... }). Returns only
+ * summed counters and derived rates — never anything that identifies a device or
+ * member (RA 10173). Days are sorted newest-first.
+ */
+export function buildTelemetryReport(docs) {
+  const days = (docs || [])
+    .filter((d) => d && typeof d.id === "string")
+    .map((d) => {
+      const day = { date: d.id, devices: toCount(d.devices) };
+      for (const key of TELEMETRY_COUNTERS) day[key] = toCount(d[key]);
+      day.offlineRate = offlineRate(d);
+      return day;
+    })
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+
+  const totals = { devices: 0 };
+  for (const key of TELEMETRY_COUNTERS) totals[key] = 0;
+  for (const day of days) {
+    totals.devices += day.devices;
+    for (const key of TELEMETRY_COUNTERS) totals[key] += day[key];
+  }
+  return { days, totals, offlineRate: offlineRate(totals) };
+}

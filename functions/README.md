@@ -13,6 +13,7 @@ mobile app.
 | `onMailQueued` | Firestore create on `paaipe_mail_queue/{id}` | Sends the row via Brevo's transactional API and stamps it `sent`. With no `BREVO_API_KEY` set, the row is left pending (and logged) rather than dropped. Idempotent: never sends a row twice. |
 | `eventRegistrationCounts` | HTTPS (CORS) | Returns per-event **counts only** (`{ counts: { [eventId]: n }, total }`), reading just `eventId` + `status` with the Admin SDK. A member can't read others' registrations, so this is the only leak-free way to show real "N registered" numbers. Cancelled rows are excluded. |
 | `telemetryIngest` | HTTPS (CORS, POST) | Folds anonymous offline-write counters posted by the app into a per-day rollup in `paaipe_telemetry_daily/{YYYY-MM-DD}` (`FieldValue.increment`), so the fleet-wide offline rate is visible server-side. No personal data is stored — only counts and a device tally. The collection is server-only (denied to clients by the rules catch-all). |
+| `telemetryReport` | HTTPS (CORS, GET) | Reads that rollup back with the Admin SDK and returns **aggregate only** (`{ days: [...], totals, offlineRate }`) — summed counters plus the derived offline rate per day and overall, never a device id. `?days=N` bounds the window (default 30, max 180). The admin **Telemetry** page charts it. |
 
 ## Testing
 
@@ -55,6 +56,11 @@ counts. Its URL is only known after deploy, so the app reads it from
 fabricates a number. Likewise the app posts anonymous telemetry to
 `telemetryIngest` when `VITE_PAAIPE_TELEMETRY_URL` is set, and keeps telemetry
 on-device only when it is not.
+
+The admin **Telemetry** page (`admin-telemetry.html`) reads `telemetryReport` to
+chart the fleet-wide offline rate. Its URL is likewise only known after deploy,
+so the page takes it as a pasted endpoint (remembered per-browser) and shows an
+explicit "not deployed / could not reach" state rather than a fake chart.
 
 ## Note on running here
 

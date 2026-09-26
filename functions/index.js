@@ -36,7 +36,7 @@
  * Secret:  firebase functions:secrets:set SENDGRID_API_KEY --project postflowit-autos
  */
 import { initializeApp } from "firebase-admin/app";
-import { getFirestore, FieldValue, FieldPath } from "firebase-admin/firestore";
+import { getFirestore, FieldValue } from "firebase-admin/firestore";
 import { onDocumentCreated } from "firebase-functions/v2/firestore";
 import { onRequest } from "firebase-functions/v2/https";
 import { defineSecret, defineString } from "firebase-functions/params";
@@ -211,12 +211,16 @@ export const telemetryReport = onRequest({ region: REGION, cors: true }, async (
   }
   try {
     const limit = Math.min(Math.max(Number(req.query.days) || 30, 1), 180);
-    const snap = await db()
-      .collection(TELEMETRY_DAILY)
-      .orderBy(FieldPath.documentId(), "desc")
-      .limit(limit)
-      .get();
-    const report = buildTelemetryReport(snap.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+    // The daily rollup holds one small doc per day, so we read the collection and
+    // sort/slice in memory. This avoids requiring a Firestore index for an
+    // ordered query on the named `paaipe` database (which would otherwise fail
+    // with FAILED_PRECONDITION until the index is built).
+    const snap = await db().collection(TELEMETRY_DAILY).get();
+    const rows = snap.docs
+      .map((doc) => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => (a.id < b.id ? 1 : a.id > b.id ? -1 : 0))
+      .slice(0, limit);
+    const report = buildTelemetryReport(rows);
     res.set("Cache-Control", "public, max-age=300");
     res.json({ ...report, generatedAt: Date.now() });
   } catch (err) {

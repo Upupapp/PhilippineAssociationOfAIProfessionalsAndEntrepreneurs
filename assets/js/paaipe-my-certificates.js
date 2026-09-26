@@ -13,6 +13,8 @@
  *   GET /v1/me/certificates?q=&year=&sort=   Bearer
  *   Card: eventTitle, eventDate, year, series, pdfUrl, pngUrl,
  *         issuedAt, emailedAt, id?, eventId?
+ *   Email-only issued rows (eventId / emailedAt, no pdf/png) stay as
+ *   cards. emailedAt is shown so the card is not a blank issued stub.
  *   Prod is 404 until Paul deploys — honest empty, no invented rows.
  *   Local smoke: ?paaipe_api=http://127.0.0.1:8080
  *
@@ -51,7 +53,7 @@ export function seriesKey(series) {
 
 export function cardYear(card) {
   if (card?.year) return String(card.year);
-  const raw = String(card?.eventDate || card?.issuedAt || "");
+  const raw = String(card?.eventDate || card?.issuedAt || card?.emailedAt || "");
   const m = raw.match(/\d{4}/);
   return m ? m[0] : "";
 }
@@ -69,7 +71,7 @@ export function formatCertDate(value) {
 
 export function seriesLine(card) {
   const series = card?.series;
-  const raw = String(card?.eventDate || card?.issuedAt || "");
+  const raw = String(card?.eventDate || card?.issuedAt || card?.emailedAt || "");
   const iso = /^(\d{4})-(\d{2})/.exec(raw);
   let monthYear = "";
   if (iso) {
@@ -182,6 +184,7 @@ function cardActions(card) {
 export function cardHtml(card) {
   const eventDate = formatCertDate(card.eventDate);
   const issued = formatCertDate(card.issuedAt);
+  const emailed = formatCertDate(card.emailedAt);
   const line = seriesLine(card);
   return `<article class="mc-card" data-mc-card
     data-year="${esc(cardYear(card))}" data-series="${esc(seriesKey(card.series))}"
@@ -194,6 +197,7 @@ export function cardHtml(card) {
         <span class="mc-pill">Issued</span>
         ${eventDate ? `<span class="mc-date">Event · ${esc(eventDate)}</span>` : ""}
         ${issued ? `<span class="mc-date">Issued · ${esc(issued)}</span>` : ""}
+        ${emailed ? `<span class="mc-date" data-mc-emailed>Emailed · ${esc(emailed)}</span>` : ""}
       </div>
       <p class="mc-msg" data-mc-msg hidden></p>
     </div>

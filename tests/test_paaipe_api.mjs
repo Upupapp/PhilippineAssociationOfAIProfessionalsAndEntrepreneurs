@@ -1669,6 +1669,34 @@ await T("GET /v1/me/certificates binds Clarence’s card fields only", async () 
   eq(unauth.items.length, 0, "401 has no list");
 });
 
+await T("email-only issued rows (eventId + emailedAt) stay; junk still dropped", () => {
+  const bound = api.bindMeCertificateList({
+    certificates: [
+      {
+        eventId: "2026-09-ai-exchange",
+        emailedAt: "2026-09-15T05:00:00.000Z",
+      },
+      { emailedAt: "2026-09-15T05:00:00.000Z" },
+      { eventId: "2026-08-ai-exchange" },
+      {},
+      { series: "Only series" },
+      { year: 2026 },
+    ],
+  });
+  eq(bound.length, 3, "email-only / eventId-only kept; empty, series-only, year-only dropped");
+  eq(bound[0].eventId, "2026-09-ai-exchange", "eventId kept");
+  eq(bound[0].emailedAt, "2026-09-15T05:00:00.000Z", "emailedAt copied");
+  eq(bound[0].pdfUrl, "", "no invented pdf");
+  eq(bound[0].pngUrl, "", "no invented png");
+  eq(bound[0].eventTitle, "", "no invented title");
+  eq(bound[0].issuedAt, null, "no invented issuedAt");
+  eq(bound[1].eventId, "", "emailedAt-only has empty eventId");
+  eq(bound[1].emailedAt, "2026-09-15T05:00:00.000Z", "emailedAt-only kept");
+  eq(bound[2].eventId, "2026-08-ai-exchange", "eventId-only kept");
+  eq(bound[2].emailedAt, null, "eventId-only has no emailedAt");
+  ok(!("extraInvented" in bound[0]), "unknown keys still not copied");
+});
+
 await br.close();
 console.log(`\n==== ${pass} passed, ${fail} failed ====`);
 process.exit(fail ? 1 : 0);

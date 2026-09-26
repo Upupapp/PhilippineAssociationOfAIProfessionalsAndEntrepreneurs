@@ -149,25 +149,42 @@ await T("exported bind/group/hash helpers", async () => {
     ];
     const view = m.viewFromHash("#q=signals&sort=title_asc&year=2026");
     const params = m.hashParamsFromView({ q: "", sort: "date_desc", year: "", series: "", collapsed: [] });
+    const emailOnly = {
+      eventId: "2026-09-ai-exchange",
+      emailedAt: "2026-09-15T05:00:00.000Z",
+      eventTitle: "",
+      pdfUrl: "",
+      pngUrl: "",
+    };
     return {
       seriesKey: m.seriesKey("AI Exchange"),
       year: m.cardYear({ year: 2026 }),
+      yearFromEmail: m.cardYear(emailOnly),
       groups: m.groupByYear(items).length,
       cards: m.groupByYear(items)[0].items.length,
       q: view.q,
       sort: view.sort,
       yearQ: view.year,
       emptyHash: Object.keys(params).length,
+      emailHtml: m.cardHtml(emailOnly),
     };
   });
   eq(got.seriesKey, "ai-exchange", "series slug");
   eq(got.year, "2026", "year");
+  eq(got.yearFromEmail, "2026", "emailedAt year fallback");
   eq(got.groups, 1, "one year group");
   eq(got.cards, 2, "2 cards");
   eq(got.q, "signals", "q");
   eq(got.sort, "title_asc", "sort");
   eq(got.yearQ, "2026", "year");
   eq(got.emptyHash, 0, "defaults omitted from hash");
+  ok(/data-mc-emailed/.test(got.emailHtml), "emailedAt rendered");
+  ok(/Emailed · Sep 15, 2026/.test(got.emailHtml), "Sept 15 emailed date");
+  ok(/Certificate of Participation/.test(got.emailHtml), "title fallback");
+  ok(/data-mc-download disabled/.test(got.emailHtml), "download stays disabled");
+  ok(/data-mc-view disabled/.test(got.emailHtml), "view stays disabled");
+  ok(/data-event-id="2026-09-ai-exchange"/.test(got.emailHtml), "eventId on card");
+  ok(!/href="[^"]*media\.paaipe\.org/.test(got.emailHtml), "no invented media href");
   await ctx.close();
 });
 
@@ -216,6 +233,52 @@ await T("200 list paints Clarence cards; URL updates; collapse defaults open", a
   await p.locator(".mc-group [data-collapse-hd]").first().click();
   await p.waitForFunction(() => document.querySelector(".mc-group")?.classList.contains("is-collapsed"));
   ok(/collapsed=/.test(p.url()), "collapsed groups in hash");
+  await ctx.close();
+});
+
+await T("Sept 15 email-only rows paint as cards; junk dropped; downloads stay off", async () => {
+  const EMAIL_ONLY = {
+    certificates: [
+      {
+        eventId: "2026-09-ai-exchange",
+        emailedAt: "2026-09-15T05:00:00.000Z",
+      },
+      {},
+      { series: "Only series" },
+      { year: 2026 },
+      {
+        id: "c-sep",
+        eventId: "2026-09-ai-exchange-full",
+        eventTitle: "From Signals to Strategy: Using AI to Turn Data into Real Insight",
+        eventDate: "2026-09-15",
+        year: 2026,
+        series: "AI Exchange",
+        pdfUrl: "https://media.paaipe.org/certificates/sep.pdf",
+        pngUrl: "https://media.paaipe.org/certificates/sep.png",
+        issuedAt: "2026-09-15",
+        emailedAt: "2026-09-15T05:00:00.000Z",
+      },
+    ],
+  };
+  const { p, ctx } = await open("portal-my-certificates.html", {
+    listStatus: 200, listBody: EMAIL_ONLY,
+  });
+  await p.waitForSelector("[data-mc-card]");
+  eq(await p.locator("[data-mc-card]").count(), 2, "email-only + full kept; junk dropped");
+  const emailOnly = p.locator("[data-mc-card]").first();
+  eq(await emailOnly.getAttribute("data-event-id"), "2026-09-ai-exchange", "eventId on card");
+  eq(await emailOnly.getAttribute("data-year"), "2026", "grouped by emailedAt year");
+  ok(await emailOnly.locator("[data-mc-download]").isDisabled(), "download disabled without pdfUrl");
+  ok(await emailOnly.locator("[data-mc-view]").isDisabled(), "view disabled without png/pdf");
+  ok(!(await emailOnly.locator("[data-mc-email]").isDisabled()), "Email me wired via eventId");
+  const emailed = await emailOnly.locator("[data-mc-emailed]").innerText();
+  ok(/Emailed/.test(emailed), "emailedAt surfaced");
+  ok(/Sep 15, 2026/.test(emailed), "Sept 15 emailed date");
+  ok(/Certificate of Participation/.test(await emailOnly.locator("h2").innerText()), "title fallback");
+  const full = p.locator("[data-mc-card]").nth(1);
+  ok(await full.locator("[data-mc-emailed]").count(), "full card also shows emailed");
+  eq(await full.locator("[data-mc-download]").getAttribute("href"),
+    "https://media.paaipe.org/certificates/sep.pdf", "full download intact");
   await ctx.close();
 });
 

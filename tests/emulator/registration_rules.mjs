@@ -23,6 +23,8 @@ import {
   assertFails,
   assertSucceeds,
 } from "@firebase/rules-unit-testing";
+import assert from "node:assert/strict";
+import { buildTelemetryReport } from "../../functions/lib/logic.js";
 import {
   doc,
   getDoc,
@@ -225,6 +227,80 @@ await T(
 await T(
   "anonymous visitor cannot read the mail queue",
   assertFails(getDoc(doc(anon, MAIL, "m1"))),
+);
+
+// --- telemetry rollup is server-only; report shape is aggregate-only --------
+// paaipe_telemetry_daily is written by telemetryIngest and read by
+// telemetryReport, both Admin SDK. No client may touch it (catch-all deny), and
+// the report the endpoint returns must be pure aggregate — no device id, ever.
+const TELEMETRY = "paaipe_telemetry_daily";
+await testEnv.withSecurityRulesDisabled(async (ctx) => {
+  const db = ctx.firestore();
+  await setDoc(doc(db, TELEMETRY, "2026-09-24"), {
+    devices: 4,
+    write_success: 10,
+    write_queued: 0,
+    write_failure: 0,
+  });
+  await setDoc(doc(db, TELEMETRY, "2026-09-25"), {
+    devices: 6,
+    write_success: 6,
+    write_queued: 3,
+    write_failure: 1,
+    cancel_success: 2,
+    cancel_failure: 0,
+  });
+});
+await T(
+  "member cannot read the telemetry rollup",
+  assertFails(getDoc(doc(alice, TELEMETRY, "2026-09-25"))),
+);
+await T(
+  "admin cannot read the telemetry rollup from a client",
+  assertFails(getDoc(doc(admin, TELEMETRY, "2026-09-25"))),
+);
+await T(
+  "member cannot write the telemetry rollup",
+  assertFails(setDoc(doc(alice, TELEMETRY, "2026-09-25"), { devices: 999 })),
+);
+await T(
+  "anonymous visitor cannot read the telemetry rollup",
+  assertFails(getDoc(doc(anon, TELEMETRY, "2026-09-25"))),
+);
+
+// Read the seeded rollup with the Admin path (rules disabled, exactly as the
+// telemetryReport function does) and assert buildTelemetryReport's exact shape:
+// days sorted newest-first, summed totals, derived offline rate, and NO field
+// that could identify a device or member.
+await T(
+  "telemetryReport builds an aggregate-only report from the emulator rollup",
+  (async () => {
+    let docs = [];
+    await testEnv.withSecurityRulesDisabled(async (ctx) => {
+      const snap = await getDocs(collection(ctx.firestore(), TELEMETRY));
+      docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    });
+    const report = buildTelemetryReport(docs);
+    // newest day first
+    assert.deepEqual(
+      report.days.map((d) => d.date),
+      ["2026-09-25", "2026-09-24"],
+    );
+    // per-day and overall offline rate
+    assert.equal(report.days[0].offlineRate, 0.4); // (3+1)/(6+3+1)
+    assert.equal(report.days[1].offlineRate, 0); // all immediate
+    assert.equal(report.offlineRate, 0.2); // 4 / 20 across both days
+    // summed totals
+    assert.equal(report.totals.devices, 10);
+    assert.equal(report.totals.write_success, 16);
+    assert.equal(report.totals.write_queued, 3);
+    assert.equal(report.totals.write_failure, 1);
+    // aggregate only: no per-device identity leaks through
+    const serialized = JSON.stringify(report);
+    for (const banned of ["deviceId", "device_id", "uid", "email", "installId"]) {
+      assert.ok(!serialized.includes(banned), `report must not include ${banned}`);
+    }
+  })(),
 );
 
 await testEnv.cleanup();
